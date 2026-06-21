@@ -197,8 +197,9 @@ render loop hides regressions that static checks miss).
       keep bodies visible without distorting positions.
 - [ ] Centralise world→screen distance in one module; add a `scaleCompression`
       parameter (default identity) and a single `LY_PER_SECTOR` density constant.
-- [ ] Runtime time-scale: accumulate `simSeconds += dt·timeScale`; expose a slider
-      (default realistic).
+- [x] Runtime time-scale: accumulate `simSeconds += dt·timeScale`; expose a slider
+      (discrete preset steps: pause · 0.25× … 1 day/s, default 1×). Includes a
+      human-readable **sim-date** readout (epoch 2100-01-01 UTC = second 0).
 - [ ] Validate: no positional jitter when zoomed onto a planet far from origin;
       bounded draw count preserved across the (now larger) zoom range.
 - [ ] Emptiness mitigations: confirm LOD aggregates fill the field on zoom-out;

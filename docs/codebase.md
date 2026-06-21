@@ -9,6 +9,7 @@
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
 | `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow. |
+| `src/ui/` | DOM overlays above the canvas (the simulation clock and time-scale slider). |
 | `src/persistence/` | World-seed persistence via the engine `save` module (random on first run; cleared storage = new universe). |
 | `docs/` | Project documentation and plans. |
 
@@ -27,5 +28,6 @@
   layer; keep DOM/ECS side effects in the spawn step).
 - LOD tiers, streaming, and the sector cache → `src/lod/`.
 - Simulation systems → `src/sim/` (alongside the orbit system).
+- DOM UI overlays (readouts, controls) → `src/ui/`.
 - Persistence (seed + player deltas) → `src/persistence/` (`seed.ts` persists
   the world seed today; player deltas and naming are deferred).

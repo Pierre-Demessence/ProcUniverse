@@ -14,9 +14,9 @@ import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
 import { renderFrame } from './render/scene';
 import { OrbitElementsDef, updateOrbits } from './sim/orbits';
+import { createTimeControls } from './ui/time-controls';
 
 const TARGET_MS = 1000 / 60;
-const TIME_SCALE = 2;
 const REBASE_DIST = SECTOR_SIZE * 8;
 const FADE_MS = 220;
 const HINT = 'Drag to pan  ·  Scroll to zoom';
@@ -58,6 +58,7 @@ export function start(container: HTMLElement, seed: number): () => void {
   sizeCanvas();
 
   const controller = createCameraController(canvas);
+  const timeControls = createTimeControls(container);
 
   const world = new EcsWorld();
   world.registerComponent(PositionDef);
@@ -118,12 +119,12 @@ export function start(container: HTMLElement, seed: number): () => void {
   watchDpr();
 
   const { camera } = controller;
-  let clockMs = 0;
+  let simSeconds = 0;
   let currentTier: Tier = 'system';
   const renderSource = new AnimationFrameTickSource();
   const unsubscribe = renderSource.subscribe((info) => {
     const dt = info.deltaMs ?? 0;
-    clockMs += dt;
+    simSeconds += (dt / 1000) * timeControls.timeScale;
     frameStats.sample(dt);
 
     const tier = selectTier(camera, currentTier);
@@ -151,7 +152,7 @@ export function start(container: HTMLElement, seed: number): () => void {
     world.clearAllDirty();
 
     if (tier === 'system')
-      updateOrbits(world, (clockMs / 1000) * TIME_SCALE);
+      updateOrbits(world, simSeconds);
 
     // Capture the previous (old-tier) frame to cross-fade out of on a tier change.
     if (tierChanged) {
@@ -189,6 +190,7 @@ export function start(container: HTMLElement, seed: number): () => void {
 
     drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS });
     drawHint(ctx2d, canvas, tier);
+    timeControls.update(simSeconds);
   });
   renderSource.start();
 
@@ -198,6 +200,7 @@ export function start(container: HTMLElement, seed: number): () => void {
     resizeObserver.disconnect();
     dprQuery?.removeEventListener('change', onDprChange);
     controller.dispose();
+    timeControls.dispose();
   };
 }
 
