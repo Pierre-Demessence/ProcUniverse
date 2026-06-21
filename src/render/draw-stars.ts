@@ -33,7 +33,7 @@ export function drawStars(
         if (v.vx < -4 || v.vx > cam.viewportW + 4 || v.vy < -4 || v.vy > cam.viewportH + 4)
           continue;
         const r = Math.max(MIN_DOT, sys.radius * cam.zoom);
-        ctx2d.fillStyle = sys.color;
+        ctx2d.fillStyle = sys.star.colorHex;
         if (r <= SQUARE_BELOW) {
           ctx2d.fillRect(v.vx - r, v.vy - r, r * 2, r * 2);
         }

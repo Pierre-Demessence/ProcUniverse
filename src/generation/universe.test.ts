@@ -24,16 +24,22 @@ describe('generateSectorData', () => {
     expect(b).not.toEqual(a);
   });
 
-  it('produces well-formed systems and Keplerian (outward-slowing) orbits', () => {
+  it('produces well-formed systems with outward, bounded-eccentricity orbits', () => {
     const { systems } = generateSectorData(1337, 0, 0);
     expect(systems.length).toBeGreaterThan(0);
     for (const sys of systems) {
       expect(sys.radius).toBeGreaterThan(0);
+      expect(sys.star.mass).toBeGreaterThan(0);
       expect(sys.planets.length).toBeGreaterThan(0);
-      for (let i = 1; i < sys.planets.length; i++) {
-        // Orbits are ordered outward, and a larger radius means a slower sweep.
-        expect(sys.planets[i].a).toBeGreaterThan(sys.planets[i - 1].a);
-        expect(sys.planets[i].omega).toBeLessThan(sys.planets[i - 1].omega);
+      for (let i = 0; i < sys.planets.length; i++) {
+        const p = sys.planets[i];
+        expect(p.e).toBeGreaterThanOrEqual(0);
+        expect(p.e).toBeLessThan(1);
+        expect(p.argPeriapsis).toBeGreaterThanOrEqual(0);
+        expect(p.meanAnomaly0).toBeGreaterThanOrEqual(0);
+        // Orbits are ordered strictly outward.
+        if (i > 0)
+          expect(p.a).toBeGreaterThan(sys.planets[i - 1].a);
       }
     }
   });

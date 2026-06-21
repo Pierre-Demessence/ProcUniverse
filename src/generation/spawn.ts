@@ -6,7 +6,8 @@ import type { SectorData } from './universe';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
-import { OrbitDef } from '../sim/orbits';
+import { OrbitElementsDef } from '../sim/orbits';
+import { StarPhysicalDef } from './stars';
 
 const STAR_STROKE = 'rgba(255, 255, 255, 0.65)';
 
@@ -26,7 +27,8 @@ export function spawnSector(
 ): EntityId[] {
   const positions = world.getStore(PositionDef);
   const renderables = world.getStore(RenderableDef);
-  const orbits = world.getStore(OrbitDef);
+  const orbits = world.getStore(OrbitElementsDef);
+  const starPhysicals = world.getStore(StarPhysicalDef);
   const ids: EntityId[] = [];
 
   for (const sys of data.systems) {
@@ -35,12 +37,13 @@ export function spawnSector(
     const starId = world.createEntity();
     positions.set(starId, { x: cx, y: cy });
     renderables.set(starId, {
-      fill: sys.color,
+      fill: sys.star.colorHex,
       kind: 'circle',
       lineWidth: 2,
       radius: sys.radius,
       stroke: STAR_STROKE,
     });
+    starPhysicals.set(starId, sys.star);
     ids.push(starId);
 
     for (const planet of sys.planets) {
@@ -53,10 +56,12 @@ export function spawnSector(
       });
       orbits.set(id, {
         a: planet.a,
+        argPeriapsis: planet.argPeriapsis,
         cx,
         cy,
-        omega: planet.omega,
-        phase: planet.phase,
+        e: planet.e,
+        meanAnomaly0: planet.meanAnomaly0,
+        starMass: sys.star.mass,
       });
       ids.push(id);
     }

@@ -1,7 +1,10 @@
+import type { StarPhysical } from './stars';
+
 import { lerp } from '@pierre/ecs/modules/math';
 import { makeSeededRng, randomInt } from '@pierre/ecs/modules/rng';
 
 import { hashSector } from './hash';
+import { sampleStar } from './stars';
 
 const TAU = Math.PI * 2;
 
@@ -23,21 +26,9 @@ const GAP_MAX = 62;
 const PLANET_MIN_R = 5;
 const PLANET_MAX_R = 13;
 
-// Keplerian angular speed: omega = ORBIT_K / a^1.5. Inner planets sweep faster.
-const ORBIT_K = 600;
-
-// Real stellar colours, blue (hot) through white and yellow to red (cool).
-const STAR_COLORS = [
-  '#9bb0ff',
-  '#bcd0ff',
-  '#e6ecff',
-  '#fff6f0',
-  '#fff2d6',
-  '#ffe0a8',
-  '#ffcaa1',
-  '#ff9f80',
-  '#ff7a66',
-];
+// Eccentricity is squared-biased toward 0 (median ~0.1), so most orbits are
+// near-circular with the occasional elongated one — as observed.
+const ECC_MAX = 0.4;
 
 const PLANET_COLORS = [
   '#8a6f52',
@@ -52,16 +43,17 @@ const PLANET_COLORS = [
 
 export interface PlanetData {
   a: number;
+  argPeriapsis: number;
   color: string;
-  omega: number;
-  phase: number;
+  e: number;
+  meanAnomaly0: number;
   radius: number;
 }
 
 export interface SystemData {
-  color: string;
   planets: PlanetData[];
   radius: number;
+  star: StarPhysical;
   x: number;
   y: number;
 }
@@ -96,24 +88,25 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const x = originX + (gx + 0.5) * CELL + (rng() * 2 - 1) * JITTER;
       const y = originY + (gy + 0.5) * CELL + (rng() * 2 - 1) * JITTER;
       const radius = lerp(STAR_MIN_R, STAR_MAX_R, rng());
-      const color = choose(STAR_COLORS, rng);
+      const star = sampleStar(rng);
       const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, rng);
 
       const planets: PlanetData[] = [];
       let a = radius + FIRST_GAP;
       for (let i = 0; i < planetCount; i++) {
         a += lerp(GAP_MIN, GAP_MAX, rng());
-        planets.push({
-          a,
-          color: choose(PLANET_COLORS, rng),
-          omega: ORBIT_K / (a ** 1.5),
-          phase: rng() * TAU,
-          radius: lerp(PLANET_MIN_R, PLANET_MAX_R, rng()),
-        });
+        // Draw into locals so eslint's object-key sorting cannot reorder the
+        // rng() side effects and shift the deterministic stream.
+        const color = choose(PLANET_COLORS, rng);
+        const e = rng() ** 2 * ECC_MAX;
+        const argPeriapsis = rng() * TAU;
+        const meanAnomaly0 = rng() * TAU;
+        const planetRadius = lerp(PLANET_MIN_R, PLANET_MAX_R, rng());
+        planets.push({ a, argPeriapsis, color, e, meanAnomaly0, radius: planetRadius });
       }
 
       if (occupied)
-        systems.push({ color, planets, radius, x, y });
+        systems.push({ planets, radius, star, x, y });
     }
   }
 

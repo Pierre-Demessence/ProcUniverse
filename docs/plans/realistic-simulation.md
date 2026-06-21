@@ -161,30 +161,30 @@ render loop hides regressions that static checks miss).
 
 ### Phase A — Stellar data model (no motion/scale change yet)
 
-- [ ] `units.ts`: constants + conversions (σ, T_⊙, L_⊙, AU↔km, AU↔ly).
-- [ ] `generation/stars.ts`: IMF mass sampler (Kroupa broken power law, inverse
+- [x] `units.ts`: constants + conversions (σ, T_⊙, L_⊙, AU↔km, AU↔ly).
+- [x] `generation/stars.ts`: IMF mass sampler (Kroupa broken power law, inverse
       CDF) → `L, R, T` (piecewise relations + Stefan–Boltzmann) → spectral class
       bin.
-- [ ] Blackbody colour: port Mitchell Charity `bbr_color` anchors + interpolation;
+- [x] Blackbody colour: port Mitchell Charity `bbr_color` anchors + interpolation;
       colour = `blackbody(T)`.
-- [ ] `StarPhysical` component; `SystemData` carries the physical fields;
+- [x] `StarPhysical` component; `SystemData` carries the physical fields;
       `spawnSector` writes them; renderer reads `colorHex` (drop the random
       palette).
-- [ ] Tests: determinism (regeneration identical); sanity (1 M☉ → ~5600–5900 K,
+- [x] Tests: determinism (regeneration identical); sanity (1 M☉ → ~5600–5900 K,
       ~G class; sampled population skews ~M-dwarf-heavy per the IMF).
-- [ ] Browser E2E: systems still render; star colours now track temperature.
+- [x] Browser E2E: systems still render; star colours now track temperature.
 
 ### Phase B — Real orbital mechanics
 
-- [ ] `OrbitElements` (`a, e, argPeriapsis, meanAnomaly0, starMass`) replacing
+- [x] `OrbitElements` (`a, e, argPeriapsis, meanAnomaly0, starMass`) replacing
       `Orbit`.
-- [ ] Kepler solver (Newton, 3–5 iters) + period `P = sqrt(a³/M_star)`,
+- [x] Kepler solver (Newton, 3–5 iters) + period `P = sqrt(a³/M_star)`,
       `n = 2π/P`; elliptical position in `updateOrbits` (in-place writes, as now).
-- [ ] Seed `e` (mostly small), `argPeriapsis`, `meanAnomaly0` per planet; orbit
+- [x] Seed `e` (mostly small), `argPeriapsis`, `meanAnomaly0` per planet; orbit
       rings drawn as ellipses.
-- [ ] Tests: closed orbit returns to start after one period; faster at periapsis
+- [x] Tests: closed orbit returns to start after one period; faster at periapsis
       (Kepler II); period ratio matches `sqrt(a³/M)`.
-- [ ] Browser E2E: planets visibly trace ellipses; inner/low-`a` planets faster;
+- [x] Browser E2E: planets visibly trace ellipses; inner/low-`a` planets faster;
       heavier stars spin planets faster at equal `a`.
 
 ### Phase C — Realistic scale, coordinate model & runtime knobs

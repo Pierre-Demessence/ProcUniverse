@@ -7,12 +7,13 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
+import { StarPhysicalDef } from './generation/stars';
 import { SECTOR_SIZE } from './generation/universe';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
 import { renderFrame } from './render/scene';
-import { OrbitDef, updateOrbits } from './sim/orbits';
+import { OrbitElementsDef, updateOrbits } from './sim/orbits';
 
 const TARGET_MS = 1000 / 60;
 const TIME_SCALE = 2;
@@ -61,7 +62,8 @@ export function start(container: HTMLElement, seed: number): () => void {
   const world = new EcsWorld();
   world.registerComponent(PositionDef);
   world.registerComponent(RenderableDef);
-  world.registerComponent(OrbitDef);
+  world.registerComponent(OrbitElementsDef);
+  world.registerComponent(StarPhysicalDef);
 
   // Deterministic universe: sectors are generated on demand and cached; the
   // streamer spawns/despawns full systems for the sectors in view at the system
