@@ -24,7 +24,7 @@ npm install
 npm run dev      # http://localhost:5180
 ```
 
-Validate with `npm run typecheck` or `npm run build`.
+Validate with `npm run typecheck`, `npm test`, or `npm run build`.
 
 ## Controls
 

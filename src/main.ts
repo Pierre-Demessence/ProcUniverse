@@ -5,9 +5,14 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
+import { spawnSector } from './generation/spawn';
+import { generateSectorData, SECTOR_SIZE } from './generation/universe';
 import { renderScene } from './render/scene';
+import { OrbitDef, updateOrbits } from './sim/orbits';
 
 const TARGET_MS = 1000 / 60;
+const WORLD_SEED = 1337;
+const TIME_SCALE = 2;
 const HINT = 'Drag to pan  ·  Scroll to zoom';
 
 /**
@@ -41,21 +46,21 @@ export function start(container: HTMLElement): () => void {
   const world = new EcsWorld();
   world.registerComponent(PositionDef);
   world.registerComponent(RenderableDef);
+  world.registerComponent(OrbitDef);
 
-  // Placeholder star at the origin — validates the camera-driven ECS render
-  // pipeline end to end. Procedural generation replaces it in Phase 1.
-  const star = world.createEntity();
-  world.getStore(PositionDef).set(star, { x: 0, y: 0 });
-  world.getStore(RenderableDef).set(star, {
-    fill: '#ffd86b',
-    kind: 'circle',
-    lineWidth: 2,
-    radius: 40,
-    stroke: '#fff2b0',
-  });
+  // Phase 1: one deterministic sector of star systems whose planets ride
+  // analytic Kepler orbits. Regenerating the same sector is bit-identical.
+  const sector = generateSectorData(WORLD_SEED, 0, 0);
+  const counts = spawnSector(world, sector);
+  // The spawn `set`s queued one-time ComponentAdded lifecycle events; nothing
+  // subscribes, so drop them. (Per-frame orbit writes mutate in place and emit
+  // nothing — see updateOrbits.)
+  world.lifecycle.clear();
 
   const renderer = new Canvas2DRenderer();
   const frameStats = new FrameStats();
+  frameStats.setCounter('stars', counts.stars);
+  frameStats.setCounter('planets', counts.planets);
 
   // Keep the camera viewport equal to the canvas backing size so the renderer's
   // cull rect and the pointer math share a single coordinate space.
@@ -65,6 +70,15 @@ export function start(container: HTMLElement): () => void {
     controller.camera.viewportH = canvas.height;
   };
   syncViewport();
+
+  // Frame the first generated system so there is content centred at startup.
+  const focus = sector.systems.length > 0
+    ? sector.systems[0]
+    : { x: SECTOR_SIZE / 2, y: SECTOR_SIZE / 2 };
+  controller.camera.x = focus.x;
+  controller.camera.y = focus.y;
+  controller.camera.zoom = canvas.height / 1400;
+
   const resizeObserver = new ResizeObserver(syncViewport);
   resizeObserver.observe(container);
 
@@ -83,9 +97,13 @@ export function start(container: HTMLElement): () => void {
   }
   watchDpr();
 
+  let clockMs = 0;
   const renderSource = new AnimationFrameTickSource();
   const unsubscribe = renderSource.subscribe((info) => {
-    frameStats.sample(info.deltaMs ?? 0);
+    const dt = info.deltaMs ?? 0;
+    clockMs += dt;
+    frameStats.sample(dt);
+    updateOrbits(world, (clockMs / 1000) * TIME_SCALE);
     renderScene({ camera: controller.camera, canvas, ctx2d, renderer, world });
     drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS });
     drawHint(ctx2d, canvas);

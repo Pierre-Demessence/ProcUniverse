@@ -3,9 +3,11 @@
 | Path | Purpose |
 | ---- | ------- |
 | `index.html` | Mounts the app; calls `start()` from `src/main.ts`. |
-| `src/main.ts` | Entry: canvas, DPR/resize, ECS world, rAF loop, FPS HUD. |
+| `src/main.ts` | Entry: canvas, DPR/resize, ECS world, generation, the rAF loop with orbit updates, and the FPS HUD. |
+| `src/generation/` | Deterministic seed-driven sector generation (pure data) plus entity spawning. |
+| `src/sim/` | Analytic orbit component, per-frame orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
-| `src/render/` | Per-frame scene composition and the reference grid. |
+| `src/render/` | Per-frame scene composition, reference grid, and orbit rings. |
 | `docs/` | Project documentation and plans. |
 
 ## Conventions
@@ -19,7 +21,8 @@
 
 ## Where to add new code
 
-- Deterministic generators → `src/generation/` (Phase 1+).
+- New per-tier generators → `src/generation/` (the deterministic, pure-data
+  layer; keep DOM/ECS side effects in the spawn step).
 - LOD tier selection and streaming → `src/lod/` (Phase 2+).
-- Orbit and other simulation systems → `src/sim/` (Phase 1+).
+- Simulation systems → `src/sim/` (alongside the orbit system).
 - Persistence (seed + player deltas) → `src/persistence/` (Phase 4).

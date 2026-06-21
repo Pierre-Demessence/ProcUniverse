@@ -8,13 +8,15 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@pierre/ecs": "file:../Entity-Cornponent-System-Engine"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "vitest": "^4.1.2"
   }
 }

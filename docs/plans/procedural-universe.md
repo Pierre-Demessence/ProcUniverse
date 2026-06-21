@@ -148,12 +148,15 @@ ProcUniverse/
 
 ### Phase 1 — One sector + live orbits (vertical slice)
 
-- [ ] Deterministic system generator: sector seed -> N systems with positions,
-      star sizes/colors.
-- [ ] Star and planet templates; analytic orbit component + orbit system.
-- [ ] Render one sector of systems with planets visibly orbiting; pan/zoom
-      within it.
-- [ ] Validate: regenerating the sector is identical; 60 fps.
+- [x] Deterministic system generator: sector seed -> N systems with positions,
+      star sizes/colors. (`src/generation/`, covered by a vitest determinism
+      test.)
+- [x] Star and planet templates; analytic orbit component + orbit system.
+      (`OrbitDef` + `updateOrbits` in `src/sim/orbits.ts`.)
+- [x] Render one sector of systems with planets visibly orbiting; pan/zoom
+      within it. (Orbit rings + camera framing on the first system.)
+- [x] Validate: regenerating the sector is identical; 60 fps. (Browser-verified
+      at 75 fps with 12 systems / 41 planets; determinism asserted by tests.)
 
 ### Phase 2 — Streaming + LOD
 

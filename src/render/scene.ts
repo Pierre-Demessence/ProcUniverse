@@ -5,6 +5,7 @@ import type { Renderer } from '@pierre/ecs/renderer';
 
 import { cameraToView } from '@pierre/ecs/modules/camera';
 
+import { drawOrbitRings } from '../sim/orbits';
 import { drawReferenceGrid } from './grid';
 
 const BACKGROUND = '#05060d';
@@ -18,8 +19,8 @@ export interface SceneDeps {
 }
 
 /**
- * One frame: clear, draw the reference grid, then draw all ECS entities
- * through the camera view (the renderer culls anything off-screen).
+ * One frame: clear, draw the reference grid and faint orbit rings, then draw
+ * all ECS entities through the camera view (the renderer culls off-screen).
  */
 export function renderScene(deps: SceneDeps): void {
   const { camera, canvas, ctx2d, renderer, world } = deps;
@@ -28,6 +29,7 @@ export function renderScene(deps: SceneDeps): void {
   ctx2d.fillRect(0, 0, canvas.width, canvas.height);
 
   drawReferenceGrid(ctx2d, camera);
+  drawOrbitRings(ctx2d, camera, world);
 
   renderer.render({ ctx2d, view: cameraToView(camera), world });
 }
