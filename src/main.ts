@@ -8,16 +8,17 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
 import { StarPhysicalDef } from './generation/stars';
-import { SECTOR_SIZE } from './generation/universe';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
 import { renderFrame } from './render/scene';
+import { SECTOR_SIZE } from './scale';
 import { OrbitElementsDef, updateOrbits } from './sim/orbits';
 import { createTimeControls } from './ui/time-controls';
 
 const TARGET_MS = 1000 / 60;
 const REBASE_DIST = SECTOR_SIZE * 8;
+const SYSTEM_VIEW_AU = 40;
 const FADE_MS = 220;
 const HINT = 'Drag to pan  ·  Scroll to zoom';
 
@@ -92,7 +93,7 @@ export function start(container: HTMLElement, seed: number): () => void {
     : { x: SECTOR_SIZE / 2, y: SECTOR_SIZE / 2 };
   controller.camera.x = focus.x;
   controller.camera.y = focus.y;
-  controller.camera.zoom = canvas.height / 1400;
+  controller.camera.zoom = canvas.height / SYSTEM_VIEW_AU;
 
   // Floating render origin: everything is drawn relative to this so the renderer
   // works on small, precise coordinates however far the camera travels. Snapped

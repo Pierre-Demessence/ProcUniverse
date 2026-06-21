@@ -39,7 +39,7 @@ export function spawnSector(
     renderables.set(starId, {
       fill: sys.star.colorHex,
       kind: 'circle',
-      lineWidth: 2,
+      lineWidth: sys.radius * 0.08,
       radius: sys.radius,
       stroke: STAR_STROKE,
     });

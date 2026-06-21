@@ -10,11 +10,31 @@ const EPOCH_MS = Date.UTC(2100, 0, 1);
 
 /**
  * Discrete speed stops (simulated seconds per real second). Index 0 pauses; the
- * rest run from sub-real-time up to one simulated day per second. The slider
+ * rest run from sub-real-time up through whole-year-per-second rates. Orbital
+ * periods are real years, so the high end is needed to see motion; the slider
  * snaps to these so the displayed rate is always a clean, legible value.
  */
-export const SPEED_STEPS = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 10, 60, 3600, 86400];
-const DEFAULT_STEP_INDEX = 4; // 1x real time
+export const SPEED_STEPS = [
+  0,
+  0.25,
+  0.5,
+  0.75,
+  1,
+  1.25,
+  1.5,
+  2,
+  3,
+  4,
+  10,
+  60,
+  3600,
+  86400,
+  432000,
+  2592000,
+  31557600,
+  315576000,
+];
+const DEFAULT_STEP_INDEX = 14; // 5 days/s — a lively but calm default for year-long orbits
 
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;

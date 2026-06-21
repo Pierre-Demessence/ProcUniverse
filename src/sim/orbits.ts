@@ -6,6 +6,8 @@ import { simpleComponent } from '@pierre/ecs/component-store';
 import { worldToView } from '@pierre/ecs/modules/camera';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
+import { SECONDS_PER_YEAR } from '../generation/units';
+
 const TAU = Math.PI * 2;
 
 /**
@@ -15,15 +17,11 @@ const TAU = Math.PI * 2;
  *
  * `cx`/`cy` is the star — the orbit's focus, not its centre — in the render
  * frame; systems are static within their cell for now. `a` is the semi-major
- * axis, `e` the eccentricity (0 = circle), `argPeriapsis` the orientation of
- * the ellipse, `meanAnomaly0` the phase at `t = 0`, and `starMass` the host
+ * axis (AU), `e` the eccentricity (0 = circle), `argPeriapsis` the orientation
+ * of the ellipse, `meanAnomaly0` the phase at `t = 0`, and `starMass` the host
  * mass (M☉) that sets the period — heavier stars whip their planets around
- * faster at the same `a`.
- *
- * Note: `a` is still in render pixels in this phase; Phase C converts the whole
- * coordinate model to AU. `MEAN_MOTION_K` therefore stays a visual-units
- * constant (it folds in `G` and the pixel scale), chosen so a 1 M☉ star matches
- * the previous orbit speed.
+ * faster at the same `a`. Periods follow Kepler's third law in solar units, so
+ * they come out directly in years.
  */
 export interface OrbitElements {
   a: number;
@@ -45,18 +43,13 @@ export const OrbitElementsDef: ComponentDef<OrbitElements> = simpleComponent<Orb
   starMass: 'number',
 });
 
-// Visual-units gravitational constant: mean motion n = K·sqrt(M)/a^1.5, the
-// Kepler-III relation `n = sqrt(G·M/a³)` with G folded into K. Set so a 1 M☉
-// star reproduces the prior `omega = 600 / a^1.5` orbit speed.
-const MEAN_MOTION_K = 600;
-
 /**
- * Orbital period (in clock units) for a host mass (M☉) and semi-major axis,
- * from Kepler's third law `P ∝ sqrt(a³ / M)`. Exported for tests and any caller
- * that needs the period rather than a position.
+ * Orbital period in **years** for a host mass (M☉) and semi-major axis (AU),
+ * straight from Kepler's third law in solar units: `P = sqrt(a³ / M)`. Exported
+ * for tests and any caller that needs the period rather than a position.
  */
 export function orbitalPeriod(starMass: number, a: number): number {
-  return (TAU * a ** 1.5) / (MEAN_MOTION_K * Math.sqrt(starMass));
+  return Math.sqrt(a ** 3 / starMass);
 }
 
 /**
@@ -98,7 +91,9 @@ export function writeOrbitPosition(orbit: OrbitElements, t: number, out: { x: nu
 }
 
 /**
- * Write each orbiting entity's position for simulation time `t`.
+ * Advance every orbiting entity to simulation time `simSeconds`. Periods are in
+ * years (Kepler solar units), so the clock is converted from seconds to years
+ * before sampling each orbit.
  *
  * Positions are mutated **in place** (via `get`, like the engine's own
  * `world.move`) rather than via `set` on purpose: a per-frame `set` fires the
@@ -108,13 +103,14 @@ export function writeOrbitPosition(orbit: OrbitElements, t: number, out: { x: nu
  * allocate nothing on the hot path. Planets are not spatially indexed, so no
  * index needs syncing.
  */
-export function updateOrbits(world: EcsWorld, t: number): void {
+export function updateOrbits(world: EcsWorld, simSeconds: number): void {
+  const years = simSeconds / SECONDS_PER_YEAR;
   const positions = world.getStore(PositionDef);
   for (const [id, orbit] of world.query(OrbitElementsDef)) {
     const pos = positions.get(id);
     if (!pos)
       continue;
-    writeOrbitPosition(orbit, t, pos);
+    writeOrbitPosition(orbit, years, pos);
   }
 }
 

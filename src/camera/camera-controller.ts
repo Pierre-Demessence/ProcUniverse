@@ -3,8 +3,10 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { makeCamera, viewToWorld } from '@pierre/ecs/modules/camera';
 import { clamp } from '@pierre/ecs/modules/math';
 
-const MIN_ZOOM = 1e-6;
-const MAX_ZOOM = 100;
+// Zoom is pixels per AU. The range spans close planet inspection down to a
+// galaxy-scale field; the wide span is the cost of a true astronomical scale.
+const MIN_ZOOM = 1e-8;
+const MAX_ZOOM = 1e4;
 const ZOOM_STEP = 1.12;
 
 export interface CameraController {

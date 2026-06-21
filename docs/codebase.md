@@ -4,6 +4,7 @@
 | ---- | ------- |
 | `index.html` | Mounts the app; loads/mints the world seed, then calls `start(root, seed)`. |
 | `src/main.ts` | Entry: canvas, DPR/resize, ECS world, the LOD render loop, and the HUD. |
+| `src/scale.ts` | Spatial-scale source of truth: the AU world unit, light-years per sector, and the star visual-radius mapping. |
 | `src/generation/` | Deterministic seed-driven sector generation (pure data — including stellar and orbital physics) plus entity spawning. |
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |

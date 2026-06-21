@@ -4,7 +4,7 @@ import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 import { clamp } from '@pierre/ecs/modules/math';
 
 import { hashSector } from '../generation/hash';
-import { SECTOR_SIZE } from '../generation/universe';
+import { SECTOR_SIZE } from '../scale';
 
 // Aggregate sectors into power-of-two cells so each cell stays at least this
 // many screen pixels wide — that keeps the visible cell count (and therefore

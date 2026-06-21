@@ -189,21 +189,29 @@ render loop hides regressions that static checks miss).
 
 ### Phase C — Realistic scale, coordinate model & runtime knobs
 
-- [ ] Adopt AU within systems and ly-per-sector between systems; retune
+- [x] Adopt AU within systems and ly-per-sector between systems; retune
       `SECTOR_SIZE`, zoom range (`MIN/MAX_ZOOM`), and tier thresholds for the
       ~10⁵× orbital-vs-interstellar ratio.
 - [ ] Star-local floating origin at the system tier (rebase to focused star).
-- [ ] `visualRadius` mapping (decouple drawn disc size from physical radius);
-      keep bodies visible without distorting positions.
-- [ ] Centralise world→screen distance in one module; add a `scaleCompression`
-      parameter (default identity) and a single `LY_PER_SECTOR` density constant.
+      *(Deferred: the sector-snapped origin already keeps planets jitter-free at
+      `MAX_ZOOM = 1e4` px/AU — rendered coords ≤ ~3e6 AU → sub-1e-5 px error.
+      Revisit only if a deeper zoom tier is added.)*
+- [x] `visualRadius` mapping (decouple drawn disc size from physical radius);
+      keep bodies visible without distorting positions. *(Stars derive their
+      disc from physical R☉ via `scale.starVisualRadius`; planets keep an AU
+      placeholder until Phase D gives them a physical radius.)*
+- [x] Centralise world→screen distance in one module (`src/scale.ts`) with a
+      single `LY_PER_SECTOR` density constant. *(A `scaleCompression` remap is
+      deferred — default identity = no behaviour; the hook lands when we tune
+      for appeal.)*
 - [x] Runtime time-scale: accumulate `simSeconds += dt·timeScale`; expose a slider
       (discrete preset steps: pause · 0.25× … 1 day/s, default 1×). Includes a
       human-readable **sim-date** readout (epoch 2100-01-01 UTC = second 0).
 - [ ] Validate: no positional jitter when zoomed onto a planet far from origin;
       bounded draw count preserved across the (now larger) zoom range.
 - [ ] Emptiness mitigations: confirm LOD aggregates fill the field on zoom-out;
-      add accelerating zoom.
+      add accelerating zoom. *(Accelerating/momentum zoom deferred to a follow-up;
+      the full range is ~10¹² so traversal is many wheel-notches until then.)*
 - [ ] Browser E2E: zoom from a planet out to neighbouring stars; verify the gap
       is large, the aggregates fill in, the time slider works, and 60+ fps holds.
 

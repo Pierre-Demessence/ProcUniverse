@@ -2,7 +2,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
-import { SECTOR_SIZE } from '../generation/universe';
+import { SECTOR_SIZE } from '../scale';
 
 /**
  * Level-of-detail tier. The representation switches with zoom so the on-screen
@@ -20,8 +20,12 @@ export interface SectorRange {
   minSy: number;
 }
 
-// Tier thresholds, measured in sectors spanning the viewport width.
-const STAR_AT = 2.2;
+// Tier thresholds, measured in sectors spanning the larger viewport axis. A
+// realistic system (~tens of AU) is a vanishing fraction of a sector (hundreds
+// of thousands of AU), so the system→star boundary is set in AU and converted;
+// the star→galaxy boundary is naturally in sectors.
+const SYSTEM_TIER_MAX_AU = 300;
+const STAR_AT = SYSTEM_TIER_MAX_AU / SECTOR_SIZE;
 const GALAXY_AT = 16;
 
 /**

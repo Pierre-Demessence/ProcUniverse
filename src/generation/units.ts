@@ -23,6 +23,9 @@ export const KM_PER_AU = 1.495978707e8;
 /** Astronomical units in one light-year. */
 export const AU_PER_LY = 63241.077;
 
+/** Seconds in one Julian year (365.25 days). */
+export const SECONDS_PER_YEAR = 31557600;
+
 /** Convert astronomical units to kilometres. */
 export function auToKm(au: number): number {
   return au * KM_PER_AU;

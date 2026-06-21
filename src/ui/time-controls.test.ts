@@ -25,13 +25,13 @@ describe('speed steps', () => {
   it('pauses at index 0 and snaps to preset speeds', () => {
     expect(sliderToScale(0)).toBe(0);
     expect(sliderToScale(4)).toBe(1); // real time
-    expect(sliderToScale(SPEED_STEPS.length - 1)).toBe(86400);
+    expect(sliderToScale(SPEED_STEPS.length - 1)).toBe(315576000); // 10 yr/s
   });
 
-  it('offers sub-real-time speeds and stays sorted ascending', () => {
+  it('offers sub-real-time and year-scale speeds, sorted ascending', () => {
     expect(SPEED_STEPS).toContain(0.25);
-    expect(SPEED_STEPS).toContain(0.5);
-    expect(SPEED_STEPS).toContain(0.75);
+    expect(SPEED_STEPS).toContain(86400); // 1 day/s
+    expect(SPEED_STEPS).toContain(31557600); // 1 yr/s
     for (let i = 1; i < SPEED_STEPS.length; i++)
       expect(SPEED_STEPS[i]).toBeGreaterThan(SPEED_STEPS[i - 1]);
   });

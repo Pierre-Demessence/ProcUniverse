@@ -3,28 +3,32 @@ import type { StarPhysical } from './stars';
 import { lerp } from '@pierre/ecs/modules/math';
 import { makeSeededRng, randomInt } from '@pierre/ecs/modules/rng';
 
+import { SECTOR_SIZE, starVisualRadius } from '../scale';
 import { hashSector } from './hash';
 import { sampleStar } from './stars';
 
 const TAU = Math.PI * 2;
 
-/** World-space side length of one sector. */
-export const SECTOR_SIZE = 5000;
-
 const SUBGRID = 4;
 const CELL = SECTOR_SIZE / SUBGRID;
 const EMPTY_CHANCE = 0.3;
-const JITTER = 130;
+// Jitter stars off the sub-grid lattice by a fraction of a cell; Phase E
+// replaces the grid with a galaxy density field.
+const JITTER = CELL * 0.15;
 
-const STAR_MIN_R = 28;
-const STAR_MAX_R = 50;
 const PLANET_MIN = 1;
 const PLANET_MAX = 5;
-const FIRST_GAP = 30;
-const GAP_MIN = 35;
-const GAP_MAX = 62;
-const PLANET_MIN_R = 5;
-const PLANET_MAX_R = 13;
+
+// Orbit geometry, in AU: an inner edge plus linear gaps. Real spacing is
+// roughly geometric (Titius–Bode); that refinement is Phase D.
+const ORBIT_INNER_AU = 0.4;
+const ORBIT_GAP_MIN_AU = 0.3;
+const ORBIT_GAP_MAX_AU = 3;
+
+// Non-physical drawn planet-disc radius, in AU (decoupled from physical size,
+// which Phase D derives), kept small relative to the orbit gaps.
+const PLANET_VIS_MIN_AU = 0.05;
+const PLANET_VIS_MAX_AU = 0.16;
 
 // Eccentricity is squared-biased toward 0 (median ~0.1), so most orbits are
 // near-circular with the occasional elongated one — as observed.
@@ -87,21 +91,21 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const occupied = rng() >= EMPTY_CHANCE;
       const x = originX + (gx + 0.5) * CELL + (rng() * 2 - 1) * JITTER;
       const y = originY + (gy + 0.5) * CELL + (rng() * 2 - 1) * JITTER;
-      const radius = lerp(STAR_MIN_R, STAR_MAX_R, rng());
       const star = sampleStar(rng);
+      const radius = starVisualRadius(star.radius);
       const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, rng);
 
       const planets: PlanetData[] = [];
-      let a = radius + FIRST_GAP;
+      let a = ORBIT_INNER_AU;
       for (let i = 0; i < planetCount; i++) {
-        a += lerp(GAP_MIN, GAP_MAX, rng());
+        a += lerp(ORBIT_GAP_MIN_AU, ORBIT_GAP_MAX_AU, rng());
         // Draw into locals so eslint's object-key sorting cannot reorder the
         // rng() side effects and shift the deterministic stream.
         const color = choose(PLANET_COLORS, rng);
         const e = rng() ** 2 * ECC_MAX;
         const argPeriapsis = rng() * TAU;
         const meanAnomaly0 = rng() * TAU;
-        const planetRadius = lerp(PLANET_MIN_R, PLANET_MAX_R, rng());
+        const planetRadius = lerp(PLANET_VIS_MIN_AU, PLANET_VIS_MAX_AU, rng());
         planets.push({ a, argPeriapsis, color, e, meanAnomaly0, radius: planetRadius });
       }
 
