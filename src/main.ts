@@ -14,7 +14,6 @@ import { renderFrame } from './render/scene';
 import { OrbitDef, updateOrbits } from './sim/orbits';
 
 const TARGET_MS = 1000 / 60;
-const WORLD_SEED = 1337;
 const TIME_SCALE = 2;
 const REBASE_DIST = SECTOR_SIZE * 8;
 const FADE_MS = 220;
@@ -25,7 +24,7 @@ const HINT = 'Drag to pan  ·  Scroll to zoom';
  * system tier; immediate-mode star dots and galaxy-density glows when zoomed
  * out), the camera, and the rAF render loop.
  */
-export function start(container: HTMLElement): () => void {
+export function start(container: HTMLElement, seed: number): () => void {
   container.innerHTML = '';
 
   const canvas = document.createElement('canvas');
@@ -66,7 +65,7 @@ export function start(container: HTMLElement): () => void {
   // Deterministic universe: sectors are generated on demand and cached; the
   // streamer spawns/despawns full systems for the sectors in view at the system
   // tier.
-  const cache = new SectorCache(WORLD_SEED);
+  const cache = new SectorCache(seed);
   const streamer = new SystemStreamer(world, cache);
 
   const renderer = new Canvas2DRenderer();
@@ -168,7 +167,7 @@ export function start(container: HTMLElement): () => void {
       originY: renderOriginY,
       range,
       renderer,
-      seed: WORLD_SEED,
+      seed,
       tier,
       world,
     });

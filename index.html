@@ -27,7 +27,9 @@
   <div id="root"></div>
   <script type="module">
     import { start } from './src/main.ts';
-    const teardown = start(document.getElementById('root'));
+    import { loadOrCreateWorldSeed } from './src/persistence/seed.ts';
+    const seed = await loadOrCreateWorldSeed();
+    const teardown = start(document.getElementById('root'), seed);
     window.addEventListener('beforeunload', teardown);
   </script>
 </body>

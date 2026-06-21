@@ -186,9 +186,15 @@ ProcUniverse/
 
 ### Phase 4 — Persistence & identity
 
-- [ ] Persist the world seed; deterministic naming of systems / stars.
-- [ ] Player deltas (visited / named) via `modules/save`.
-- [ ] Reload -> identical universe.
+- [x] Persist the world seed: a random seed is minted on first load and saved
+      via `modules/save` (`LocalStorageBackend`, checksummed envelope), so a
+      reload regenerates an identical universe and clearing site storage yields
+      a new one. (`src/persistence/seed.ts`, wired through the `index.html`
+      bootstrap into `start(container, seed)`.)
+- [x] Reload -> identical universe. (Browser-verified: seed stable across
+      reloads; a fresh seed after clearing storage.)
+- [ ] Deterministic naming of systems / stars. (Deferred.)
+- [ ] Player deltas (visited / named) via `modules/save`. (Deferred.)
 
 ### Phase 5 (optional) — WebGL dense tier
 
