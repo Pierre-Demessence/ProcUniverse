@@ -3,11 +3,12 @@
 | Path | Purpose |
 | ---- | ------- |
 | `index.html` | Mounts the app; calls `start()` from `src/main.ts`. |
-| `src/main.ts` | Entry: canvas, DPR/resize, ECS world, generation, the rAF loop with orbit updates, and the FPS HUD. |
+| `src/main.ts` | Entry: canvas, DPR/resize, ECS world, the LOD render loop, and the HUD. |
 | `src/generation/` | Deterministic seed-driven sector generation (pure data) plus entity spawning. |
+| `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Analytic orbit component, per-frame orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
-| `src/render/` | Per-frame scene composition, reference grid, and orbit rings. |
+| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow. |
 | `docs/` | Project documentation and plans. |
 
 ## Conventions
@@ -23,6 +24,6 @@
 
 - New per-tier generators → `src/generation/` (the deterministic, pure-data
   layer; keep DOM/ECS side effects in the spawn step).
-- LOD tier selection and streaming → `src/lod/` (Phase 2+).
+- LOD tiers, streaming, and the sector cache → `src/lod/`.
 - Simulation systems → `src/sim/` (alongside the orbit system).
 - Persistence (seed + player deltas) → `src/persistence/` (Phase 4).

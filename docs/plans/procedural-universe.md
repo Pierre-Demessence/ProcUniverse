@@ -55,6 +55,11 @@ map to one screen region, we draw an aggregate instead.
 The active tier is chosen from camera zoom. Only cells overlapping the
 viewport at that tier are ever evaluated.
 
+> Implementation note: the shipped LOD uses three tiers (`system`, `star`,
+> `galaxy`) selected with hysteresis; the `galaxy` tier merges the
+> region/galaxy levels via power-of-two adaptive aggregation. Visible sectors
+> are computed with direct range math rather than the engine spatial helpers.
+
 ### 2.3 Streaming and regeneration
 
 Each frame: compute the cells overlapping the camera rect (`ContinuousHashGrid2D`
@@ -160,17 +165,23 @@ ProcUniverse/
 
 ### Phase 2 — Streaming + LOD
 
-- [ ] Sector-grid streaming: visible-cell computation, spawn/despawn on
-      entry/exit.
-- [ ] LOD tier selector from zoom; representation swap (system <-> star-dot).
-- [ ] Floating-origin rebasing as the camera travels.
-- [ ] Verify bounded draw count across the full zoom range.
+- [x] Sector-grid streaming: visible-cell computation, spawn/despawn on
+      entry/exit. (`SystemStreamer` + `SectorCache`.)
+- [x] LOD tier selector from zoom; representation swap (system / star-dot /
+      galaxy). (`selectTier` + tier-aware `renderFrame`.)
+- [ ] Floating-origin rebasing as the camera travels. (Deferred — matters only
+      far from the origin; the demo runs near it.)
+- [x] Verify bounded draw count across the full zoom range. (Browser-verified:
+      ~80–441 draws at 75 fps from the system tier to extreme zoom-out.)
 
 ### Phase 3 — Deep zoom-out aggregates
 
-- [ ] Region / galaxy tiers: density-field / aggregate rendering.
-- [ ] Smooth tier transitions (cross-fade via `smoothstep`).
-- [ ] "Turbo zoom out" stress test — confirm constant frame cost.
+- [x] Region / galaxy tiers: density-field / aggregate rendering. (Power-of-two
+      aggregation with a cached glow sprite; delivered in Phase 2.)
+- [ ] Smooth tier transitions (cross-fade via `smoothstep`). (Currently hard
+      switches between tiers.)
+- [x] "Turbo zoom out" stress test — confirm constant frame cost. (Bounded draw
+      count + 75 fps verified.)
 
 ### Phase 4 — Persistence & identity
 

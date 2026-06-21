@@ -7,7 +7,7 @@
 | FPS HUD | Frame-time / FPS overlay via the engine `stats` module. | Done (Phase 0) |
 | Procedural systems | Deterministic star systems generated per sector. | Done (Phase 1) |
 | Analytic orbits | Planets orbit their star (closed-form Kepler). | Done (Phase 1) |
-| LOD streaming | Bounded draw count across every zoom tier. | Planned (Phase 2+) |
+| LOD streaming | Zoom-bounded tiers (systems → star dots → density glow) with sector streaming. | Done (Phase 2) |
 | Persistence | World seed plus player deltas only. | Planned (Phase 4) |
 
 Roadmap detail: [plans/procedural-universe.md](plans/procedural-universe.md).
