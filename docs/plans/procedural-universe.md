@@ -169,8 +169,9 @@ ProcUniverse/
       entry/exit. (`SystemStreamer` + `SectorCache`.)
 - [x] LOD tier selector from zoom; representation swap (system / star-dot /
       galaxy). (`selectTier` + tier-aware `renderFrame`.)
-- [ ] Floating-origin rebasing as the camera travels. (Deferred — matters only
-      far from the origin; the demo runs near it.)
+- [x] Floating-origin rebasing as the camera travels. (Render everything
+      relative to a sector-snapped origin, rebased past 8 sectors; bright axes
+      mark true world (0,0).)
 - [x] Verify bounded draw count across the full zoom range. (Browser-verified:
       ~80–441 draws at 75 fps from the system tier to extreme zoom-out.)
 
@@ -178,8 +179,8 @@ ProcUniverse/
 
 - [x] Region / galaxy tiers: density-field / aggregate rendering. (Power-of-two
       aggregation with a cached glow sprite; delivered in Phase 2.)
-- [ ] Smooth tier transitions (cross-fade via `smoothstep`). (Currently hard
-      switches between tiers.)
+- [x] Smooth tier transitions (220 ms snapshot cross-fade dissolve between
+      tiers).
 - [x] "Turbo zoom out" stress test — confirm constant frame cost. (Bounded draw
       count + 75 fps verified.)
 

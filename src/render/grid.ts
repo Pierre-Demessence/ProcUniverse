@@ -20,9 +20,19 @@ function niceStep(raw: number): number {
  * Draw an adaptive world-space reference grid so panning and zooming are
  * visible on an otherwise empty plane. The step rescales with zoom (1/2/5
  * decades), so the on-screen line count stays bounded at any magnification.
+ * Lines are placed at ABSOLUTE world multiples (then projected through the
+ * floating render origin), so the grid stays continuous across rebases; the
+ * bright axes mark the true world `(0, 0)`.
  */
-export function drawReferenceGrid(ctx2d: CanvasRenderingContext2D, cam: Camera): void {
+export function drawReferenceGrid(
+  ctx2d: CanvasRenderingContext2D,
+  cam: Camera,
+  originX: number,
+  originY: number,
+): void {
   const rect = cameraViewRect(cam);
+  const absX = rect.x + originX;
+  const absY = rect.y + originY;
   const step = niceStep(TARGET_PX / cam.zoom);
 
   ctx2d.save();
@@ -30,26 +40,26 @@ export function drawReferenceGrid(ctx2d: CanvasRenderingContext2D, cam: Camera):
 
   ctx2d.strokeStyle = MINOR;
   ctx2d.beginPath();
-  for (let wx = Math.floor(rect.x / step) * step; wx <= rect.x + rect.w; wx += step) {
-    const x = Math.round(worldToView(wx, rect.y, cam).vx) + 0.5;
+  for (let wx = Math.floor(absX / step) * step; wx <= absX + rect.w; wx += step) {
+    const x = Math.round(worldToView(wx - originX, rect.y, cam).vx) + 0.5;
     ctx2d.moveTo(x, 0);
     ctx2d.lineTo(x, cam.viewportH);
   }
-  for (let wy = Math.floor(rect.y / step) * step; wy <= rect.y + rect.h; wy += step) {
-    const y = Math.round(worldToView(rect.x, wy, cam).vy) + 0.5;
+  for (let wy = Math.floor(absY / step) * step; wy <= absY + rect.h; wy += step) {
+    const y = Math.round(worldToView(rect.x, wy - originY, cam).vy) + 0.5;
     ctx2d.moveTo(0, y);
     ctx2d.lineTo(cam.viewportW, y);
   }
   ctx2d.stroke();
 
-  // Highlight the world axes through the origin.
-  const origin = worldToView(0, 0, cam);
+  // Highlight the true world axes (x=0 / y=0), projected through the origin.
+  const axes = worldToView(-originX, -originY, cam);
   ctx2d.strokeStyle = AXIS;
   ctx2d.beginPath();
-  ctx2d.moveTo(Math.round(origin.vx) + 0.5, 0);
-  ctx2d.lineTo(Math.round(origin.vx) + 0.5, cam.viewportH);
-  ctx2d.moveTo(0, Math.round(origin.vy) + 0.5);
-  ctx2d.lineTo(cam.viewportW, Math.round(origin.vy) + 0.5);
+  ctx2d.moveTo(Math.round(axes.vx) + 0.5, 0);
+  ctx2d.lineTo(Math.round(axes.vx) + 0.5, cam.viewportH);
+  ctx2d.moveTo(0, Math.round(axes.vy) + 0.5);
+  ctx2d.lineTo(cam.viewportW, Math.round(axes.vy) + 0.5);
   ctx2d.stroke();
 
   ctx2d.restore();

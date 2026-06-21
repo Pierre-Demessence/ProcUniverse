@@ -48,8 +48,9 @@ export class SystemStreamer {
     return { planets: this.planetCount, sectors: this.active.size, stars: this.starCount };
   }
 
-  /** Reconcile the spawned sectors with the visible range. */
-  update(range: SectorRange): void {
+  /** Reconcile the spawned sectors with the visible range, spawning new
+   *  sectors relative to the floating render origin `(originX, originY)`. */
+  update(range: SectorRange, originX: number, originY: number): void {
     // Despawn sectors that left the range (deleting during Map iteration is safe).
     for (const [key, ids] of this.active) {
       const comma = key.indexOf(',');
@@ -73,7 +74,7 @@ export class SystemStreamer {
         if (this.active.has(key))
           continue;
         const data = this.cache.get(sx, sy);
-        const ids = spawnSector(this.world, data);
+        const ids = spawnSector(this.world, data, originX, originY);
         this.active.set(key, ids);
         this.starsPerSector.set(key, data.systems.length);
         this.starCount += data.systems.length;

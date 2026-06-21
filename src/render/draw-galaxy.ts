@@ -35,20 +35,30 @@ function glow(): HTMLCanvasElement {
 /**
  * GALAXY tier: draw a soft additive glow per aggregate cell, brightness and
  * size scaled by an estimated star density (a hashed value, since descending to
- * count real systems is infeasible this far out). A cached gradient sprite is
- * blitted per cell, so cost is bounded by the on-screen cell count. Returns the
- * number of glows drawn.
+ * count real systems is infeasible this far out). Cell ids are computed in
+ * absolute space (so the density pattern is stable across rebases) but rendered
+ * relative to the floating origin `(originX, originY)`. A cached gradient sprite
+ * is blitted per cell, so cost is bounded by the on-screen cell count. Returns
+ * the number of glows drawn.
  */
-export function drawGalaxy(ctx2d: CanvasRenderingContext2D, cam: Camera, seed: number): number {
+export function drawGalaxy(
+  ctx2d: CanvasRenderingContext2D,
+  cam: Camera,
+  seed: number,
+  originX: number,
+  originY: number,
+): number {
   const sectorPx = SECTOR_SIZE * cam.zoom;
   const level = Math.max(0, Math.ceil(Math.log2(TARGET_CELL_PX / Math.max(sectorPx, 1e-9))));
   const cellWorld = SECTOR_SIZE * (2 ** level);
   const cellPx = cellWorld * cam.zoom;
   const rect = cameraViewRect(cam);
-  const minCx = Math.floor(rect.x / cellWorld);
-  const maxCx = Math.floor((rect.x + rect.w) / cellWorld);
-  const minCy = Math.floor(rect.y / cellWorld);
-  const maxCy = Math.floor((rect.y + rect.h) / cellWorld);
+  const absX = rect.x + originX;
+  const absY = rect.y + originY;
+  const minCx = Math.floor(absX / cellWorld);
+  const maxCx = Math.floor((absX + rect.w) / cellWorld);
+  const minCy = Math.floor(absY / cellWorld);
+  const maxCy = Math.floor((absY + rect.h) / cellWorld);
   const sprite = glow();
 
   ctx2d.save();
@@ -58,8 +68,8 @@ export function drawGalaxy(ctx2d: CanvasRenderingContext2D, cam: Camera, seed: n
     for (let cx = minCx; cx <= maxCx; cx++) {
       const d01 = hashSector(seed ^ DENSITY_SALT, cx, cy) / 4294967296;
       const norm = 0.3 + 0.7 * d01;
-      const wx = (cx + 0.5) * cellWorld;
-      const wy = (cy + 0.5) * cellWorld;
+      const wx = (cx + 0.5) * cellWorld - originX;
+      const wy = (cy + 0.5) * cellWorld - originY;
       const v = worldToView(wx, wy, cam);
       const r = cellPx * (0.35 + 0.4 * norm);
       ctx2d.globalAlpha = clamp(0.06 + 0.3 * norm, 0, 0.6);

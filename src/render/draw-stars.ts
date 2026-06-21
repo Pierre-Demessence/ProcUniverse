@@ -12,13 +12,16 @@ const SQUARE_BELOW = 1.6;
 /**
  * STAR tier: draw each system in the visible sectors as a single dot, sized by
  * the star's radius at the current zoom (a small square when sub-pixel, a disc
- * otherwise). No planets or orbits. Returns the number of dots drawn.
+ * otherwise). No planets or orbits. Positions are made relative to the floating
+ * render origin `(originX, originY)` for precision. Returns the dots drawn.
  */
 export function drawStars(
   ctx2d: CanvasRenderingContext2D,
   cam: Camera,
   cache: SectorCache,
   range: SectorRange,
+  originX: number,
+  originY: number,
 ): number {
   let drawn = 0;
   ctx2d.save();
@@ -26,7 +29,7 @@ export function drawStars(
     for (let sx = range.minSx; sx <= range.maxSx; sx++) {
       const data = cache.get(sx, sy);
       for (const sys of data.systems) {
-        const v = worldToView(sys.x, sys.y, cam);
+        const v = worldToView(sys.x - originX, sys.y - originY, cam);
         if (v.vx < -4 || v.vx > cam.viewportW + 4 || v.vy < -4 || v.vy > cam.viewportH + 4)
           continue;
         const r = Math.max(MIN_DOT, sys.radius * cam.zoom);

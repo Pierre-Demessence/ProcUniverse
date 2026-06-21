@@ -12,20 +12,28 @@ const STAR_STROKE = 'rgba(255, 255, 255, 0.65)';
 
 /**
  * Spawn ECS entities for a generated sector: one star per system, plus one
- * orbiting planet entity per planet. Returns every spawned entity id (each
- * star immediately before its planets) so the streamer can despawn the sector
- * later. Planet positions are overwritten by `updateOrbits` before the first
- * frame, so the seed position here is nominal.
+ * orbiting planet entity per planet. Positions and orbit centres are stored
+ * **relative to `(originX, originY)`** — the floating render origin — so the
+ * renderer always works on small, precise coordinates however far the camera
+ * has travelled. Returns every spawned entity id (each star immediately before
+ * its planets) so the streamer can despawn the sector later.
  */
-export function spawnSector(world: EcsWorld, data: SectorData): EntityId[] {
+export function spawnSector(
+  world: EcsWorld,
+  data: SectorData,
+  originX: number,
+  originY: number,
+): EntityId[] {
   const positions = world.getStore(PositionDef);
   const renderables = world.getStore(RenderableDef);
   const orbits = world.getStore(OrbitDef);
   const ids: EntityId[] = [];
 
   for (const sys of data.systems) {
+    const cx = sys.x - originX;
+    const cy = sys.y - originY;
     const starId = world.createEntity();
-    positions.set(starId, { x: sys.x, y: sys.y });
+    positions.set(starId, { x: cx, y: cy });
     renderables.set(starId, {
       fill: sys.color,
       kind: 'circle',
@@ -37,7 +45,7 @@ export function spawnSector(world: EcsWorld, data: SectorData): EntityId[] {
 
     for (const planet of sys.planets) {
       const id = world.createEntity();
-      positions.set(id, { x: sys.x + planet.a, y: sys.y });
+      positions.set(id, { x: cx + planet.a, y: cy });
       renderables.set(id, {
         fill: planet.color,
         kind: 'circle',
@@ -45,8 +53,8 @@ export function spawnSector(world: EcsWorld, data: SectorData): EntityId[] {
       });
       orbits.set(id, {
         a: planet.a,
-        cx: sys.x,
-        cy: sys.y,
+        cx,
+        cy,
         omega: planet.omega,
         phase: planet.phase,
       });

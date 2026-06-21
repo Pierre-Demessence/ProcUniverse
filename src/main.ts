@@ -16,6 +16,8 @@ import { OrbitDef, updateOrbits } from './sim/orbits';
 const TARGET_MS = 1000 / 60;
 const WORLD_SEED = 1337;
 const TIME_SCALE = 2;
+const REBASE_DIST = SECTOR_SIZE * 8;
+const FADE_MS = 220;
 const HINT = 'Drag to pan  ·  Scroll to zoom';
 
 /**
@@ -33,6 +35,13 @@ export function start(container: HTMLElement): () => void {
   if (!ctx2d)
     throw new Error('ProcUniverse: 2D canvas context is unavailable.');
 
+  // Offscreen snapshot used to cross-fade between LOD tiers.
+  const fadeCanvas = document.createElement('canvas');
+  const fadeCtx = fadeCanvas.getContext('2d');
+  if (!fadeCtx)
+    throw new Error('ProcUniverse: 2D canvas context is unavailable.');
+  let fadeMsLeft = 0;
+
   // Size the backing store to device pixels before the camera is created, so it
   // reads real dimensions rather than the canvas default (300x150).
   const sizeCanvas = (): void => {
@@ -41,6 +50,9 @@ export function start(container: HTMLElement): () => void {
     const h = container.clientHeight || window.innerHeight;
     canvas.width = Math.max(1, Math.round(w * dpr));
     canvas.height = Math.max(1, Math.round(h * dpr));
+    fadeCanvas.width = canvas.width;
+    fadeCanvas.height = canvas.height;
+    fadeMsLeft = 0;
   };
   sizeCanvas();
 
@@ -79,6 +91,12 @@ export function start(container: HTMLElement): () => void {
   controller.camera.y = focus.y;
   controller.camera.zoom = canvas.height / 1400;
 
+  // Floating render origin: everything is drawn relative to this so the renderer
+  // works on small, precise coordinates however far the camera travels. Snapped
+  // to the sector grid, rebased only when the camera drifts far from it.
+  let renderOriginX = Math.round(controller.camera.x / SECTOR_SIZE) * SECTOR_SIZE;
+  let renderOriginY = Math.round(controller.camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+
   const resizeObserver = new ResizeObserver(syncViewport);
   resizeObserver.observe(container);
 
@@ -107,12 +125,21 @@ export function start(container: HTMLElement): () => void {
     frameStats.sample(dt);
 
     const tier = selectTier(camera, currentTier);
+    const tierChanged = tier !== currentTier;
     currentTier = tier;
     const range = visibleSectors(camera);
 
+    // Rebase the render origin when the camera drifts far from it; respawn the
+    // streamed systems relative to the new origin.
+    if (Math.abs(camera.x - renderOriginX) > REBASE_DIST || Math.abs(camera.y - renderOriginY) > REBASE_DIST) {
+      renderOriginX = Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
+      renderOriginY = Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+      streamer.clear();
+    }
+
     // Stream full systems only at the system tier; otherwise despawn them.
     if (tier === 'system')
-      streamer.update(range);
+      streamer.update(range, renderOriginX, renderOriginY);
     else
       streamer.clear();
     // Flush despawns, drop the (subscriber-less) lifecycle events the
@@ -124,7 +151,37 @@ export function start(container: HTMLElement): () => void {
     if (tier === 'system')
       updateOrbits(world, (clockMs / 1000) * TIME_SCALE);
 
-    const result = renderFrame({ cache, camera, canvas, ctx2d, range, renderer, seed: WORLD_SEED, tier, world });
+    // Capture the previous (old-tier) frame to cross-fade out of on a tier change.
+    if (tierChanged) {
+      fadeCtx.clearRect(0, 0, fadeCanvas.width, fadeCanvas.height);
+      fadeCtx.drawImage(canvas, 0, 0);
+      fadeMsLeft = FADE_MS;
+    }
+
+    const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
+    const result = renderFrame({
+      cache,
+      camera: localCam,
+      canvas,
+      ctx2d,
+      originX: renderOriginX,
+      originY: renderOriginY,
+      range,
+      renderer,
+      seed: WORLD_SEED,
+      tier,
+      world,
+    });
+
+    // Cross-fade: blend the captured old-tier frame over the new one.
+    if (fadeMsLeft > 0) {
+      ctx2d.save();
+      ctx2d.globalAlpha = Math.min(1, fadeMsLeft / FADE_MS);
+      ctx2d.drawImage(fadeCanvas, 0, 0);
+      ctx2d.restore();
+      fadeMsLeft -= dt;
+    }
+
     const status = streamer.status();
     frameStats.setCounter('drawn', result < 0 ? status.stars + status.planets : result);
 
