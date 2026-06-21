@@ -1,3 +1,5 @@
+import type { Tier } from './lod/tier';
+
 import { EcsWorld } from '@pierre/ecs';
 import { Canvas2DRenderer, RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { drawStatsOverlay, FrameStats } from '@pierre/ecs/modules/stats';
@@ -8,7 +10,6 @@ import { createCameraController } from './camera/camera-controller';
 import { SECTOR_SIZE } from './generation/universe';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
-import type { Tier } from './lod/tier';
 import { selectTier, visibleSectors } from './lod/tier';
 import { renderFrame } from './render/scene';
 import { OrbitDef, updateOrbits } from './sim/orbits';

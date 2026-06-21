@@ -3,10 +3,10 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Canvas2DRenderContext } from '@pierre/ecs/modules/render-canvas2d';
 import type { Renderer } from '@pierre/ecs/renderer';
 
-import { cameraToView } from '@pierre/ecs/modules/camera';
-
 import type { SectorCache } from '../lod/sector-cache';
 import type { SectorRange, Tier } from '../lod/tier';
+
+import { cameraToView } from '@pierre/ecs/modules/camera';
 
 import { drawOrbitRings } from '../sim/orbits';
 import { drawGalaxy } from './draw-galaxy';

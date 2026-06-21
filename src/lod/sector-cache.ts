@@ -10,9 +10,9 @@ import { generateSectorData } from '../generation/universe';
  * worst-case visible-sector count at the star tier.
  */
 export class SectorCache {
+  private readonly capacity: number;
   private readonly map = new Map<string, SectorData>();
   private readonly seed: number;
-  private readonly capacity: number;
 
   constructor(seed: number, capacity = 2048) {
     this.seed = seed;

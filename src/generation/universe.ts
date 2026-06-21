@@ -67,9 +67,9 @@ export interface SystemData {
 }
 
 export interface SectorData {
-  systems: SystemData[];
   sx: number;
   sy: number;
+  systems: SystemData[];
 }
 
 function choose(colors: readonly string[], rng: () => number): string {

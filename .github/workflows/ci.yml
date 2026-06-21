@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: procuniverse
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: procuniverse
+      - uses: actions/checkout@v4
+        with:
+          repository: Pierre-Demessence/Entity-Cornponent-System-Engine
+          path: Entity-Cornponent-System-Engine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: procuniverse/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: procuniverse/.eslintcache
+          key: eslint-${{ runner.os }}-${{ hashFiles('procuniverse/eslint.config.ts') }}
+          restore-keys: eslint-${{ runner.os }}-
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: procuniverse
+      - uses: actions/checkout@v4
+        with:
+          repository: Pierre-Demessence/Entity-Cornponent-System-Engine
+          path: Entity-Cornponent-System-Engine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: procuniverse/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: procuniverse
+      - uses: actions/checkout@v4
+        with:
+          repository: Pierre-Demessence/Entity-Cornponent-System-Engine
+          path: Entity-Cornponent-System-Engine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: procuniverse/package-lock.json
+      - run: npm ci
+      - run: npm run build

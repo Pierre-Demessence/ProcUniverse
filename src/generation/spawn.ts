@@ -1,5 +1,5 @@
-import type { EntityId } from '@pierre/ecs/entity-id';
 import type { EcsWorld } from '@pierre/ecs';
+import type { EntityId } from '@pierre/ecs/entity-id';
 
 import type { SectorData } from './universe';
 

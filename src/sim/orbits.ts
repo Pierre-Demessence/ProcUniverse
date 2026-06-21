@@ -1,5 +1,5 @@
-import type { ComponentDef } from '@pierre/ecs/component-store';
 import type { EcsWorld } from '@pierre/ecs';
+import type { ComponentDef } from '@pierre/ecs/component-store';
 import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { simpleComponent } from '@pierre/ecs/component-store';

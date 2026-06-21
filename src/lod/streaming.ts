@@ -1,5 +1,5 @@
-import type { EntityId } from '@pierre/ecs/entity-id';
 import type { EcsWorld } from '@pierre/ecs';
+import type { EntityId } from '@pierre/ecs/entity-id';
 
 import type { SectorCache } from './sector-cache';
 import type { SectorRange } from './tier';
@@ -20,11 +20,11 @@ export interface StreamStatus {
  */
 export class SystemStreamer {
   private readonly active = new Map<string, EntityId[]>();
-  private readonly starsPerSector = new Map<string, number>();
-  private readonly world: EcsWorld;
   private readonly cache: SectorCache;
   private planetCount = 0;
   private starCount = 0;
+  private readonly starsPerSector = new Map<string, number>();
+  private readonly world: EcsWorld;
 
   constructor(world: EcsWorld, cache: SectorCache) {
     this.world = world;
@@ -35,9 +35,10 @@ export class SystemStreamer {
   clear(): void {
     if (this.active.size === 0)
       return;
-    for (const ids of this.active.values())
+    for (const ids of this.active.values()) {
       for (const id of ids)
         this.world.queueDestroy(id);
+    }
     this.active.clear();
     this.starsPerSector.clear();
     this.starCount = 0;
@@ -48,8 +49,10 @@ export class SystemStreamer {
     return { planets: this.planetCount, sectors: this.active.size, stars: this.starCount };
   }
 
-  /** Reconcile the spawned sectors with the visible range, spawning new
-   *  sectors relative to the floating render origin `(originX, originY)`. */
+  /**
+   * Reconcile the spawned sectors with the visible range, spawning new
+   *  sectors relative to the floating render origin `(originX, originY)`.
+   */
   update(range: SectorRange, originX: number, originY: number): void {
     // Despawn sectors that left the range (deleting during Map iteration is safe).
     for (const [key, ids] of this.active) {

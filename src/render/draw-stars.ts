@@ -1,9 +1,9 @@
 import type { Camera } from '@pierre/ecs/modules/camera';
 
-import { worldToView } from '@pierre/ecs/modules/camera';
-
 import type { SectorCache } from '../lod/sector-cache';
 import type { SectorRange } from '../lod/tier';
+
+import { worldToView } from '@pierre/ecs/modules/camera';
 
 const TAU = Math.PI * 2;
 const MIN_DOT = 1.1;
