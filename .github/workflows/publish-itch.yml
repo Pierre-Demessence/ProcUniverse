@@ -39,15 +39,11 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      - name: Download butler
-        working-directory: procuniverse
-        run: |
-          curl -sL -o butler.zip "https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default"
-          unzip -q butler.zip
-          chmod +x butler
+      - name: Setup butler
+        uses: remarkablegames/setup-butler@v3
 
       - name: Push to itch.io
         working-directory: procuniverse
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-        run: ./butler push dist corniflex/procuniverse:html5
+        run: butler push dist corniflex/procuniverse:html5
