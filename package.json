@@ -1,0 +1,20 @@
+{
+  "name": "procuniverse",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Procedurally generated 2D universe explorer built on @pierre/ecs.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pierre/ecs": "file:../Entity-Cornponent-System-Engine"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^8.0.10"
+  }
+}
