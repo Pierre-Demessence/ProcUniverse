@@ -85,24 +85,28 @@ each sub-phase is independently shippable.
 - [x] ✅-mark research doc §4.1.
 - Status: build + 112 tests + lint green; not committed.
 
-### 1.4 Black holes
+### 1.4 Black holes ✅
 
-- [ ] Add helpers in [src/generation/galaxies.ts](../../src/generation/galaxies.ts)
-      (or a small `blackhole.ts`): `hawkingTemperature`, `evaporationTime`,
-      `photonSphere`, `isco` (Schwarzschild), `shadowDiameter`,
-      `eddingtonLuminosity`, `class` label. (`sphereOfInfluence`, `tidalDisruptionRadius`
-      need σ / a reference star — include if cheap.)
-- [ ] Expand `BlackHolePanel`; tests (Sgr A*-scale sanity).
-- [ ] ✅-mark research doc §5.1.
+- [x] Add helpers in [src/generation/galaxies.ts](../../src/generation/galaxies.ts):
+      `hawkingTemperature`, `evaporationTime`, `photonSphere`,
+      `innermostStableOrbit` (ISCO, Schwarzschild), `shadowDiameter`,
+      `eddingtonLuminosity`. (`class` is always "supermassive" for our
+      10⁶–10¹⁰ M☉ holes; `sphereOfInfluence` / `tidalDisruptionRadius` deferred.)
+- [x] Expand `BlackHolePanel` (+6 rows); tests for the per-solar-mass anchors and
+      r_s multiples.
+- [x] ✅-mark research doc §5.1.
 
-### 1.5 Galaxies + cosmic web
+### 1.5 Galaxies + cosmic web ✅
 
-- [ ] Add helpers: velocity dispersion σ (invert the M–σ we already use), stellar
-      / bulge mass, rotation speed (Tully–Fisher), environment-class label from
-      `cosmicDensity`, redshift/distance from origin. (Decide how the panel gets
-      `cosmicDensity` — pass seed + cell, or store on `GalaxyParams`.)
-- [ ] Expand `GalaxyPanel`; tests for the M–σ inversion round-trip.
-- [ ] ✅-mark research doc §6.1 and §7.
+- [x] Add helpers: `velocityDispersion` (invert the M–σ we already use) and
+      `environmentClass` (label from `cosmicDensity`, now stored on `GalaxyParams`
+      — it was already computed in `makeGalaxy`). (Stellar mass is redundant with
+      the shown star count; rotation/Tully–Fisher is type-conditional; redshift is
+      ~0 at our galaxy spacing — all deferred.)
+- [x] Expand `GalaxyPanel` (Dispersion σ, Environment); tests for the M–σ
+      inversion round-trip + the cosmic-web bins.
+- [x] ✅-mark research doc §6.1.
+- Status: build + 117 tests + lint green; not committed.
 
 ---
 

@@ -21,7 +21,7 @@ import type { OrbitElements } from '../sim/orbits';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { BlackHoleDef, estimatedStarCount, galaxyDiameterLy, galaxyRepresentativeActivity } from '../generation/galaxies';
+import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyDiameterLy, galaxyRepresentativeActivity, hawkingTemperature, innermostStableOrbit, photonSphere, shadowDiameter, velocityDispersion } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
 import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, PlanetPhysicalDef, surfaceGravity } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
@@ -274,6 +274,12 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
       <div style={BODY_CSS}>
         <Row label="Mass" value={formatSolarMasses(blackHole.mass)} />
         <Row label="Schwarzschild r" value={formatQuantity(blackHole.schwarzschildRadius, 'AU')} />
+        <Row label="Photon sphere" value={formatQuantity(photonSphere(blackHole.schwarzschildRadius), 'AU')} />
+        <Row label="ISCO" value={formatQuantity(innermostStableOrbit(blackHole.schwarzschildRadius), 'AU')} />
+        <Row label="Shadow Ø" value={formatQuantity(shadowDiameter(blackHole.schwarzschildRadius), 'AU')} />
+        <Row label="Eddington L" value={`${formatCount(eddingtonLuminosity(blackHole.mass))} L☉`} />
+        <Row label="Hawking T" value={`${hawkingTemperature(blackHole.mass).toExponential(1)} K`} />
+        <Row label="Evaporation" value={`${evaporationTime(blackHole.mass).toExponential(1)} yr`} />
       </div>
     </div>
   );
@@ -300,6 +306,8 @@ function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
       <div style={BODY_CSS}>
         <Row label="Diameter" value={`${sigFigs(galaxyDiameterLy(galaxy))} ly`} />
         <Row label="Stars" value={`~${formatCount(estimatedStarCount(galaxy))}`} />
+        <Row label="Dispersion σ" value={formatQuantity(velocityDispersion(galaxy.blackHoleMass), 'km/s')} />
+        <Row label="Environment" value={environmentClass(galaxy.cosmicDensity)} />
         <Row label="Black hole" value={formatSolarMasses(galaxy.blackHoleMass)} />
       </div>
     </div>

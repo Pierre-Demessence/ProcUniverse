@@ -238,12 +238,12 @@ Almost everything here is a clean `FORMULA` of mass (with one `DIST` for spin).
 
 | Property | Computation | Basis | Draws |
 | --- | --- | --- | --- |
-| **Hawking temperature** | `T_H = 6.17×10⁻⁸ K · (M☉/M)` (absurdly cold for SMBHs) | Hawking 1975 | 0 |
-| **Evaporation time** | `t_evap ≈ 2.1×10⁶⁷ yr · (M/M☉)³` | Hawking 1975 | 0 |
-| **Photon sphere** | `r_ph = 1.5·r_s` | Schwarzschild GR | 0 |
-| **ISCO** | `6GM/c² = 3·r_s` (non-spinning) → `0.5·r_s` (max prograde Kerr) | GR | 0 (needs spin for Kerr) |
-| **Shadow size** | apparent diameter ≈ `5.2·r_s` (EHT-style) | GR ray-tracing | 0 |
-| **Eddington luminosity** | `L_Edd = 3.3×10⁴ L☉ · (M/M☉)` | radiation/gravity balance | 0 |
+| **✅ Hawking temperature** | `T_H = 6.17×10⁻⁸ K · (M☉/M)` (absurdly cold for SMBHs) | Hawking 1975 | 0 |
+| **✅ Evaporation time** | `t_evap ≈ 2.1×10⁶⁷ yr · (M/M☉)³` | Hawking 1975 | 0 |
+| **✅ Photon sphere** | `r_ph = 1.5·r_s` | Schwarzschild GR | 0 |
+| **✅ ISCO** | `6GM/c² = 3·r_s` (non-spinning) → `0.5·r_s` (max prograde Kerr) | GR | 0 (needs spin for Kerr) |
+| **✅ Shadow size** | apparent diameter ≈ `5.2·r_s` (EHT-style) | GR ray-tracing | 0 |
+| **✅ Eddington luminosity** | `L_Edd = 3.3×10⁴ L☉ · (M/M☉)` | radiation/gravity balance | 0 |
 | **Sphere of influence** | `r_infl = GM/σ²` (σ from M–σ, [§6](#6-galaxies)) | dynamics | 0 |
 | **Stellar tidal-disruption radius** | `R_t ≈ R_*·(M_BH/M_*)^{1/3}` (above ~10⁸ M☉ it lies inside the horizon) | tides | 0 |
 | **Class** | mass bins: stellar / intermediate / supermassive | — | 0 |
@@ -270,10 +270,10 @@ already half-present.
 
 | Property | Computation | Basis | Draws |
 | --- | --- | --- | --- |
-| **Velocity dispersion σ** | invert our M–σ: `log(M_BH/M☉) = 8.12 + 4.24·log(σ/200)` | Gültekin et al. 2009 | 0 |
+| **✅ Velocity dispersion σ** | invert our M–σ: `log(M_BH/M☉) = 8.12 + 4.24·log(σ/200)` | Gültekin et al. 2009 | 0 |
 | **Bulge / stellar mass** | `M_BH ≈ 0.14 % · M_bulge` (or `estimatedStarCount·⟨M⟩`) | Häring & Rix 2004 | 0 |
 | **Rotation speed (spirals)** | Tully–Fisher `L ∝ v⁴` ⇒ `v_max` from luminosity | Tully & Fisher 1977 | 0 |
-| **Environment class** | bin existing `cosmicDensity` → void / wall / filament / node / cluster | — (already computed) | 0 |
+| **✅ Environment class** | bin existing `cosmicDensity` → void / wall / filament / node / cluster | — (already computed) | 0 |
 | **Redshift / lookback (local)** | `z ≈ H₀·d/c` from distance to origin | Hubble law | 0 |
 
 ### 6.2 `COND` — relational (mostly on type / mass)

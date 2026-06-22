@@ -73,6 +73,7 @@ export interface GalaxyParams {
   blackHoleMass: number;
   centerX: number;
   centerY: number;
+  cosmicDensity: number;
   dwarf: boolean;
   ellipticity: number;
   orientation: number;
@@ -111,6 +112,46 @@ function drawType(u: number, cosmic: number): GalaxyType {
 export function blackHoleMassFromSize(sizeNorm: number, heavy: boolean, scatter01: number): number {
   const frac = clamp(sizeNorm * 0.7 + (heavy ? 0.2 : 0) + (scatter01 - 0.5) * 0.25, 0, 1);
   return 10 ** lerp(Math.log10(BLACK_HOLE_MASS_MIN), Math.log10(BLACK_HOLE_MASS_MAX), frac);
+}
+
+// Black-hole derived-quantity constants: the Hawking temperature and evaporation
+// time per solar mass, the Eddington luminosity per solar mass (L☉), and the
+// photon-sphere / ISCO / shadow radii as multiples of the Schwarzschild radius.
+const HAWKING_TEMPERATURE_SOLAR_K = 6.17e-8;
+const EVAPORATION_TIME_SOLAR_YEARS = 2.1e67;
+const EDDINGTON_LUMINOSITY_PER_SOLAR_MASS = 3.3e4;
+const PHOTON_SPHERE_FACTOR = 1.5;
+const ISCO_FACTOR = 3;
+const SHADOW_DIAMETER_FACTOR = 5.2;
+
+/** Hawking temperature (K): `6.17×10⁻⁸ · (M☉/M)` — vanishingly cold for SMBHs. */
+export function hawkingTemperature(massSolar: number): number {
+  return HAWKING_TEMPERATURE_SOLAR_K / massSolar;
+}
+
+/** Evaporation time (years): `≈ 2.1×10⁶⁷ · (M/M☉)³` — far beyond cosmic timescales. */
+export function evaporationTime(massSolar: number): number {
+  return EVAPORATION_TIME_SOLAR_YEARS * massSolar ** 3;
+}
+
+/** Photon-sphere radius (AU): `1.5·r_s`, where light itself can orbit. */
+export function photonSphere(schwarzschildRadius: number): number {
+  return PHOTON_SPHERE_FACTOR * schwarzschildRadius;
+}
+
+/** Innermost stable circular orbit (AU): `3·r_s` (non-spinning) — the disc's inner edge. */
+export function innermostStableOrbit(schwarzschildRadius: number): number {
+  return ISCO_FACTOR * schwarzschildRadius;
+}
+
+/** Apparent shadow diameter (AU): `≈ 5.2·r_s` — what the Event Horizon Telescope images. */
+export function shadowDiameter(schwarzschildRadius: number): number {
+  return SHADOW_DIAMETER_FACTOR * schwarzschildRadius;
+}
+
+/** Eddington luminosity (L☉): `3.3×10⁴ · (M/M☉)` — the steady accretion-power ceiling. */
+export function eddingtonLuminosity(massSolar: number): number {
+  return EDDINGTON_LUMINOSITY_PER_SOLAR_MASS * massSolar;
 }
 
 // Cosmic-web value noise: hash a coarse grid of nodes (every COSMIC_WEB_CELLS
@@ -189,6 +230,7 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number): GalaxyPar
     blackHoleMass,
     centerX,
     centerY,
+    cosmicDensity: cosmic,
     dwarf,
     ellipticity,
     orientation,
@@ -375,4 +417,33 @@ export function* galaxiesInRect(worldSeed: number, minX: number, minY: number, m
         yield g;
     }
   }
+}
+
+// M–σ relation (Gültekin et al. 2009): log(M_BH/M☉) = 8.12 + 4.24·log(σ/200).
+const MSIGMA_INTERCEPT = 8.12;
+const MSIGMA_SLOPE = 4.24;
+const MSIGMA_SIGMA0 = 200; // km/s
+
+/**
+ * Stellar velocity dispersion (km/s), inverting the M–σ relation from the
+ * central black-hole mass: heavier holes inhabit galaxies with deeper, faster
+ * potential wells. A 10^8.12 M☉ hole gives the 200 km/s pivot.
+ */
+export function velocityDispersion(blackHoleMass: number): number {
+  return MSIGMA_SIGMA0 * 10 ** ((Math.log10(blackHoleMass) - MSIGMA_INTERCEPT) / MSIGMA_SLOPE);
+}
+
+/**
+ * Cosmic-web environment label from the stored `cosmicDensity` overdensity in
+ * `[0, 1]`: empty voids, sheet-like walls, dense filaments, and the cluster
+ * nodes where filaments meet.
+ */
+export function environmentClass(cosmicDensity: number): string {
+  if (cosmicDensity < 0.3)
+    return 'Void';
+  if (cosmicDensity < 0.5)
+    return 'Wall';
+  if (cosmicDensity < 0.7)
+    return 'Filament';
+  return 'Cluster';
 }

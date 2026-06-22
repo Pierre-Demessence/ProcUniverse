@@ -7,7 +7,10 @@ import { SECTOR_SIZE } from '../scale';
 import {
   blackHoleMassFromSize,
   cosmicDensity,
+  eddingtonLuminosity,
+  environmentClass,
   estimatedStarCount,
+  evaporationTime,
   galaxiesInRect,
   galaxyActivityOf,
   galaxyAt,
@@ -16,7 +19,12 @@ import {
   galaxyDensityOf,
   galaxyDiameterLy,
   galaxyRepresentativeActivity,
+  hawkingTemperature,
+  innermostStableOrbit,
   makeGalaxy,
+  photonSphere,
+  shadowDiameter,
+  velocityDispersion,
 } from './galaxies';
 import { AU_PER_LY } from './units';
 
@@ -29,6 +37,7 @@ const spiral: GalaxyParams = {
   blackHoleMass: 1e7,
   centerX: 1000,
   centerY: 1000,
+  cosmicDensity: 0.5,
   dwarf: false,
   ellipticity: 1,
   orientation: 0,
@@ -194,6 +203,42 @@ describe('galaxy-field helpers', () => {
     const found = [...galaxiesInRect(SEED, -cell, -cell, cell, cell)];
     expect(found.length).toBeGreaterThan(0);
     expect(found.some(g => g.centerX === 0 && g.centerY === 0)).toBe(true);
+  });
+});
+
+describe('black-hole derived quantities', () => {
+  it('anchors the per-solar-mass values and scales with mass', () => {
+    expect(hawkingTemperature(1)).toBeCloseTo(6.17e-8, 10);
+    expect(eddingtonLuminosity(1)).toBeCloseTo(3.3e4, 1);
+    expect(hawkingTemperature(2) / hawkingTemperature(1)).toBeCloseTo(0.5, 6);
+    expect(evaporationTime(2) / evaporationTime(1)).toBeCloseTo(8, 6);
+    expect(eddingtonLuminosity(5) / eddingtonLuminosity(1)).toBeCloseTo(5, 6);
+  });
+
+  it('places the photon sphere, ISCO, and shadow at multiples of r_s', () => {
+    expect(photonSphere(0.2)).toBeCloseTo(0.3, 6);
+    expect(innermostStableOrbit(0.2)).toBeCloseTo(0.6, 6);
+    expect(shadowDiameter(0.2)).toBeCloseTo(1.04, 6);
+  });
+});
+
+describe('galaxy derived quantities', () => {
+  it('inverts the M–σ relation (heavier black hole → higher dispersion)', () => {
+    expect(velocityDispersion(10 ** 8.12)).toBeCloseTo(200, 4);
+    expect(velocityDispersion(1e9)).toBeGreaterThan(velocityDispersion(1e7));
+  });
+
+  it('labels the cosmic-web environment by overdensity', () => {
+    expect(environmentClass(0.1)).toBe('Void');
+    expect(environmentClass(0.4)).toBe('Wall');
+    expect(environmentClass(0.6)).toBe('Filament');
+    expect(environmentClass(0.9)).toBe('Cluster');
+  });
+
+  it('exposes the home galaxy cosmic-web density in [0, 1]', () => {
+    const home = makeGalaxy(SEED, 0, 0);
+    expect(home?.cosmicDensity).toBeGreaterThanOrEqual(0);
+    expect(home?.cosmicDensity).toBeLessThanOrEqual(1);
   });
 });
 
