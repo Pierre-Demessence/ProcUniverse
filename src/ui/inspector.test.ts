@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
+import { SECONDS_PER_YEAR } from '../generation/units';
 import {
   formatHabitability,
   formatLifetime,
+  formatPeriod,
   formatPlanetType,
   formatQuantity,
   formatTemperature,
   sigFigs,
+  temperatureUnit,
+  toggleTemperatureUnit,
 } from './inspector';
 
 describe('sigFigs', () => {
@@ -33,6 +37,22 @@ describe('formatTemperature', () => {
     expect(formatTemperature(5772)).toBe('5,772 K');
     expect(formatTemperature(279.6)).toBe('280 K');
   });
+
+  it('converts to whole degrees Celsius when asked', () => {
+    expect(formatTemperature(5772, 'C')).toBe('5,499 °C');
+    expect(formatTemperature(279.6, 'C')).toBe('6 °C');
+    expect(formatTemperature(50, 'C')).toBe('-223 °C');
+  });
+});
+
+describe('toggleTemperatureUnit', () => {
+  it('flips the shared unit signal between K and C', () => {
+    expect(temperatureUnit.value).toBe('K');
+    toggleTemperatureUnit();
+    expect(temperatureUnit.value).toBe('C');
+    toggleTemperatureUnit();
+    expect(temperatureUnit.value).toBe('K');
+  });
 });
 
 describe('formatLifetime', () => {
@@ -41,6 +61,17 @@ describe('formatLifetime', () => {
     expect(formatLifetime(4.5e8)).toBe('450 Myr');
     expect(formatLifetime(4.03e5)).toBe('403 kyr');
     expect(formatLifetime(500)).toBe('500 yr');
+  });
+});
+
+describe('formatPeriod', () => {
+  it('scales a period (in years) to the largest human-readable unit', () => {
+    expect(formatPeriod(30 / SECONDS_PER_YEAR)).toBe('30 s');
+    expect(formatPeriod(120 / SECONDS_PER_YEAR)).toBe('2 min');
+    expect(formatPeriod(7200 / SECONDS_PER_YEAR)).toBe('2 h');
+    expect(formatPeriod((2 * 86400) / SECONDS_PER_YEAR)).toBe('2 days');
+    expect(formatPeriod(1)).toBe('1 yr');
+    expect(formatPeriod(5)).toBe('5 yr');
   });
 });
 

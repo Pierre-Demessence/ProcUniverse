@@ -23,11 +23,35 @@ import { render } from 'preact';
 import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
-import { OrbitElementsDef } from '../sim/orbits';
+import { SECONDS_PER_YEAR } from '../generation/units';
+import { orbitalPeriod, OrbitElementsDef } from '../sim/orbits';
 
 export interface Inspector {
   dispose: () => void;
   update: (world: EcsWorld, selection: PickResult | null) => void;
+}
+
+/** Display unit for temperatures: absolute kelvin or degrees Celsius. */
+export type TemperatureUnit = 'C' | 'K';
+
+// Kelvin offset of the Celsius zero point (0 °C = 273.15 K).
+const CELSIUS_OFFSET = 273.15;
+
+// Convenient-unit thresholds for an orbital period, in seconds.
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_DAY = 86400;
+
+/**
+ * The temperature unit the inspector renders, toggled live from the panel. A
+ * signal so reading it inside a component subscribes that component, re-rendering
+ * just the temperature rows when the unit flips — independent of the selection.
+ */
+export const temperatureUnit = signal<TemperatureUnit>('K');
+
+/** Flip the inspector's temperature unit between kelvin and Celsius. */
+export function toggleTemperatureUnit(): void {
+  temperatureUnit.value = temperatureUnit.value === 'K' ? 'C' : 'K';
 }
 
 /** Three significant figures with thousands separators, trailing zeros dropped. */
@@ -43,8 +67,10 @@ export function formatQuantity(value: number, unit: string): string {
   return `${sigFigs(value)} ${unit}`;
 }
 
-/** A temperature rounded to whole kelvin, e.g. `5,772 K`. */
-export function formatTemperature(kelvin: number): string {
+/** A temperature in the chosen unit, rounded to a whole degree, e.g. `5,772 K`. */
+export function formatTemperature(kelvin: number, unit: TemperatureUnit = 'K'): string {
+  if (unit === 'C')
+    return `${Math.round(kelvin - CELSIUS_OFFSET).toLocaleString('en-US')} °C`;
   return `${Math.round(kelvin).toLocaleString('en-US')} K`;
 }
 
@@ -56,6 +82,24 @@ export function formatLifetime(years: number): string {
     return `${sigFigs(years / 1e6)} Myr`;
   if (years >= 1e3)
     return `${sigFigs(years / 1e3)} kyr`;
+  return `${sigFigs(years)} yr`;
+}
+
+/**
+ * An orbital period (given in years) in the largest unit that keeps the number
+ * human-readable: seconds, then minutes (≥60 s), hours (≥60 min), days (≥24 h),
+ * and finally years (≥1 yr).
+ */
+export function formatPeriod(years: number): string {
+  const seconds = years * SECONDS_PER_YEAR;
+  if (seconds < SECONDS_PER_MINUTE)
+    return `${sigFigs(seconds)} s`;
+  if (seconds < SECONDS_PER_HOUR)
+    return `${sigFigs(seconds / SECONDS_PER_MINUTE)} min`;
+  if (seconds < SECONDS_PER_DAY)
+    return `${sigFigs(seconds / SECONDS_PER_HOUR)} h`;
+  if (seconds < SECONDS_PER_YEAR)
+    return `${sigFigs(seconds / SECONDS_PER_DAY)} days`;
   return `${sigFigs(years)} yr`;
 }
 
@@ -105,6 +149,23 @@ function Row({ label, value }: { label: string; value: string }): VNode {
   );
 }
 
+/**
+ * A temperature row whose value reads the live `temperatureUnit` signal and
+ * toggles it on click, so K ⇄ °C switches every temperature in the panel at once.
+ */
+function TemperatureRow({ kelvin, label }: { kelvin: number; label: string }): VNode {
+  return (
+    <div
+      style={`${ROW_CSS}; cursor:pointer`}
+      title="Click to switch between K and °C"
+      onClick={toggleTemperatureUnit}
+    >
+      <span style={LABEL_CSS}>{label}</span>
+      <span style={VALUE_CSS}>{formatTemperature(kelvin, temperatureUnit.value)}</span>
+    </div>
+  );
+}
+
 function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode {
   return (
     <div style={PANEL_CSS}>
@@ -132,7 +193,7 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
         <Row label="Mass" value={formatQuantity(star.mass, 'M☉')} />
         <Row label="Luminosity" value={formatQuantity(star.luminosity, 'L☉')} />
         <Row label="Radius" value={formatQuantity(star.radius, 'R☉')} />
-        <Row label="Temperature" value={formatTemperature(star.temperature)} />
+        <TemperatureRow label="Temperature" kelvin={star.temperature} />
         <Row label="Lifetime" value={formatLifetime(star.lifetime)} />
       </div>
     </div>
@@ -148,9 +209,10 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Mass" value={formatQuantity(planet.mass, 'M⊕')} />
         <Row label="Radius" value={formatQuantity(planet.radius, 'R⊕')} />
         <Row label="Density" value={formatQuantity(planet.density, 'g/cm³')} />
-        <Row label="Equilibrium" value={formatTemperature(planet.equilibriumTemp)} />
+        <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} />
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} />
         <Row label="Orbit a" value={formatQuantity(orbit.a, 'AU')} />
+        <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} />
         <Row label="Eccentricity" value={sigFigs(orbit.e)} />
       </div>
     </div>

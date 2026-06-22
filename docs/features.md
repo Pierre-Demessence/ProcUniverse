@@ -14,7 +14,7 @@
 | Time controls | Simulation-date readout (epoch 2100-01-01 UTC) and a stepped speed slider (pause → 1 day/s, incl. sub-real-time). | Done (Realistic-sim C — time) |
 | LOD streaming | Zoom-bounded tiers (systems → star dots → density glow) with streaming, floating origin, and tier cross-fades. | Done (Phase 2) |
 | Seed persistence | Random world seed minted on first load and saved via the engine `save` module; reload = identical universe, clear storage = new one. | Done (Phase 4 — seed) |
-| Body inspector | Click a star or planet to pin a panel of its seed-derived physics; a four-arrow reticle locks the body and tracks it as it orbits. Escape or an empty-space click dismisses. | Done (Phase F) |
+| Body inspector | Click a star or planet to pin a panel of its seed-derived physics; planets also show their orbital period in convenient units (s / min / h / days / yr), and clicking any temperature switches every reading between K and °C. A four-arrow reticle locks the body and tracks it as it orbits. Escape or an empty-space click dismisses. | Done (Phase F) |
 | Body naming | Deterministic, seed-derived catalogue names (spectral-class prefix + base-36 id; planets lettered from `b`), shown as the inspector title and as labels that track each body. | Done (Realistic-sim H) |
 | Player deltas | Visited / named overrides persisted via the engine `save` module. | Planned (Phase 4) |
 
