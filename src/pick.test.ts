@@ -28,6 +28,7 @@ const PLANET: PlanetPhysical = {
   density: 5.5,
   equilibriumTemp: 280,
   inHabitableZone: true,
+  insolation: 1,
   mass: 1,
   radius: 1,
   type: 'rocky',

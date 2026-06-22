@@ -23,7 +23,7 @@ import { render } from 'preact';
 
 import { BlackHoleDef, estimatedStarCount, galaxyDiameterLy, galaxyRepresentativeActivity } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
-import { PlanetPhysicalDef } from '../generation/planets';
+import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, PlanetPhysicalDef, surfaceGravity } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
@@ -230,6 +230,7 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
 }
 
 function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
+  const escape = escapeVelocity(planet.mass, planet.radius);
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
@@ -238,8 +239,14 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Mass" value={formatQuantity(planet.mass, 'M⊕')} />
         <Row label="Radius" value={formatQuantity(planet.radius, 'R⊕')} />
         <Row label="Density" value={formatQuantity(planet.density, 'g/cm³')} />
+        <Row label="Gravity" value={formatQuantity(surfaceGravity(planet.mass, planet.radius), 'g⊕')} />
+        <Row label="Escape vel." value={formatQuantity(escape, 'km/s')} />
+        <Row label="Composition" value={compositionClass(planet.type, planet.density)} />
+        <Row label="Core press." value={`~${formatQuantity(centralPressure(planet.mass, planet.radius), 'GPa')}`} />
         <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} />
+        <Row label="Insolation" value={formatQuantity(planet.insolation, 'S⊕')} />
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} />
+        <Row label="Earth index" value={sigFigs(earthSimilarityIndex(planet.radius, planet.density, escape, planet.equilibriumTemp))} />
         <Row label="Orbit a" value={formatQuantity(orbit.a, 'AU')} />
         <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} />
         <Row label="Eccentricity" value={sigFigs(orbit.e)} />

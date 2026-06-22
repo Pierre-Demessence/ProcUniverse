@@ -20,6 +20,7 @@ export interface PlanetPhysical {
   density: number;
   equilibriumTemp: number;
   inHabitableZone: boolean;
+  insolation: number;
   mass: number;
   radius: number;
   type: PlanetType;
@@ -30,6 +31,7 @@ export const PlanetPhysicalDef: ComponentDef<PlanetPhysical> = simpleComponent<P
   density: 'number',
   equilibriumTemp: 'number',
   inHabitableZone: 'boolean',
+  insolation: 'number',
   mass: 'number',
   radius: 'number',
   type: 'string',
@@ -44,6 +46,22 @@ const TEQ_CONSTANT = 278.3;
 // Forecaster (Chen & Kipping 2017) mass–radius break masses, in Earth masses.
 const TERRAN_MAX = 2.04;
 const NEPTUNIAN_MAX = 131.6;
+// Earth's surface escape velocity (km/s); other planets scale as √(M/R).
+const EARTH_ESCAPE_VELOCITY = 11.186;
+// Earth's central pressure (GPa). The uniform-sphere bound 3GM²/8πR⁴ scales as
+// M²/R⁴; the coefficient is anchored to Earth's measured ~364 GPa rather than the
+// bound's own ~170 GPa underestimate, so Earth reads true and others scale from it.
+const EARTH_CENTRAL_PRESSURE_GPA = 364;
+// Earth's equilibrium (pre-greenhouse) temperature (K) — the ESI reference, so
+// bodies are compared on the same footing as our other equilibrium temperatures.
+const EARTH_EQUILIBRIUM_TEMP = 255;
+// Earth Similarity Index weights (Schulze-Makuch et al. 2011) over its four
+// parameters — radius, density, escape velocity, temperature — and that count.
+const ESI_WEIGHT_RADIUS = 0.57;
+const ESI_WEIGHT_DENSITY = 1.07;
+const ESI_WEIGHT_ESCAPE = 0.7;
+const ESI_WEIGHT_TEMP = 5.58;
+const ESI_PARAM_COUNT = 4;
 
 /** Snow line in AU: beyond it volatiles condense and giants tend to form. */
 export function frostLine(luminositySolar: number): number {
@@ -130,9 +148,71 @@ export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number):
     density: (EARTH_DENSITY * mass) / radius ** 3,
     equilibriumTemp: temperature,
     inHabitableZone: a >= hz.inner && a <= hz.outer,
+    insolation: luminositySolar / a ** 2,
     mass,
     radius,
     type,
     waterState: waterStateFor(temperature),
   };
+}
+
+/** Surface gravity in Earth gravities (g⊕ = 1): `M / R²` in Earth units. */
+export function surfaceGravity(massEarth: number, radiusEarth: number): number {
+  return massEarth / radiusEarth ** 2;
+}
+
+/** Surface escape velocity (km/s), `√(M/R)` in Earth units (Earth = 11.19 km/s). */
+export function escapeVelocity(massEarth: number, radiusEarth: number): number {
+  return EARTH_ESCAPE_VELOCITY * Math.sqrt(massEarth / radiusEarth);
+}
+
+/**
+ * Approximate central pressure (GPa). The uniform-sphere bound `3GM²/8πR⁴` scales
+ * as `M²/R⁴`; the coefficient is anchored to Earth's real ~364 GPa so Earth reads
+ * true and others scale from it. Indicative only — real interiors are centrally
+ * condensed and follow their own equation of state.
+ */
+export function centralPressure(massEarth: number, radiusEarth: number): number {
+  return (EARTH_CENTRAL_PRESSURE_GPA * massEarth ** 2) / radiusEarth ** 4;
+}
+
+/**
+ * A coarse bulk-composition label. Giants are gaseous/icy by class; smaller
+ * worlds are split by mean density, which tracks the iron / rock / water / gas
+ * mix (research §3.1).
+ */
+export function compositionClass(type: PlanetType, density: number): string {
+  if (type === 'gas-giant')
+    return 'Gaseous (H/He)';
+  if (type === 'ice-giant')
+    return 'Icy (H/He, ices)';
+  if (density >= 6)
+    return 'Iron-rich';
+  if (density >= 3.5)
+    return 'Rocky';
+  if (density >= 1.5)
+    return 'Water / ice';
+  return 'Volatile-rich';
+}
+
+/**
+ * Earth Similarity Index in [0, 1] (Schulze-Makuch et al. 2011): a weighted
+ * geometric mean of how close radius, density, escape velocity, and temperature
+ * are to Earth's (1 = Earth-identical). Uses equilibrium temperature so bodies
+ * are compared before any greenhouse effect, like our other temperatures.
+ */
+export function earthSimilarityIndex(
+  radiusEarth: number,
+  density: number,
+  escapeVelocityKms: number,
+  equilibriumTempK: number,
+): number {
+  const similarity = (x: number, ref: number, weight: number): number =>
+    (1 - Math.abs((x - ref) / (x + ref))) ** (weight / ESI_PARAM_COUNT);
+  return (
+    similarity(radiusEarth, 1, ESI_WEIGHT_RADIUS)
+    * similarity(density, EARTH_DENSITY, ESI_WEIGHT_DENSITY)
+    * similarity(escapeVelocityKms, EARTH_ESCAPE_VELOCITY, ESI_WEIGHT_ESCAPE)
+    * similarity(equilibriumTempK, EARTH_EQUILIBRIUM_TEMP, ESI_WEIGHT_TEMP)
+  );
 }

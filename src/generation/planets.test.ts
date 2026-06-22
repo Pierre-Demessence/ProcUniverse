@@ -2,12 +2,17 @@ import { makeSeededRng } from '@pierre/ecs/modules/rng';
 import { describe, expect, it } from 'vitest';
 
 import {
+  centralPressure,
   classifyType,
+  compositionClass,
+  earthSimilarityIndex,
   equilibriumTemp,
+  escapeVelocity,
   frostLine,
   habitableZone,
   massToRadius,
   samplePlanet,
+  surfaceGravity,
 } from './planets';
 
 describe('frost line and habitable zone', () => {
@@ -100,5 +105,51 @@ describe('samplePlanet', () => {
     }
     expect(innerGiants).toBe(0);
     expect(outerGiants).toBeGreaterThan(0);
+  });
+
+  it('stores insolation as L / a² (Earth = 1 at 1 AU, 1 L☉)', () => {
+    expect(samplePlanet(makeSeededRng(1), 1, 1).insolation).toBeCloseTo(1, 6);
+    expect(samplePlanet(makeSeededRng(1), 1, 2).insolation).toBeCloseTo(0.25, 6);
+    expect(samplePlanet(makeSeededRng(1), 4, 1).insolation).toBeCloseTo(4, 6);
+  });
+});
+
+describe('surfaceGravity', () => {
+  it('is 1 g⊕ for Earth and scales as M / R²', () => {
+    expect(surfaceGravity(1, 1)).toBeCloseTo(1, 6);
+    expect(surfaceGravity(4, 2)).toBeCloseTo(1, 6);
+    expect(surfaceGravity(2, 1)).toBeCloseTo(2, 6);
+  });
+});
+
+describe('escapeVelocity', () => {
+  it('is ~11.19 km/s for Earth and scales as √(M/R)', () => {
+    expect(escapeVelocity(1, 1)).toBeCloseTo(11.186, 3);
+    expect(escapeVelocity(4, 1)).toBeCloseTo(2 * 11.186, 3);
+  });
+});
+
+describe('centralPressure', () => {
+  it('anchors Earth at ~364 GPa and scales as M² / R⁴', () => {
+    expect(centralPressure(1, 1)).toBeCloseTo(364, 6);
+    expect(centralPressure(2, 1)).toBeCloseTo(364 * 4, 6);
+  });
+});
+
+describe('compositionClass', () => {
+  it('labels giants by class and small worlds by density', () => {
+    expect(compositionClass('gas-giant', 1.3)).toBe('Gaseous (H/He)');
+    expect(compositionClass('ice-giant', 1.6)).toBe('Icy (H/He, ices)');
+    expect(compositionClass('super-earth', 8)).toBe('Iron-rich');
+    expect(compositionClass('rocky', 5.5)).toBe('Rocky');
+    expect(compositionClass('rocky', 2)).toBe('Water / ice');
+    expect(compositionClass('rocky', 0.8)).toBe('Volatile-rich');
+  });
+});
+
+describe('earthSimilarityIndex', () => {
+  it('is 1 for an Earth twin and falls off for unlike worlds', () => {
+    expect(earthSimilarityIndex(1, 5.514, 11.186, 255)).toBeCloseTo(1, 6);
+    expect(earthSimilarityIndex(11, 1.3, 60, 110)).toBeLessThan(0.4);
   });
 });
