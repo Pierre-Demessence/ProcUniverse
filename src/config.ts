@@ -44,6 +44,14 @@ export const BLACK_HOLE_DISC_AU = 0.5;
 export const POP_BIAS = 1.1;
 // Drawn galaxy-field sprite radius as a multiple of the galaxy's world radius.
 export const GALAXY_SPRITE_SCALE = 2.5;
+// Cosmic web: galaxies cluster into filaments / voids via value noise over a
+// grid of nodes `COSMIC_WEB_CELLS` galaxy-cells apart. `COSMIC_WEB_STRENGTH` is
+// how strongly the local density swings occupancy (0 = uniform);
+// `MORPH_DENSITY_BIAS` is how strongly dense regions skew galaxies spheroidal
+// (the morphology–density relation).
+export const COSMIC_WEB_CELLS = 8;
+export const COSMIC_WEB_STRENGTH = 0.7;
+export const MORPH_DENSITY_BIAS = 0.25;
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range

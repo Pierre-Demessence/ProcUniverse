@@ -187,10 +187,52 @@ sprites → cosmic glow.
 - [x] Static pipeline (lint / build / test) + peer review (LGTM) + docs.
 - [ ] Browser E2E handed off to Pierre (galaxies as labelled sprites; click one to inspect it).
 
-## G2b design — cosmic web (deferred)
+## G2b design — cosmic web
+
+Galaxies are currently placed by a flat per-cell occupancy roll (uniform Poisson on the grid). G2b
+makes their large-scale distribution **clumpy** (clusters + voids), ties morphology to environment,
+and gives the `universe` tier its own visual.
+
+### Cosmic density field
+
+- `cosmicDensity(Gx, Gy) → [0, 1]`: smooth **value noise** over galaxy-cell coords (hash a coarse
+  super-grid of "web cells", bilinearly interpolate), so it varies slowly across many galaxy cells.
+- **Clustered placement**: in `makeGalaxy`, gate occupancy on it —
+  `occupied = rng() < GALAXY_OCCUPANCY · contrast(cosmicDensity)` — so filaments/clusters are dense
+  and voids nearly empty. The **home cell stays forced-occupied**.
+- True ridge-like filaments (cellular / ridged noise) are a later refinement; clumpy value noise
+  (clusters + voids) is the v1.
+
+### Morphology–density relation
+
+- Bias `drawType` by `cosmicDensity`: dense regions (cluster cores) skew toward **elliptical /
+  lenticular** ("red and dead"); the sparse field stays spiral-rich. Reproduces the real
+  morphology–density relation and makes clusters visibly redder.
+
+### Universe-tier visual
+
+- New `render/draw-universe.ts`: aggregate the **cosmic density field** (smooth, defined everywhere)
+  into a glow, instead of the point star density `drawGalaxy` samples — so the largest zoom shows
+  filaments + voids rather than near-black. `scene.ts` routes `universe` → `drawUniverse`.
+
+### Irregular galaxies (optional)
+
+- A 5th morphology with a **lumpy, noise-based** density (a few offset star-forming blobs, so it
+  reads bluish), added to `drawType`. Deferred through G2a; fold in here if wanted.
+
+### Subtasks (pending confirmation)
+
+- [x] `config.ts`: cosmic-web knobs (`COSMIC_WEB_CELLS`, `COSMIC_WEB_STRENGTH`, `MORPH_DENSITY_BIAS`).
+- [x] `galaxies.ts`: `cosmicDensity` (value noise); gate `makeGalaxy` occupancy on it; condition
+      `drawType` on it (morphology–density). Irregular morphology stays deferred.
+- [x] `render/draw-universe.ts` (new) + `scene.ts` route (`universe` → `drawUniverse`).
+- [x] Tests: `cosmicDensity` smooth + in range; clustered occupancy + morphology skew; byte-identical
+      regeneration across morphologies; `universe.test.ts` / determinism stay green (96/96).
+- [x] Static pipeline (lint / build / test) + peer review + docs.
+- [ ] Browser E2E handed off to Pierre (universe tier shows filaments / voids; clusters redder).
 
 ### Open questions (confirm before building G2b)
 
-1. **Cosmic web strength**: how clumpy — subtle filaments, or strong voids? (a tunable knob; default
-   moderate.)
-2. **Irregular galaxies**: fold the deferred 5th morphology in then (needs a lumpy noise density)?
+1. **Cosmic web strength**: how clumpy — subtle (gentle clusters) or strong (near-empty voids)?
+   (a tunable knob; default moderate.)
+2. **Irregular galaxies**: fold the deferred 5th morphology in now, or keep deferring?

@@ -13,6 +13,7 @@ import { drawGalaxy } from './draw-galaxy';
 import { drawGalaxyField } from './draw-galaxy-field';
 import { drawBodyLabels } from './draw-labels';
 import { drawStars } from './draw-stars';
+import { drawUniverse } from './draw-universe';
 import { drawReferenceGrid } from './grid';
 
 const BACKGROUND = '#05060d';
@@ -45,8 +46,11 @@ export function renderFrame(deps: FrameDeps): number {
   ctx2d.fillStyle = BACKGROUND;
   ctx2d.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (tier === 'galaxy' || tier === 'universe')
+  if (tier === 'galaxy')
     return drawGalaxy(ctx2d, camera, seed, originX, originY);
+
+  if (tier === 'universe')
+    return drawUniverse(ctx2d, camera, seed, originX, originY);
 
   if (tier === 'galaxy-field')
     return drawGalaxyField(ctx2d, camera, seed, originX, originY);

@@ -6,6 +6,7 @@ import { BLACK_HOLE_MASS_MAX, BLACK_HOLE_MASS_MIN, GALAXY_CELL_LY } from '../con
 import { SECTOR_SIZE } from '../scale';
 import {
   blackHoleMassFromSize,
+  cosmicDensity,
   estimatedStarCount,
   galaxiesInRect,
   galaxyActivityOf,
@@ -127,6 +128,13 @@ describe('makeGalaxy', () => {
     expect(filled).toBeGreaterThan(0);
   });
 
+  it('regenerates every cell byte-identically regardless of morphology branch', () => {
+    for (let gx = -3; gx <= 3; gx++) {
+      for (let gy = -3; gy <= 3; gy++)
+        expect(makeGalaxy(SEED, gx, gy)).toEqual(makeGalaxy(SEED, gx, gy));
+    }
+  });
+
   it('draws several morphologies across the grid', () => {
     const types = new Set<string>();
     for (let gx = -10; gx <= 10; gx++) {
@@ -186,5 +194,49 @@ describe('galaxy-field helpers', () => {
     const found = [...galaxiesInRect(SEED, -cell, -cell, cell, cell)];
     expect(found.length).toBeGreaterThan(0);
     expect(found.some(g => g.centerX === 0 && g.centerY === 0)).toBe(true);
+  });
+});
+
+describe('cosmicDensity & clustering', () => {
+  it('is smooth and within [0, 1]', () => {
+    for (let gx = -5; gx <= 5; gx++) {
+      for (let gy = -5; gy <= 5; gy++) {
+        const c = cosmicDensity(SEED, gx, gy);
+        expect(c).toBeGreaterThanOrEqual(0);
+        expect(c).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(Math.abs(cosmicDensity(SEED, 0, 0) - cosmicDensity(SEED, 1, 0))).toBeLessThan(0.2);
+  });
+
+  it('clusters galaxies and skews them spheroidal where the web is dense', () => {
+    let denseGal = 0;
+    let denseTot = 0;
+    let denseSph = 0;
+    let voidGal = 0;
+    let voidTot = 0;
+    for (let gx = -40; gx <= 40; gx++) {
+      for (let gy = -40; gy <= 40; gy++) {
+        const c = cosmicDensity(SEED, gx, gy);
+        const g = makeGalaxy(SEED, gx, gy);
+        if (c > 0.6) {
+          denseTot++;
+          if (g) {
+            denseGal++;
+            if (g.type === 'elliptical' || g.type === 'lenticular')
+              denseSph++;
+          }
+        }
+        else if (c < 0.4) {
+          voidTot++;
+          if (g)
+            voidGal++;
+        }
+      }
+    }
+    expect(denseTot).toBeGreaterThan(0);
+    expect(voidTot).toBeGreaterThan(0);
+    expect(denseGal / denseTot).toBeGreaterThan(voidGal / voidTot);
+    expect(denseSph / denseGal).toBeGreaterThan(0.4);
   });
 });

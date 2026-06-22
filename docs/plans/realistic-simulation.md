@@ -278,10 +278,12 @@ aggregate tiers + cosmic web). Detail: [universe-hierarchy.md](universe-hierarch
       population colour, central black-hole mass).
 - [ ] Browser E2E (Pierre): galaxies as labelled sprites; click one to inspect it.
 
-**G2b — cosmic web (deferred)**
+**G2b — cosmic web — DONE (clustering); irregular + hierarchical deferred**
 
-- [ ] Cosmic-web clustered galaxy placement (the morphology–density relation) + a distinct universe
-      visual.
+- [x] Cosmic-web clustered galaxy placement (a value-noise density field gating occupancy) + the
+      morphology–density relation (dense regions skew elliptical / lenticular) + a distinct
+      universe-tier cosmic-web glow.
+- [ ] Browser E2E (Pierre): zoom to the universe tier — filaments / voids; clusters redder.
 - [ ] Irregular galaxies (the deferred 5th morphology).
 - [ ] Only if realistic galaxy sizes are ever wanted: galaxy-relative hierarchical addressing.
 

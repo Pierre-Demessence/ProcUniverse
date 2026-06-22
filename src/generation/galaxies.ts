@@ -7,6 +7,8 @@ import { makeSeededRng, randomInt } from '@pierre/ecs/modules/rng';
 import {
   BLACK_HOLE_MASS_MAX,
   BLACK_HOLE_MASS_MIN,
+  COSMIC_WEB_CELLS,
+  COSMIC_WEB_STRENGTH,
   GALAXY_ARM_PITCH_DEG,
   GALAXY_ARM_STRENGTH,
   GALAXY_ARMS_MAX,
@@ -16,6 +18,7 @@ import {
   GALAXY_OCCUPANCY,
   GALAXY_RADIUS_LY,
   GALAXY_SCALE_LENGTH_LY,
+  MORPH_DENSITY_BIAS,
   STAR_DENSITY_PEAK,
 } from '../config';
 import { SECTOR_SIZE } from '../scale';
@@ -82,13 +85,20 @@ export interface GalaxyParams {
 }
 
 // Approximate field fractions of bright galaxies: barred + unbarred spirals
-// dominate; ellipticals / lenticulars are the minority outside clusters.
-function drawType(u: number): GalaxyType {
-  if (u < 0.40)
+// dominate; ellipticals / lenticulars are the minority outside clusters. The
+// `cosmic` density skews the mix spheroidal in clusters (morphology–density).
+function drawType(u: number, cosmic: number): GalaxyType {
+  const s = MORPH_DENSITY_BIAS * (cosmic - 0.5);
+  const wBarred = clamp(0.40 - s, 0.05, 0.95);
+  const wSpiral = clamp(0.22 - s, 0.05, 0.95);
+  const wLenticular = clamp(0.21 + s, 0.05, 0.95);
+  const wElliptical = clamp(0.17 + s, 0.05, 0.95);
+  const t = u * (wBarred + wSpiral + wLenticular + wElliptical);
+  if (t < wBarred)
     return 'barred-spiral';
-  if (u < 0.62)
+  if (t < wBarred + wSpiral)
     return 'spiral';
-  if (u < 0.83)
+  if (t < wBarred + wSpiral + wLenticular)
     return 'lenticular';
   return 'elliptical';
 }
@@ -103,6 +113,39 @@ export function blackHoleMassFromSize(sizeNorm: number, heavy: boolean, scatter0
   return 10 ** lerp(Math.log10(BLACK_HOLE_MASS_MIN), Math.log10(BLACK_HOLE_MASS_MAX), frac);
 }
 
+// Cosmic-web value noise: hash a coarse grid of nodes (every COSMIC_WEB_CELLS
+// galaxy cells) and bilinearly interpolate for a smooth large-scale density.
+const COSMIC_SALT = 0x1B873593;
+
+function webNode(worldSeed: number, wx: number, wy: number): number {
+  return hashGalaxy((worldSeed ^ COSMIC_SALT) >>> 0, wx, wy) / 4294967296;
+}
+
+function smoothstep(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Smooth large-scale "cosmic web" density in `[0, 1]` over galaxy-cell coords:
+ * value noise that clusters galaxies into filaments and voids and skews their
+ * morphology (dense → spheroidal). Pure and deterministic.
+ */
+export function cosmicDensity(worldSeed: number, gx: number, gy: number): number {
+  const fx = gx / COSMIC_WEB_CELLS;
+  const fy = gy / COSMIC_WEB_CELLS;
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const tx = smoothstep(fx - x0);
+  const ty = smoothstep(fy - y0);
+  const v00 = webNode(worldSeed, x0, y0);
+  const v10 = webNode(worldSeed, x0 + 1, y0);
+  const v01 = webNode(worldSeed, x0, y0 + 1);
+  const v11 = webNode(worldSeed, x0 + 1, y0 + 1);
+  const top = v00 + (v10 - v00) * tx;
+  const bottom = v01 + (v11 - v01) * tx;
+  return top + (bottom - top) * ty;
+}
+
 /**
  * Generate the galaxy occupying grid cell `(gx, gy)`, or `null` if the cell is
  * empty. Pure and deterministic from `hashGalaxy(worldSeed, gx, gy)`. The home
@@ -115,12 +158,14 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number): GalaxyPar
   const rng = makeSeededRng(hash);
   // Draw into locals in a fixed order so the deterministic stream never shifts.
   const home = gx === 0 && gy === 0;
-  const occupied = rng() < GALAXY_OCCUPANCY;
+  const cosmic = cosmicDensity(worldSeed, gx, gy);
+  const occupancy = clamp(GALAXY_OCCUPANCY * (1 - COSMIC_WEB_STRENGTH + 2 * COSMIC_WEB_STRENGTH * cosmic), 0, 1);
+  const occupied = rng() < occupancy;
   if (!home && !occupied)
     return null;
 
   const cell = GALAXY_CELL_LY * AU_PER_LY;
-  const type = drawType(rng());
+  const type = drawType(rng(), cosmic);
   const dwarfRoll = rng();
   const dwarf = !home && dwarfRoll < GALAXY_DWARF_CHANCE;
   const [sizeLo, sizeHi] = dwarf ? DWARF_SIZE : NORMAL_SIZE;
