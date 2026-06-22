@@ -2,6 +2,7 @@ import type { ComponentDef } from '@pierre/ecs/component-store';
 import type { RandomFn } from '@pierre/ecs/modules/rng';
 
 import { simpleComponent } from '@pierre/ecs/component-store';
+import { clamp } from '@pierre/ecs/modules/math';
 
 import { POP_BIAS } from '../config';
 import { blackbodyColor } from './blackbody';
@@ -11,12 +12,15 @@ import { T_SUN } from './units';
 export type SpectralClass = 'A' | 'B' | 'F' | 'G' | 'K' | 'M' | 'O';
 
 /**
- * The derived physical state of a main-sequence star. Everything here is a
- * one-time pure function of the star's sampled **mass** (the single degree of
- * freedom), computed once at generation and cached — never per frame. Units:
- * solar masses/radii/luminosities, kelvin, and years.
+ * The derived physical state of a main-sequence star. Mass is the primary
+ * sampled degree of freedom (luminosity, radius, temperature, colour, class, and
+ * lifetime all chain from it); `age` and `metallicity` are two further
+ * independent draws. Computed once at generation and cached — never per frame.
+ * Units: solar masses/radii/luminosities, kelvin, years, and dex for `[Fe/H]`.
  */
 export interface StarPhysical {
+  /** Age since formation, in years (≤ the lesser of `lifetime` and ~13.8 Gyr). */
+  age: number;
   /** sRGB hex colour from the blackbody curve at `temperature`. */
   colorHex: string;
   /** Main-sequence lifetime, in years (∝ M/L). */
@@ -25,6 +29,8 @@ export interface StarPhysical {
   luminosity: number;
   /** Mass, in solar masses (M☉). */
   mass: number;
+  /** Metallicity `[Fe/H]`, in dex (0 = solar). */
+  metallicity: number;
   /** Radius, in solar radii (R☉). */
   radius: number;
   /** Morgan–Keenan class, binned from `temperature`. */
@@ -34,10 +40,12 @@ export interface StarPhysical {
 }
 
 export const StarPhysicalDef: ComponentDef<StarPhysical> = simpleComponent<StarPhysical>('starPhysical', {
+  age: 'number',
   colorHex: 'string',
   lifetime: 'number',
   luminosity: 'number',
   mass: 'number',
+  metallicity: 'number',
   radius: 'number',
   spectralClass: 'string',
   temperature: 'number',
@@ -149,22 +157,51 @@ export function spectralClassFromTemperature(tempK: number): SpectralClass {
   return 'M';
 }
 
+// The age of the universe (years): the hard ceiling on any star's age. A
+// low-mass star can have a main-sequence lifetime far longer than this, but the
+// universe simply is not old enough for it to be older. (Phase 3: per-seed knob.)
+const UNIVERSE_AGE_YEARS = 13.8e9;
+// Field-star metallicity [Fe/H] (dex): centred just below solar with a modest
+// spread, drawn from a normal-quantile approximation and clamped to a plausible
+// range (GALAH DR3 / APOGEE DR17 disc stars).
+const METALLICITY_MEAN = -0.05;
+const METALLICITY_SIGMA = 0.2;
+const METALLICITY_MIN = -1.5;
+const METALLICITY_MAX = 0.5;
+
 /**
- * Derive a star's full physical state from one seeded mass draw: sample the
- * mass from the IMF (optionally `activity`-biased by stellar population), then
- * chain mass → luminosity, radius, temperature, colour, spectral class, and
- * lifetime. Pure and deterministic for a given `rng` stream position.
+ * Sample a metallicity `[Fe/H]` (dex) from one draw: map the uniform through a
+ * Tukey-lambda approximation to the standard-normal quantile, then scale and
+ * clamp it — a clean one-draw Gaussian-ish field-star metallicity.
+ */
+function sampleMetallicity(rng: RandomFn): number {
+  const u = clamp(rng(), 1e-6, 1 - 1e-6);
+  const z = (u ** 0.135 - (1 - u) ** 0.135) / 0.1975;
+  return clamp(METALLICITY_MEAN + METALLICITY_SIGMA * z, METALLICITY_MIN, METALLICITY_MAX);
+}
+
+/**
+ * Derive a star's full physical state. Mass is the primary draw (luminosity,
+ * radius, temperature, colour, class, lifetime all chain from it); then two
+ * further appended draws give the star's `age` — uniform up to the lesser of its
+ * main-sequence lifetime and the age of the universe — and its `metallicity`.
+ * Pure and deterministic for a given `rng` stream position; consumes three draws.
  */
 export function sampleStar(rng: RandomFn, activity = 0.5): StarPhysical {
   const mass = sampleStellarMass(rng, activity);
   const luminosity = luminosityFromMass(mass);
   const radius = radiusFromMass(mass);
   const temperature = temperatureFromLuminosityRadius(luminosity, radius);
+  const lifetime = lifetimeFromMassLuminosity(mass, luminosity);
+  const age = rng() * Math.min(lifetime, UNIVERSE_AGE_YEARS);
+  const metallicity = sampleMetallicity(rng);
   return {
+    age,
     colorHex: blackbodyColor(temperature),
-    lifetime: lifetimeFromMassLuminosity(mass, luminosity),
+    lifetime,
     luminosity,
     mass,
+    metallicity,
     radius,
     spectralClass: spectralClassFromTemperature(temperature),
     temperature,

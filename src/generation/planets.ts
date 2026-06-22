@@ -2,7 +2,9 @@ import type { ComponentDef } from '@pierre/ecs/component-store';
 import type { RandomFn } from '@pierre/ecs/modules/rng';
 
 import { simpleComponent } from '@pierre/ecs/component-store';
-import { lerp } from '@pierre/ecs/modules/math';
+import { clamp, lerp } from '@pierre/ecs/modules/math';
+
+import { SECONDS_PER_YEAR } from './units';
 
 /** Broad planet classes, from small rocky worlds to gas giants. */
 export type PlanetType = 'gas-giant' | 'ice-giant' | 'rocky' | 'super-earth';
@@ -12,17 +14,23 @@ export type WaterState = 'ice' | 'liquid' | 'vapour';
 
 /**
  * Derived physical state of a planet, computed once from the seed and cached.
- * Masses/radii are in Earth units; temperature in kelvin; density in g/cm³.
- * Everything follows from the sampled mass plus the planet's distance from a
- * star of known luminosity (research §5.3–5.4).
+ * Masses/radii are in Earth units; temperature in kelvin; density in g/cm³;
+ * rotation in hours; obliquity in degrees. Mass is the primary draw (everything
+ * chemical and thermal follows from it plus the host star's luminosity); rotation,
+ * axial tilt, moon count, and rings are four further draws (research §5.3–5.4).
  */
 export interface PlanetPhysical {
   density: number;
   equilibriumTemp: number;
+  hasRings: boolean;
   inHabitableZone: boolean;
   insolation: number;
   mass: number;
+  moonCount: number;
+  obliquity: number;
   radius: number;
+  rotationPeriod: number;
+  tidallyLocked: boolean;
   type: PlanetType;
   waterState: WaterState;
 }
@@ -30,10 +38,15 @@ export interface PlanetPhysical {
 export const PlanetPhysicalDef: ComponentDef<PlanetPhysical> = simpleComponent<PlanetPhysical>('planetPhysical', {
   density: 'number',
   equilibriumTemp: 'number',
+  hasRings: 'boolean',
   inHabitableZone: 'boolean',
   insolation: 'number',
   mass: 'number',
+  moonCount: 'number',
+  obliquity: 'number',
   radius: 'number',
+  rotationPeriod: 'number',
+  tidallyLocked: 'boolean',
   type: 'string',
   waterState: 'string',
 });
@@ -62,6 +75,17 @@ const ESI_WEIGHT_DENSITY = 1.07;
 const ESI_WEIGHT_ESCAPE = 0.7;
 const ESI_WEIGHT_TEMP = 5.58;
 const ESI_PARAM_COUNT = 4;
+// Tidal-locking timescale coefficient (years): calibrated so Earth's is ~10¹³ yr
+// (never locks) while a close-in planet around an M dwarf locks within ~1 Gyr.
+const TIDAL_LOCK_CONSTANT_YEARS = 1e13;
+// Hours in a year, for expressing a tidally-locked planet's spin as its year.
+const HOURS_PER_YEAR = SECONDS_PER_YEAR / 3600;
+// Oblateness: Earth's radius (m) and surface gravity (m/s²), with a structure
+// factor tuned so the rotational flattening matches the giant planets.
+const EARTH_RADIUS_M = 6.371e6;
+const EARTH_SURFACE_GRAVITY_MS2 = 9.81;
+const OBLATENESS_FACTOR = 0.75;
+const TAU = Math.PI * 2;
 
 /** Snow line in AU: beyond it volatiles condense and giants tend to form. */
 export function frostLine(luminositySolar: number): number {
@@ -133,24 +157,67 @@ function samplePlanetMass(rng: RandomFn, beyondFrostLine: boolean): number {
 }
 
 /**
- * Derive a planet's full physical state from one seeded mass draw, given its
- * host star's luminosity (L☉) and its semi-major axis (AU). Pure and
- * deterministic for a given `rng` stream position.
+ * Sample a sidereal rotation period (hours). Giants spin fast (~8–18 h);
+ * terrestrials span hours to months, log-uniform. One `rng()` draw.
  */
-export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number): PlanetPhysical {
+function sampleRotationPeriod(rng: RandomFn, type: PlanetType): number {
+  if (type === 'gas-giant' || type === 'ice-giant')
+    return lerp(8, 18, rng());
+  return 10 ** lerp(Math.log10(8), Math.log10(2000), rng());
+}
+
+/**
+ * Sample a moon count from one draw: a geometric-tailed approximation to a
+ * Poisson whose mean rises with planet type (giants hold many; rocky worlds few).
+ */
+function sampleMoonCount(rng: RandomFn, type: PlanetType): number {
+  const mean = type === 'gas-giant' || type === 'ice-giant' ? 3 : type === 'super-earth' ? 0.5 : 0.3;
+  const u = clamp(rng(), 0, 1 - 1e-9);
+  return Math.min(Math.floor(-mean * Math.log(1 - u)), 20);
+}
+
+/**
+ * Tidal-locking timescale (years): `∝ a⁶·M_p / (M_star²·R_p³)` (Gladman et al.
+ * 1996 form), calibrated so Earth's is ~10¹³ yr. Compared against the star's age
+ * to decide whether the planet is spin-locked.
+ */
+function tidalLockTimescale(a: number, massEarth: number, starMassSolar: number, radiusEarth: number): number {
+  return (TIDAL_LOCK_CONSTANT_YEARS * a ** 6 * massEarth) / (starMassSolar ** 2 * radiusEarth ** 3);
+}
+
+/**
+ * Derive a planet's full physical state, given its host star's luminosity (L☉),
+ * mass (M☉), and age (years), and the planet's semi-major axis (AU). Mass is the
+ * primary draw (everything chemical and thermal chains from it); four further
+ * appended draws give rotation, axial tilt, moon count, and a ring flag. A planet
+ * whose tidal-locking time is shorter than the star's age is spin-locked, so its
+ * rotation period becomes its orbital period. Consumes five draws.
+ */
+export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, starMassSolar: number, starAgeYears: number): PlanetPhysical {
   const beyond = a >= frostLine(luminositySolar);
   const mass = samplePlanetMass(rng, beyond);
   const type = classifyType(mass, beyond);
   const radius = massToRadius(mass);
   const temperature = equilibriumTemp(luminositySolar, a, albedoFor(type));
   const hz = habitableZone(luminositySolar);
+  const naturalRotation = sampleRotationPeriod(rng, type);
+  const obliquity = rng() * 180;
+  const moonCount = sampleMoonCount(rng, type);
+  const hasRings = rng() < (type === 'gas-giant' ? 0.5 : type === 'ice-giant' ? 0.4 : 0.05);
+  const tidallyLocked = tidalLockTimescale(a, mass, starMassSolar, radius) < starAgeYears;
+  const orbitalPeriodYears = Math.sqrt(a ** 3 / starMassSolar);
   return {
     density: (EARTH_DENSITY * mass) / radius ** 3,
     equilibriumTemp: temperature,
+    hasRings,
     inHabitableZone: a >= hz.inner && a <= hz.outer,
     insolation: luminositySolar / a ** 2,
     mass,
+    moonCount,
+    obliquity,
     radius,
+    rotationPeriod: tidallyLocked ? orbitalPeriodYears * HOURS_PER_YEAR : naturalRotation,
+    tidallyLocked,
     type,
     waterState: waterStateFor(temperature),
   };
@@ -215,4 +282,17 @@ export function earthSimilarityIndex(
     * similarity(escapeVelocityKms, EARTH_ESCAPE_VELOCITY, ESI_WEIGHT_ESCAPE)
     * similarity(equilibriumTempK, EARTH_EQUILIBRIUM_TEMP, ESI_WEIGHT_TEMP)
   );
+}
+
+/**
+ * Rotational flattening `f = (R_eq − R_pol)/R_eq` — how oblate ("non-round") a
+ * planet is from its spin: `≈ k·ω²R/g`, with a structure factor `k` tuned to the
+ * giant planets (Jupiter ≈ 0.065, Saturn ≈ 0.10, Earth ≈ 0.003). Needs the
+ * sidereal rotation period (hours).
+ */
+export function oblateness(rotationPeriodHours: number, massEarth: number, radiusEarth: number): number {
+  const omega = TAU / (rotationPeriodHours * 3600);
+  const radiusM = radiusEarth * EARTH_RADIUS_M;
+  const gravity = (massEarth / radiusEarth ** 2) * EARTH_SURFACE_GRAVITY_MS2;
+  return (OBLATENESS_FACTOR * omega ** 2 * radiusM) / gravity;
 }

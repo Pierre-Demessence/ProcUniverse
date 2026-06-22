@@ -15,10 +15,12 @@ import { StarPhysicalDef } from './generation/stars';
 import { pickBodyAt, pickGalaxyAt } from './pick';
 
 const STAR: StarPhysical = {
+  age: 4.6e9,
   colorHex: '#ffffff',
   lifetime: 1e10,
   luminosity: 1,
   mass: 1,
+  metallicity: 0,
   radius: 1,
   spectralClass: 'G',
   temperature: 5772,
@@ -27,10 +29,15 @@ const STAR: StarPhysical = {
 const PLANET: PlanetPhysical = {
   density: 5.5,
   equilibriumTemp: 280,
+  hasRings: false,
   inHabitableZone: true,
   insolation: 1,
   mass: 1,
+  moonCount: 1,
+  obliquity: 23,
   radius: 1,
+  rotationPeriod: 24,
+  tidallyLocked: false,
   type: 'rocky',
   waterState: 'liquid',
 };

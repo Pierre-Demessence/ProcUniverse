@@ -23,7 +23,7 @@ import { render } from 'preact';
 
 import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyDiameterLy, galaxyRepresentativeActivity, hawkingTemperature, innermostStableOrbit, photonSphere, shadowDiameter, velocityDispersion } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
-import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, PlanetPhysicalDef, surfaceGravity } from '../generation/planets';
+import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, surfaceGravity } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
@@ -229,7 +229,10 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
         <TemperatureRow label="Temperature" kelvin={star.temperature} />
         <Row label="Peak λ" value={formatQuantity(peakWavelength(star.temperature), 'nm')} />
         <Row label="Bolo. mag" value={sigFigs(bolometricMagnitude(star.luminosity))} />
+        <Row label="Metallicity" value={`${sigFigs(star.metallicity)} dex`} />
         <Row label="Lifetime" value={formatLifetime(star.lifetime)} />
+        <Row label="Age" value={formatLifetime(star.age)} />
+        <Row label="MS elapsed" value={`${Math.round((100 * star.age) / star.lifetime)}%`} />
         <Row label="Habitable zone" value={`${sigFigs(hz.inner)}–${sigFigs(hz.outer)} AU`} />
         <Row label="Frost line" value={formatQuantity(frostLine(star.luminosity), 'AU')} />
       </div>
@@ -251,6 +254,10 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Escape vel." value={formatQuantity(escape, 'km/s')} />
         <Row label="Composition" value={compositionClass(planet.type, planet.density)} />
         <Row label="Core press." value={`~${formatQuantity(centralPressure(planet.mass, planet.radius), 'GPa')}`} />
+        <Row label="Rotation" value={`${formatPeriod((planet.rotationPeriod * 3600) / SECONDS_PER_YEAR)}${planet.tidallyLocked ? ' · locked' : ''}`} />
+        <Row label="Oblateness" value={`${sigFigs(oblateness(planet.rotationPeriod, planet.mass, planet.radius) * 100)}%`} />
+        <Row label="Axial tilt" value={`${Math.round(planet.obliquity)}°`} />
+        <Row label="Moons" value={`${planet.moonCount}${planet.hasRings ? ' · rings' : ''}`} />
         <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} />
         <Row label="Insolation" value={formatQuantity(planet.insolation, 'S⊕')} />
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} />
@@ -273,9 +280,10 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
       <div style={CAPTION_CSS}>BLACK HOLE · SUPERMASSIVE</div>
       <div style={BODY_CSS}>
         <Row label="Mass" value={formatSolarMasses(blackHole.mass)} />
+        <Row label="Spin a*" value={sigFigs(blackHole.spin)} />
         <Row label="Schwarzschild r" value={formatQuantity(blackHole.schwarzschildRadius, 'AU')} />
         <Row label="Photon sphere" value={formatQuantity(photonSphere(blackHole.schwarzschildRadius), 'AU')} />
-        <Row label="ISCO" value={formatQuantity(innermostStableOrbit(blackHole.schwarzschildRadius), 'AU')} />
+        <Row label="ISCO" value={formatQuantity(innermostStableOrbit(blackHole.schwarzschildRadius, blackHole.spin), 'AU')} />
         <Row label="Shadow Ø" value={formatQuantity(shadowDiameter(blackHole.schwarzschildRadius), 'AU')} />
         <Row label="Eddington L" value={`${formatCount(eddingtonLuminosity(blackHole.mass))} L☉`} />
         <Row label="Hawking T" value={`${hawkingTemperature(blackHole.mass).toExponential(1)} K`} />

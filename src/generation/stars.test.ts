@@ -78,13 +78,15 @@ describe('sampleStar', () => {
     expect(a).toEqual(b);
   });
 
-  it('consumes exactly one rng draw (preserves downstream determinism)', () => {
+  it('consumes exactly three rng draws (mass, age, metallicity)', () => {
     const withStar = makeSeededRng(123);
     sampleStar(withStar);
     const afterStar = withStar();
 
     const direct = makeSeededRng(123);
-    direct(); // the single mass draw sampleStar makes
+    direct(); // mass
+    direct(); // age
+    direct(); // metallicity
     expect(afterStar).toBe(direct());
   });
 
@@ -95,8 +97,37 @@ describe('sampleStar', () => {
     expect(star.radius).toBeGreaterThan(0);
     expect(star.temperature).toBeGreaterThan(0);
     expect(star.lifetime).toBeGreaterThan(0);
+    expect(star.age).toBeGreaterThanOrEqual(0);
+    expect(star.age).toBeLessThanOrEqual(star.lifetime);
+    expect(star.metallicity).toBeGreaterThanOrEqual(-1.5);
+    expect(star.metallicity).toBeLessThanOrEqual(0.5);
     expect(star.colorHex).toMatch(/^#[0-9a-f]{6}$/);
     expect(['O', 'B', 'A', 'F', 'G', 'K', 'M']).toContain(star.spectralClass);
+  });
+
+  it('caps stellar age at the age of the universe, not the longer M-dwarf lifetime', () => {
+    // M dwarfs live 1e12-1e13 yr, but the universe is only ~13.8 Gyr old.
+    const rng = makeSeededRng(7);
+    let maxLongLivedAge = 0;
+    for (let i = 0; i < 3000; i++) {
+      const star = sampleStar(rng);
+      if (star.lifetime > 14e9)
+        maxLongLivedAge = Math.max(maxLongLivedAge, star.age);
+    }
+    expect(maxLongLivedAge).toBeGreaterThan(0);
+    expect(maxLongLivedAge).toBeLessThanOrEqual(13.8e9);
+  });
+
+  it('samples metallicity around solar with a modest spread', () => {
+    const rng = makeSeededRng(11);
+    const values: number[] = [];
+    for (let i = 0; i < 3000; i++)
+      values.push(sampleStar(rng).metallicity);
+    const mean = values.reduce((sum, m) => sum + m, 0) / values.length;
+    expect(mean).toBeGreaterThan(-0.3);
+    expect(mean).toBeLessThan(0.1);
+    expect(Math.min(...values)).toBeGreaterThanOrEqual(-1.5);
+    expect(Math.max(...values)).toBeLessThanOrEqual(0.5);
   });
 });
 

@@ -115,24 +115,40 @@ each sub-phase is independently shippable.
 Add new **sampled** fields, batched per body, appended at the tail of each
 sampler. Each sub-phase shifts the universe once.
 
-### 2.1 Stars: + `age` (capped), + `metallicity`
+### 2.1 Stars: + `age` (capped), + `metallicity` ✅
 
-- [ ] Extend `StarPhysical` + `sampleStar` (append 2 draws after mass); write in
-      `spawn`. Age = `Uniform[0, min(lifetime, 13.8 Gyr)]` (the v1 bug fix).
-- [ ] `INPUT`: evolutionary phase = `age / lifetime`. Inspector rows + tests.
+- [x] Extend `StarPhysical` + `sampleStar` (append 2 draws after mass: age then
+      metallicity); `spawn` writes the whole object so it propagates. Age =
+      `Uniform[0, min(lifetime, 13.8 Gyr)]` (the v1 bug fix); metallicity from a
+      one-draw normal-quantile approximation. **Shifts the seeded universe** —
+      each star keeps its identity (mass is still drawn first, so luminosity /
+      class / colour / name are unchanged) but its planets move (the two new
+      draws push everything sampled after the star down the per-system stream).
+- [x] `INPUT`: evolutionary phase = `age / lifetime`, shown as "MS elapsed %".
+      Inspector rows (Metallicity, Age, MS elapsed) + tests (3-draw count, age
+      cap, metallicity spread).
+- Status: build + 119 tests + lint green; not committed.
 
-### 2.2 Planets: + `rotation`, + `obliquity`, + `moonCount`, + `ringFlag`
+### 2.2 Planets: + `rotation`, + `obliquity`, + `moonCount`, + `ringFlag` ✅
 
-- [ ] Extend `PlanetPhysical` + `samplePlanet` (append draws at the tail of the
-      planet's order; verify order in
-      [src/generation/universe.ts](../../src/generation/universe.ts)).
-- [ ] `INPUT` from the new fields + star age: oblateness `f` (the "circularity"),
-      tidal-lock flag, day length, season strength. Inspector rows + tests
-      (Jupiter f ≈ 0.065).
+- [x] Extend `PlanetPhysical` + `samplePlanet` (now consumes 5 draws: mass,
+      rotation, tilt, moons, rings; `samplePlanet` also takes the host star's mass
+      + age for tidal locking). Shifts the seeded universe again (planets move;
+      stars unaffected). `pick.test.ts` literal updated.
+- [x] `INPUT`: oblateness `f` (the "circularity", Jupiter ≈ 6.5%) + tidal-lock flag
+      (locked ⇒ rotation = orbital period). Inspector rows (Rotation [· locked],
+      Oblateness, Axial tilt, Moons [· rings]) + tests. (Solar day and a separate
+      season-strength metric deferred — rotation and obliquity are shown directly.)
+- Status: build + 122 tests + lint green; not committed.
 
-### 2.3 Black holes: + `spin`
+### 2.3 Black holes: + `spin` ✅
 
-- [ ] Add `spin a*`; `INPUT`: Kerr ISCO from spin. Inspector + test.
+- [x] Add `blackHoleSpin` (sampled as a trailing draw in `makeGalaxy`, so it's
+      **determinism-safe** — galaxies are byte-identical, just a new field),
+      threaded through `BlackHolePhysical` / `BlackHoleData` / spawn. `INPUT`:
+      `innermostStableOrbit` is now spin-aware (Kerr, Bardeen 1972 — 3·r_s at
+      a*=0 down to ~0.5·r_s at a*→1). BlackHolePanel +Spin row; tests.
+- Status: build + 123 tests + lint green; not committed. **Completes Phase 2.**
 
 ---
 

@@ -11,6 +11,7 @@ import {
   frostLine,
   habitableZone,
   massToRadius,
+  oblateness,
   samplePlanet,
   surfaceGravity,
 } from './planets';
@@ -68,24 +69,31 @@ describe('classifyType', () => {
 
 describe('samplePlanet', () => {
   it('is deterministic for the same rng stream', () => {
-    expect(samplePlanet(makeSeededRng(9), 1, 1.5)).toEqual(samplePlanet(makeSeededRng(9), 1, 1.5));
+    expect(samplePlanet(makeSeededRng(9), 1, 1.5, 1, 4.6e9)).toEqual(samplePlanet(makeSeededRng(9), 1, 1.5, 1, 4.6e9));
   });
 
-  it('consumes exactly one rng draw', () => {
+  it('consumes exactly five rng draws (mass, rotation, tilt, moons, rings)', () => {
     const withPlanet = makeSeededRng(5);
-    samplePlanet(withPlanet, 1, 1);
+    samplePlanet(withPlanet, 1, 1, 1, 4.6e9);
     const after = withPlanet();
     const direct = makeSeededRng(5);
-    direct();
+    for (let i = 0; i < 5; i++)
+      direct();
     expect(after).toBe(direct());
   });
 
   it('derives well-formed, self-consistent data', () => {
-    const planet = samplePlanet(makeSeededRng(2026), 1, 1);
+    const planet = samplePlanet(makeSeededRng(2026), 1, 1, 1, 4.6e9);
     expect(planet.mass).toBeGreaterThan(0);
     expect(planet.radius).toBeGreaterThan(0);
     expect(planet.density).toBeGreaterThan(0);
     expect(planet.equilibriumTemp).toBeGreaterThan(0);
+    expect(planet.rotationPeriod).toBeGreaterThan(0);
+    expect(planet.obliquity).toBeGreaterThanOrEqual(0);
+    expect(planet.obliquity).toBeLessThanOrEqual(180);
+    expect(planet.moonCount).toBeGreaterThanOrEqual(0);
+    expect(typeof planet.hasRings).toBe('boolean');
+    expect(typeof planet.tidallyLocked).toBe('boolean');
     expect(['rocky', 'super-earth', 'ice-giant', 'gas-giant']).toContain(planet.type);
     expect(['ice', 'liquid', 'vapour']).toContain(planet.waterState);
   });
@@ -96,10 +104,10 @@ describe('samplePlanet', () => {
     let innerGiants = 0;
     let outerGiants = 0;
     for (let i = 0; i < 300; i++) {
-      const inside = samplePlanet(rng, 1, frost * 0.3);
+      const inside = samplePlanet(rng, 1, frost * 0.3, 1, 4.6e9);
       if (inside.type === 'gas-giant' || inside.type === 'ice-giant')
         innerGiants++;
-      const outside = samplePlanet(rng, 1, frost * 2);
+      const outside = samplePlanet(rng, 1, frost * 2, 1, 4.6e9);
       if (outside.type === 'gas-giant')
         outerGiants++;
     }
@@ -108,9 +116,40 @@ describe('samplePlanet', () => {
   });
 
   it('stores insolation as L / a² (Earth = 1 at 1 AU, 1 L☉)', () => {
-    expect(samplePlanet(makeSeededRng(1), 1, 1).insolation).toBeCloseTo(1, 6);
-    expect(samplePlanet(makeSeededRng(1), 1, 2).insolation).toBeCloseTo(0.25, 6);
-    expect(samplePlanet(makeSeededRng(1), 4, 1).insolation).toBeCloseTo(4, 6);
+    expect(samplePlanet(makeSeededRng(1), 1, 1, 1, 4.6e9).insolation).toBeCloseTo(1, 6);
+    expect(samplePlanet(makeSeededRng(1), 1, 2, 1, 4.6e9).insolation).toBeCloseTo(0.25, 6);
+    expect(samplePlanet(makeSeededRng(1), 4, 1, 1, 4.6e9).insolation).toBeCloseTo(4, 6);
+  });
+
+  it('tidally locks a close-in planet around an old star, not a distant one', () => {
+    const close = samplePlanet(makeSeededRng(3), 0.04, 0.05, 0.2, 10e9);
+    const far = samplePlanet(makeSeededRng(3), 0.04, 5, 0.2, 10e9);
+    expect(close.tidallyLocked).toBe(true);
+    expect(far.tidallyLocked).toBe(false);
+    expect(close.rotationPeriod).toBeGreaterThan(0);
+  });
+
+  it('gives giants more moons on average than rocky worlds', () => {
+    const rng = makeSeededRng(99);
+    let giantMoons = 0;
+    let giantN = 0;
+    let rockyMoons = 0;
+    let rockyN = 0;
+    for (let i = 0; i < 2000; i++) {
+      const giant = samplePlanet(rng, 1, 8, 1, 4.6e9);
+      if (giant.type === 'gas-giant' || giant.type === 'ice-giant') {
+        giantMoons += giant.moonCount;
+        giantN++;
+      }
+      const rocky = samplePlanet(rng, 1, 0.5, 1, 4.6e9);
+      if (rocky.type === 'rocky') {
+        rockyMoons += rocky.moonCount;
+        rockyN++;
+      }
+    }
+    expect(giantN).toBeGreaterThan(0);
+    expect(rockyN).toBeGreaterThan(0);
+    expect(giantMoons / giantN).toBeGreaterThan(rockyMoons / rockyN);
   });
 });
 
@@ -151,5 +190,17 @@ describe('earthSimilarityIndex', () => {
   it('is 1 for an Earth twin and falls off for unlike worlds', () => {
     expect(earthSimilarityIndex(1, 5.514, 11.186, 255)).toBeCloseTo(1, 6);
     expect(earthSimilarityIndex(11, 1.3, 60, 110)).toBeLessThan(0.4);
+  });
+});
+
+describe('oblateness', () => {
+  it('flattens a fast-spinning giant far more than a slow rocky world', () => {
+    // Jupiter-ish: 11.2 R⊕, 318 M⊕, ~10 h spin → ~6.5%.
+    const jupiter = oblateness(10, 318, 11.2);
+    expect(jupiter).toBeGreaterThan(0.04);
+    expect(jupiter).toBeLessThan(0.12);
+    // Earth: 24 h → tiny; faster spin → more oblate.
+    expect(oblateness(24, 1, 1)).toBeLessThan(0.01);
+    expect(oblateness(5, 1, 1)).toBeGreaterThan(oblateness(24, 1, 1));
   });
 });

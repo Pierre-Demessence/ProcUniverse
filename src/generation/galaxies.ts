@@ -54,11 +54,13 @@ export type GalaxyType = 'barred-spiral' | 'elliptical' | 'lenticular' | 'spiral
 export interface BlackHolePhysical {
   mass: number;
   schwarzschildRadius: number;
+  spin: number;
 }
 
 export const BlackHoleDef: ComponentDef<BlackHolePhysical> = simpleComponent<BlackHolePhysical>('blackHole', {
   mass: 'number',
   schwarzschildRadius: 'number',
+  spin: 'number',
 });
 
 /**
@@ -71,6 +73,7 @@ export interface GalaxyParams {
   arms: number;
   armStrength: number;
   blackHoleMass: number;
+  blackHoleSpin: number;
   centerX: number;
   centerY: number;
   cosmicDensity: number;
@@ -121,7 +124,6 @@ const HAWKING_TEMPERATURE_SOLAR_K = 6.17e-8;
 const EVAPORATION_TIME_SOLAR_YEARS = 2.1e67;
 const EDDINGTON_LUMINOSITY_PER_SOLAR_MASS = 3.3e4;
 const PHOTON_SPHERE_FACTOR = 1.5;
-const ISCO_FACTOR = 3;
 const SHADOW_DIAMETER_FACTOR = 5.2;
 
 /** Hawking temperature (K): `6.17×10⁻⁸ · (M☉/M)` — vanishingly cold for SMBHs. */
@@ -139,9 +141,17 @@ export function photonSphere(schwarzschildRadius: number): number {
   return PHOTON_SPHERE_FACTOR * schwarzschildRadius;
 }
 
-/** Innermost stable circular orbit (AU): `3·r_s` (non-spinning) — the disc's inner edge. */
-export function innermostStableOrbit(schwarzschildRadius: number): number {
-  return ISCO_FACTOR * schwarzschildRadius;
+/**
+ * Innermost stable circular orbit (AU) — the accretion disc's inner edge. For a
+ * non-spinning hole it is `3·r_s`; a prograde orbit around a maximally spinning
+ * (Kerr) hole shrinks it toward `0.5·r_s` (Bardeen et al. 1972).
+ */
+export function innermostStableOrbit(schwarzschildRadius: number, spin = 0): number {
+  const a = clamp(spin, 0, 0.9999);
+  const z1 = 1 + (1 - a ** 2) ** (1 / 3) * ((1 + a) ** (1 / 3) + (1 - a) ** (1 / 3));
+  const z2 = Math.sqrt(3 * a ** 2 + z1 ** 2);
+  const radiusOverM = 3 + z2 - Math.sqrt((3 - z1) * (3 + z1 + 2 * z2));
+  return (radiusOverM / 2) * schwarzschildRadius;
 }
 
 /** Apparent shadow diameter (AU): `≈ 5.2·r_s` — what the Event Horizon Telescope images. */
@@ -222,12 +232,14 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number): GalaxyPar
   const heavy = type === 'elliptical' || type === 'lenticular';
   const sizeNorm = (sizeScale - DWARF_SIZE[0]) / (NORMAL_SIZE[1] - DWARF_SIZE[0]);
   const blackHoleMass = blackHoleMassFromSize(sizeNorm, heavy, rng());
+  const blackHoleSpin = rng();
 
   return {
     name: nameGalaxy(hash),
     arms,
     armStrength: GALAXY_ARM_STRENGTH,
     blackHoleMass,
+    blackHoleSpin,
     centerX,
     centerY,
     cosmicDensity: cosmic,

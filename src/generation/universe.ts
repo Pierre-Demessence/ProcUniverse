@@ -58,6 +58,7 @@ export interface BlackHoleData {
   mass: number;
   radius: number;
   schwarzschildRadius: number;
+  spin: number;
   x: number;
   y: number;
 }
@@ -115,7 +116,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const e = srng() ** 2 * ECC_MAX;
       const argPeriapsis = srng() * TAU;
       const meanAnomaly0 = srng() * TAU;
-      const physical = samplePlanet(srng, star.luminosity, a);
+      const physical = samplePlanet(srng, star.luminosity, a, star.mass, star.age);
       planets.push({ name: namePlanet(name, j), a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
     }
 
@@ -131,6 +132,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       mass: galaxy.blackHoleMass,
       radius: blackHoleVisualRadius(galaxy.blackHoleMass),
       schwarzschildRadius: galaxy.schwarzschildRadius,
+      spin: galaxy.blackHoleSpin,
       x: galaxy.centerX,
       y: galaxy.centerY,
     });

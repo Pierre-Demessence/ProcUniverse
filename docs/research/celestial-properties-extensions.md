@@ -105,8 +105,8 @@ lifetime` ([stars.ts](../../src/generation/stars.ts)).
 
 | Property | Distribution | Basis | Draws |
 | --- | --- | --- | --- |
-| **Metallicity `[Fe/H]`** | skew-normal, mode ≈ 0.0, σ ≈ 0.2 dex, tail to metal-poor (or `COND` on galaxy — see note) | GALAH DR3, APOGEE DR17 | +1 |
-| **Age** | `Uniform[0, min(lifetime, 13.8 Gyr)]`; optional mild old-bias | isochrones/SFH; **note the cap (§1)** | +1 |
+| **✅ Metallicity `[Fe/H]`** | one-draw normal-quantile approx, mode ≈ 0.0, σ ≈ 0.2 dex (skew-normal / `COND` on galaxy are refinements) | GALAH DR3, APOGEE DR17 | +1 |
+| **✅ Age** | `Uniform[0, min(lifetime, 13.8 Gyr)]`; optional mild old-bias | isochrones/SFH; **note the cap (§1)** | +1 |
 
 **Metallicity can be `COND` instead.** We already carry a galactic stellar
 **`activity`** ([stars.ts](../../src/generation/stars.ts) `sampleStellarMass`):
@@ -129,7 +129,7 @@ flat draw and reuses an existing field.
 
 | Property | Formula | Needs |
 | --- | --- | --- |
-| **Evolutionary phase** | fractional age `τ = age/lifetime`; `τ→1` ⇒ leaving the main sequence | age |
+| **✅ Evolutionary phase** | fractional age `τ = age/lifetime`; `τ→1` ⇒ leaving the main sequence | age |
 | **Final remnant** | white dwarf (`M_init ≲ 8 M☉`), neutron star (~8–20), black hole (≳ 20–25) via the initial-final-mass relation | only if we model death |
 
 ---
@@ -158,8 +158,8 @@ user asked to "go crazy" — composition, core/surface temperature, atmosphere,
 
 | Property | Formula | Needs | Draws |
 | --- | --- | --- | --- |
-| **Oblateness / "circularity"** | flattening `f = (R_eq−R_pol)/R_eq ≈ (5/4)·(ω²R³/GM)·k`, structure factor `k ≈ 0.6–0.8` (Jupiter f=0.065, Saturn 0.098, Earth 0.0034) | rotation rate `ω` | +1 (ω) |
-| **Tidal-lock flag** | locked if `T_lock < age`, `T_lock ∝ a⁶·M_p/(M_*²·R_p³)` | stellar age | 0 (uses age) |
+| **✅ Oblateness / "circularity"** | flattening `f = (R_eq−R_pol)/R_eq ≈ (5/4)·(ω²R³/GM)·k`, structure factor `k ≈ 0.6–0.8` (Jupiter f=0.065, Saturn 0.098, Earth 0.0034) | rotation rate `ω` | +1 (ω) |
+| **✅ Tidal-lock flag** | locked if `T_lock < age`, `T_lock ∝ a⁶·M_p/(M_*²·R_p³)` | stellar age | 0 (uses age) |
 | **Length of day (solar)** | from sidereal rotation + orbital motion; locked ⇒ day = year | rotation, period | 0 |
 | **Season strength** | grows with obliquity and eccentricity | tilt, e | 0 |
 
@@ -172,10 +172,10 @@ user asked to "go crazy" — composition, core/surface temperature, atmosphere,
 
 | Property | Distribution | Basis | Draws |
 | --- | --- | --- | --- |
-| **Rotation period** | broad: giants ~10 h, terrestrials hours→days, retrograde allowed; **but `COND`→ orbital period if tidally locked** | Solar System + theory | +1 |
-| **Axial tilt (obliquity)** | ≈ uniform `[0°, 180°]`; ~0° if tidally locked | chaotic-obliquity theory | +1 |
-| **Moon count** | Poisson by type: rocky λ≈0.3, super-Earth λ≈0.5, ice/gas giant λ≈3 | Solar System; Teachey & Kipping 2018 | +1 |
-| **Ring system?** | rare; `COND` more likely for giants / inside Roche debris | Solar System | +1 |
+| **✅ Rotation period** | broad: giants ~10 h, terrestrials hours→days, retrograde allowed; **but `COND`→ orbital period if tidally locked** | Solar System + theory | +1 |
+| **✅ Axial tilt (obliquity)** | ≈ uniform `[0°, 180°]`; ~0° if tidally locked | chaotic-obliquity theory | +1 |
+| **✅ Moon count** | Poisson by type: rocky λ≈0.3, super-Earth λ≈0.5, ice/gas giant λ≈3 | Solar System; Teachey & Kipping 2018 | +1 |
+| **✅ Ring system?** | rare; `COND` more likely for giants / inside Roche debris | Solar System | +1 |
 
 ### 3.4 `COND` — relational
 
@@ -252,7 +252,7 @@ Almost everything here is a clean `FORMULA` of mass (with one `DIST` for spin).
 
 | Property | How | Basis | Draws |
 | --- | --- | --- | --- |
-| **Spin `a*`** | `DIST` over `[0, 1)`; measured AGN spins skew high | X-ray reflection surveys | +1 |
+| **✅ Spin `a*`** | `DIST` over `[0, 1)`; measured AGN spins skew high | X-ray reflection surveys | +1 |
 | **Eddington ratio** | `DIST` (broad lognormal) → sets accretion power | AGN demographics | +1 |
 | **Active (AGN/quasar)?** | `COND`: active fraction ~1–10 %, higher in gas-rich/merging hosts | AGN surveys | `COND` on host gas |
 

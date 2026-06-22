@@ -35,6 +35,7 @@ const spiral: GalaxyParams = {
   arms: 2,
   armStrength: 0.7,
   blackHoleMass: 1e7,
+  blackHoleSpin: 0.5,
   centerX: 1000,
   centerY: 1000,
   cosmicDensity: 0.5,
@@ -217,7 +218,10 @@ describe('black-hole derived quantities', () => {
 
   it('places the photon sphere, ISCO, and shadow at multiples of r_s', () => {
     expect(photonSphere(0.2)).toBeCloseTo(0.3, 6);
-    expect(innermostStableOrbit(0.2)).toBeCloseTo(0.6, 6);
+    expect(innermostStableOrbit(0.2)).toBeCloseTo(0.6, 6); // Schwarzschild: 3·r_s
+    expect(innermostStableOrbit(0.2, 0.5)).toBeLessThan(0.6); // spin shrinks the ISCO
+    expect(innermostStableOrbit(0.2, 0.9999)).toBeLessThan(0.12); // max prograde Kerr → ~0.5·r_s
+    expect(innermostStableOrbit(0.2, 0.9999)).toBeGreaterThan(0.09);
     expect(shadowDiameter(0.2)).toBeCloseTo(1.04, 6);
   });
 });
@@ -239,6 +243,16 @@ describe('galaxy derived quantities', () => {
     const home = makeGalaxy(SEED, 0, 0);
     expect(home?.cosmicDensity).toBeGreaterThanOrEqual(0);
     expect(home?.cosmicDensity).toBeLessThanOrEqual(1);
+  });
+
+  it('assigns each galaxy a black-hole spin in [0, 1)', () => {
+    for (let gx = 0; gx <= 5; gx++) {
+      const g = makeGalaxy(SEED, gx, 0);
+      if (g) {
+        expect(g.blackHoleSpin).toBeGreaterThanOrEqual(0);
+        expect(g.blackHoleSpin).toBeLessThan(1);
+      }
+    }
   });
 });
 
