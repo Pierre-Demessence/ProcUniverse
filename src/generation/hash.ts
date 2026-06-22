@@ -33,3 +33,14 @@ export function hashSystem(worldSeed: number, sx: number, sy: number, gx: number
   h = mix(h ^ ((gy | 0) + 0x27D4EB2F));
   return h >>> 0;
 }
+
+/**
+ * Fold a world seed into a uint32 galaxy seed, kept distinct from any sector or
+ * system hash so the per-galaxy shape parameters never collide with a sector's
+ * star stream.
+ */
+export function hashGalaxy(worldSeed: number): number {
+  let h = (worldSeed ^ 0x9E3779B9) >>> 0;
+  h = mix(h ^ 0x68E31DA4);
+  return h >>> 0;
+}

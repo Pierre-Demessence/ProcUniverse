@@ -7,7 +7,7 @@
 | `src/config.ts` | Central tuning knobs in one place: density, camera/zoom, LOD tiers, orbit architecture, visual-disc sizing, and simulation time. |
 | `src/scale.ts` | Spatial-scale source of truth: the AU world unit, light-years per sector, and the star visual-radius mapping. |
 | `src/pick.ts` | Cursor-to-body picking: the nearest star or planet within the click tolerance, for the inspector. |
-| `src/generation/` | Deterministic seed-driven sector generation (pure data — including stellar, orbital, and planetary physics) plus entity spawning. |
+| `src/generation/` | Deterministic seed-driven sector generation (pure data — a seeded galaxy density field that places stars, plus stellar, orbital, and planetary physics) and entity spawning. |
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |

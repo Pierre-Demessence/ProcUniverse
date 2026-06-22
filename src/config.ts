@@ -6,15 +6,25 @@
  * their generators. This file holds only the *choices*, not the physics.
  */
 
-// ── Stellar field density ─────────────────────────────────────────────
-// How far apart stars are. A sector spans `LY_PER_SECTOR` light-years and is
-// divided into a `SUBGRID × SUBGRID` lattice; each cell has a star unless it
-// rolls empty, jittered off the lattice by a fraction of a cell. Lower
-// `LY_PER_SECTOR` to pack stars closer together (easier interstellar travel).
+// ── Stellar field density & galaxy shape ────────────────────────────────────
+// A sector spans `LY_PER_SECTOR` light-years (lower it to pack stars closer —
+// easier interstellar travel). Stars are placed by a seeded galaxy **density
+// field** rather than a lattice: per sector, `STAR_DENSITY_PEAK` candidate
+// positions are drawn and each is kept with probability equal to the normalised
+// density there (1 at the core, 0 past the rim). The galaxy is a finite disc of
+// radius `GALAXY_RADIUS_LY` with an exponential falloff `GALAXY_SCALE_LENGTH_LY`;
+// a spiral galaxy (vs elliptical, chosen per seed at `GALAXY_SPIRAL_CHANCE`) adds
+// `GALAXY_ARMS_MIN`–`GALAXY_ARMS_MAX` logarithmic arms of pitch
+// `GALAXY_ARM_PITCH_DEG` and contrast `GALAXY_ARM_STRENGTH`.
 export const LY_PER_SECTOR = 0.01;
-export const SUBGRID = 32;
-export const EMPTY_CHANCE = 0.9;
-export const JITTER_FRACTION = 0.85;
+export const STAR_DENSITY_PEAK = 100;
+export const GALAXY_RADIUS_LY = 2.5;
+export const GALAXY_SCALE_LENGTH_LY = 0.5;
+export const GALAXY_SPIRAL_CHANCE = 0.7;
+export const GALAXY_ARMS_MIN = 2;
+export const GALAXY_ARMS_MAX = 4;
+export const GALAXY_ARM_PITCH_DEG = 18;
+export const GALAXY_ARM_STRENGTH = 0.7;
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range

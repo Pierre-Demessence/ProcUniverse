@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { SECTOR_SIZE } from '../scale';
 import { generateSectorData } from './universe';
 
 describe('generateSectorData', () => {
@@ -53,5 +54,17 @@ describe('generateSectorData', () => {
         expect(p.name).toBe(`${sys.name} ${String.fromCharCode(98 + i)}`);
       });
     }
+  });
+
+  it('scatters systems across the sector without a fixed lattice', () => {
+    const { systems } = generateSectorData(1337, 0, 0);
+    expect(systems.length).toBeGreaterThan(10);
+    // Continuous placement: positions are all distinct and span the sector,
+    // rather than being snapped to a grid of cell centres.
+    const keys = new Set(systems.map(s => `${s.x},${s.y}`));
+    expect(keys.size).toBe(systems.length);
+    const xs = systems.map(s => s.x);
+    expect(Math.min(...xs)).toBeLessThan(SECTOR_SIZE * 0.25);
+    expect(Math.max(...xs)).toBeGreaterThan(SECTOR_SIZE * 0.75);
   });
 });

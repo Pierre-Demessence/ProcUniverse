@@ -3,14 +3,13 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 import { clamp } from '@pierre/ecs/modules/math';
 
-import { hashSector } from '../generation/hash';
+import { galaxyDensity, getGalaxy } from '../generation/galaxies';
 import { SECTOR_SIZE } from '../scale';
 
 // Aggregate sectors into power-of-two cells so each cell stays at least this
 // many screen pixels wide — that keeps the visible cell count (and therefore
 // the draw count) bounded at any zoom, however far out.
 const TARGET_CELL_PX = 34;
-const DENSITY_SALT = 0x5BD1E995;
 
 let glowSprite: HTMLCanvasElement | null = null;
 
@@ -33,13 +32,14 @@ function glow(): HTMLCanvasElement {
 }
 
 /**
- * GALAXY tier: draw a soft additive glow per aggregate cell, brightness and
- * size scaled by an estimated star density (a hashed value, since descending to
- * count real systems is infeasible this far out). Cell ids are computed in
- * absolute space (so the density pattern is stable across rebases) but rendered
- * relative to the floating origin `(originX, originY)`. A cached gradient sprite
- * is blitted per cell, so cost is bounded by the on-screen cell count. Returns
- * the number of glows drawn.
+ * GALAXY tier: draw a soft additive glow per aggregate cell, brightness and size
+ * scaled by the galaxy density field at the cell centre — the same field that
+ * places the stars, so the zoomed-out glow shows the galaxy's core and arms.
+ * Cell centres are computed in absolute space (so the pattern is stable across
+ * rebases) but rendered relative to the floating origin `(originX, originY)`;
+ * empty cells beyond the galaxy are skipped. A cached gradient sprite is blitted
+ * per cell, so cost is bounded by the on-screen cell count. Returns the number
+ * of glows drawn.
  */
 export function drawGalaxy(
   ctx2d: CanvasRenderingContext2D,
@@ -60,19 +60,21 @@ export function drawGalaxy(
   const minCy = Math.floor(absY / cellWorld);
   const maxCy = Math.floor((absY + rect.h) / cellWorld);
   const sprite = glow();
+  const galaxy = getGalaxy(seed);
 
   ctx2d.save();
   ctx2d.globalCompositeOperation = 'lighter';
   let drawn = 0;
   for (let cy = minCy; cy <= maxCy; cy++) {
     for (let cx = minCx; cx <= maxCx; cx++) {
-      const d01 = hashSector(seed ^ DENSITY_SALT, cx, cy) / 4294967296;
-      const norm = 0.3 + 0.7 * d01;
-      const wx = (cx + 0.5) * cellWorld - originX;
-      const wy = (cy + 0.5) * cellWorld - originY;
-      const v = worldToView(wx, wy, cam);
-      const r = cellPx * (0.35 + 0.4 * norm);
-      ctx2d.globalAlpha = clamp(0.06 + 0.3 * norm, 0, 0.6);
+      const wxAbs = (cx + 0.5) * cellWorld;
+      const wyAbs = (cy + 0.5) * cellWorld;
+      const norm = galaxyDensity(galaxy, wxAbs, wyAbs);
+      if (norm < 0.01)
+        continue;
+      const v = worldToView(wxAbs - originX, wyAbs - originY, cam);
+      const r = cellPx * (0.4 + 0.5 * norm);
+      ctx2d.globalAlpha = clamp(0.1 + 0.5 * norm, 0, 0.7);
       ctx2d.drawImage(sprite, v.vx - r, v.vy - r, r * 2, r * 2);
       drawn++;
     }

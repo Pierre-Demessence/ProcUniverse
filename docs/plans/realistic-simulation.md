@@ -234,12 +234,15 @@ render loop hides regressions that static checks miss).
 
 ### Phase E — Galaxy placement (eliminate the grid) — in v1
 
-- [ ] Replace the 4×4 jittered grid with placement driven by a **galaxy density
-      field** (Poisson-disc / clustered; denser in arms / core).
-- [ ] Pick a galaxy shape (spiral / elliptical) as a seeded per-galaxy property;
-      condition star generation on position within it.
-- [ ] Browser E2E: the field no longer looks like a lattice; density varies with
-      galactic position.
+- [x] Replace the jittered lattice with placement driven by a **galaxy density
+      field** (per-sector rejection sampling = inhomogeneous Poisson; denser in
+      arms / core; finite radius). Detail: [galaxy-placement.md](galaxy-placement.md).
+- [x] Pick a galaxy shape (spiral / elliptical) as a seeded per-galaxy property
+      (`generation/galaxies.ts`); condition star placement on the density there.
+- [x] The galaxy-tier glow samples the same field, so the zoomed-out view shows
+      the galaxy's core and arms.
+- [x] Browser E2E (Pierre): the field no longer looks like a lattice; density
+      varies with galactic position.
 
 ### Phase F — Inspector overlay — in v1
 
@@ -281,7 +284,7 @@ regenerated sector reproduces identical names. This resolves the naming half of
       follows it along its orbit.
 - [x] Tests: catalogue format, class prefix, planet lettering, `hashSystem`
       variation/determinism, and seed-stable names in `generateSectorData`.
-- [ ] Browser E2E (Pierre): names legible and well-placed; planet labels follow
+- [x] Browser E2E (Pierre): names legible and well-placed; planet labels follow
       orbits; HUD title matches the on-canvas label.
 - [ ] Galaxy fold-in: once Phase G lands, mix the galaxy index into `hashSystem`
       so names are tied to the galaxy as well as the sector.
