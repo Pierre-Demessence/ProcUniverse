@@ -4,7 +4,17 @@
  * human-readable calendar date (epoch: 1 January 2100 UTC = second 0) so the
  * viewer can see "when" they are, and a slider sets how many simulated seconds
  * elapse per real second (0 pauses).
+ *
+ * Built with Preact + signals. The per-frame `simSeconds` feeds a `computed`
+ * date string bound directly into JSX, so only that text node updates each
+ * frame — the component itself never re-renders on the hot path.
  */
+
+import type { ReadonlySignal, Signal } from '@preact/signals';
+import type { VNode } from 'preact';
+
+import { computed, signal } from '@preact/signals';
+import { render } from 'preact';
 
 import { DEFAULT_SPEED_INDEX, SIM_EPOCH_MS, SPEED_STEPS } from '../config';
 
@@ -57,6 +67,60 @@ export function formatRate(scale: number): string {
   return `${trim(scale)} s/s`;
 }
 
+const PANEL_CSS = [
+  'position:absolute',
+  'top:10px',
+  'right:10px',
+  'display:flex',
+  'flex-direction:column',
+  'gap:4px',
+  'padding:8px 10px',
+  'min-width:184px',
+  'background:rgba(8,12,24,0.66)',
+  'border:1px solid rgba(120,150,210,0.25)',
+  'border-radius:6px',
+  'color:#cfe3ff',
+  'font:12px ui-monospace,monospace',
+  'user-select:none',
+  'pointer-events:auto',
+].join(';');
+
+const CAPTION_CSS = 'font-size:10px; letter-spacing:0.12em; color:rgba(160,190,240,0.6)';
+const DATE_CSS = 'font-size:13px';
+const ROW_CSS = 'display:flex; align-items:center; gap:8px';
+const SLIDER_CSS = 'flex:1; accent-color:#6f93b0; cursor:pointer';
+const RATE_CSS = 'min-width:64px; text-align:right; color:rgba(190,210,250,0.85)';
+
+interface TimePanelProps {
+  date: ReadonlySignal<string>;
+  rate: ReadonlySignal<string>;
+  speedIndex: Signal<number>;
+}
+
+function TimePanel({ date, rate, speedIndex }: TimePanelProps): VNode {
+  return (
+    <div style={PANEL_CSS}>
+      <div style={CAPTION_CSS}>SIM TIME</div>
+      <div style={DATE_CSS}>{date}</div>
+      <div style={ROW_CSS}>
+        <input
+          type="range"
+          min={0}
+          max={SPEED_STEPS.length - 1}
+          step={1}
+          value={speedIndex.value}
+          style={SLIDER_CSS}
+          aria-label="Simulation speed"
+          onInput={(e) => {
+            speedIndex.value = Number((e.target as HTMLInputElement).value);
+          }}
+        />
+        <div style={RATE_CSS}>{rate}</div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Build the time-control overlay and append it to `container` (which must be a
  * positioned ancestor — `#root` is `position: fixed`). The returned handle
@@ -64,72 +128,26 @@ export function formatRate(scale: number): string {
  * readout each frame, and `dispose()` to detach.
  */
 export function createTimeControls(container: HTMLElement): TimeControls {
-  let timeScale = SPEED_STEPS[DEFAULT_SPEED_INDEX];
+  const speedIndex = signal(DEFAULT_SPEED_INDEX);
+  const simSeconds = signal(0);
+  const date = computed(() => formatSimDate(simSeconds.value));
+  const rate = computed(() => formatRate(sliderToScale(speedIndex.value)));
 
-  const panel = document.createElement('div');
-  panel.style.cssText = [
-    'position:absolute',
-    'top:10px',
-    'right:10px',
-    'display:flex',
-    'flex-direction:column',
-    'gap:4px',
-    'padding:8px 10px',
-    'min-width:184px',
-    'background:rgba(8,12,24,0.66)',
-    'border:1px solid rgba(120,150,210,0.25)',
-    'border-radius:6px',
-    'color:#cfe3ff',
-    'font:12px ui-monospace,monospace',
-    'user-select:none',
-    'pointer-events:auto',
-  ].join(';');
-
-  const caption = document.createElement('div');
-  caption.textContent = 'SIM TIME';
-  caption.style.cssText = 'font-size:10px; letter-spacing:0.12em; color:rgba(160,190,240,0.6)';
-
-  const dateLabel = document.createElement('div');
-  dateLabel.style.cssText = 'font-size:13px';
-  dateLabel.textContent = formatSimDate(0);
-
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex; align-items:center; gap:8px';
-
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = '0';
-  slider.max = String(SPEED_STEPS.length - 1);
-  slider.step = '1';
-  slider.value = String(DEFAULT_SPEED_INDEX);
-  slider.style.cssText = 'flex:1; accent-color:#6f93b0; cursor:pointer';
-  slider.setAttribute('aria-label', 'Simulation speed');
-
-  const rateLabel = document.createElement('div');
-  rateLabel.style.cssText = 'min-width:64px; text-align:right; color:rgba(190,210,250,0.85)';
-  rateLabel.textContent = formatRate(timeScale);
-
-  const onInput = (): void => {
-    timeScale = sliderToScale(Number(slider.value));
-    rateLabel.textContent = formatRate(timeScale);
-  };
-  slider.addEventListener('input', onInput);
-
-  row.append(slider, rateLabel);
-  panel.append(caption, dateLabel, row);
-  container.append(panel);
+  const mount = document.createElement('div');
+  container.append(mount);
+  render(<TimePanel date={date} rate={rate} speedIndex={speedIndex} />, mount);
 
   return {
-    element: panel,
+    element: mount,
     dispose(): void {
-      slider.removeEventListener('input', onInput);
-      panel.remove();
+      render(null, mount);
+      mount.remove();
     },
     get timeScale(): number {
-      return timeScale;
+      return sliderToScale(speedIndex.value);
     },
-    update(simSeconds: number): void {
-      dateLabel.textContent = formatSimDate(simSeconds);
+    update(seconds: number): void {
+      simSeconds.value = seconds;
     },
   };
 }
