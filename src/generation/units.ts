@@ -26,6 +26,13 @@ export const AU_PER_LY = 63241.077;
 /** Seconds in one Julian year (365.25 days). */
 export const SECONDS_PER_YEAR = 31557600;
 
+/**
+ * Schwarzschild radius per solar mass, in AU: `r_s = 2GM/c²`. The Sun's is
+ * ~2.95 km, so a 4.3e6 M☉ SMBH (Sgr A*) is ~0.085 AU and a 6.5e9 M☉ one
+ * (M87*) ~128 AU — tiny at galaxy scale, stored as data like any body radius.
+ */
+export const SCHWARZSCHILD_AU_PER_SOLAR_MASS = 1.9742e-8;
+
 /** Convert astronomical units to kilometres. */
 export function auToKm(au: number): number {
   return au * KM_PER_AU;

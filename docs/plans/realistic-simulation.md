@@ -253,16 +253,28 @@ render loop hides regressions that static checks miss).
 - [x] Browser E2E: click a star and a planet; verify the panel reads plausible,
       seed-stable data.
 
-### Phase G — Galaxy & universe hierarchy — next milestone
+### Phase G — Galaxy & universe hierarchy
 
-- [ ] `hashGalaxy` + `GalaxyData` (type, density params, central black-hole mass
-      via the M–σ relation); `BlackHole` component at each galaxy centre.
-- [ ] Two new LOD tiers (galaxy-field, universe) reusing the streaming +
-      floating-origin machinery; hierarchical addressing
-      `galaxy → sector → offset`.
-- [ ] Intergalactic scale + clustered galaxy placement (cosmic web as a later
-      refinement); extend the inspector to galaxies / black holes.
-- [ ] Validate bounded draws + precision across the full universe→planet zoom.
+Split into **G1** (many galaxies + black holes, reusing the existing tiers) and **G2** (dedicated
+aggregate tiers + cosmic web). Detail: [universe-hierarchy.md](universe-hierarchy.md).
+
+**G1 — many galaxies + black holes — DONE**
+
+- [x] `hashGalaxy(seed, gx, gy)` + a galaxy grid (`makeGalaxy` / `galaxyAt` / `galaxyDensityAt`);
+      morphology spiral / barred / elliptical / lenticular (+ a dwarf size roll) by realistic field
+      fractions; a home galaxy at the origin keeps startup populated. Absolute coordinates on the
+      compressed scale, so the existing sector cache / streamer / tiers are reused unchanged.
+- [x] `BlackHole` component + a central SMBH (M–σ-style mass, Schwarzschild radius) at each galaxy
+      centre, spawned as a marker and pickable with an inspector panel.
+- [x] Position-based stellar populations: spiral arms bias to hot-blue stars, old cores /
+      ellipticals to cool-red; the zoomed-out glow is tinted to match.
+- [ ] Browser E2E (Pierre): fly between galaxies; varied morphologies + colours; inspect a black hole.
+
+**G2 — cosmic structure (deferred)**
+
+- [ ] Dedicated galaxy-field + universe LOD tiers (sprites / labels) + galaxy picking.
+- [ ] Cosmic-web clustered galaxy placement (the morphology–density relation).
+- [ ] Only if realistic galaxy sizes are ever wanted: galaxy-relative hierarchical addressing.
 
 ### Phase H — Identity & naming
 

@@ -7,10 +7,11 @@ import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { PICK_PX } from './config';
+import { BlackHoleDef } from './generation/galaxies';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 
-export type BodyKind = 'planet' | 'star';
+export type BodyKind = 'black-hole' | 'planet' | 'star';
 
 export interface PickResult {
   id: EntityId;
@@ -55,6 +56,8 @@ export function pickBodyAt(world: EcsWorld, localCam: Camera, bx: number, by: nu
     consider(id, 'star');
   for (const [id] of world.query(PlanetPhysicalDef))
     consider(id, 'planet');
+  for (const [id] of world.query(BlackHoleDef))
+    consider(id, 'black-hole');
 
   return best;
 }

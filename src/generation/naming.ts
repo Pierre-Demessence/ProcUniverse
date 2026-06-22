@@ -44,6 +44,11 @@ export function nameStar(spectralClass: SpectralClass, systemHash: number): stri
   return `${spectralClass}-${catalogNumber(systemHash)}`;
 }
 
+/** A galaxy's catalogue designation from its cell hash, e.g. `NGC-4F2A9`. */
+export function nameGalaxy(galaxyHash: number): string {
+  return `NGC-${catalogNumber(galaxyHash)}`;
+}
+
 /** The orbital letter for the `index`-th planet (innermost = 0 → 'b'). */
 export function planetSuffix(index: number): string {
   return String.fromCharCode(FIRST_PLANET_CHAR + index);

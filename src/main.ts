@@ -10,6 +10,7 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
 import { CLICK_SLOP_PX, REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
+import { BlackHoleDef } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
@@ -76,6 +77,7 @@ export function start(container: HTMLElement, seed: number): () => void {
   world.registerComponent(StarPhysicalDef);
   world.registerComponent(PlanetPhysicalDef);
   world.registerComponent(NameDef);
+  world.registerComponent(BlackHoleDef);
 
   const positions = world.getStore(PositionDef);
   const renderables = world.getStore(RenderableDef);

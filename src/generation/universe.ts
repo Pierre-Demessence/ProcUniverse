@@ -13,8 +13,8 @@ import {
   PLANET_MIN,
   STAR_DENSITY_PEAK,
 } from '../config';
-import { planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
-import { galaxyDensity, getGalaxy } from './galaxies';
+import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
+import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt } from './galaxies';
 import { hashSector, hashSystem } from './hash';
 import { namePlanet, nameStar } from './naming';
 import { samplePlanet } from './planets';
@@ -53,7 +53,17 @@ export interface SystemData {
   y: number;
 }
 
+export interface BlackHoleData {
+  name: string;
+  mass: number;
+  radius: number;
+  schwarzschildRadius: number;
+  x: number;
+  y: number;
+}
+
 export interface SectorData {
+  blackHoles: BlackHoleData[];
   sx: number;
   sy: number;
   systems: SystemData[];
@@ -70,7 +80,6 @@ function choose(colors: readonly string[], rng: () => number): string {
  * asserts). Spawning entities from this data is a separate step (`spawnSector`).
  */
 export function generateSectorData(worldSeed: number, sx: number, sy: number): SectorData {
-  const galaxy = getGalaxy(worldSeed);
   const rng = makeSeededRng(hashSector(worldSeed, sx, sy));
   const systems: SystemData[] = [];
   const originX = sx * SECTOR_SIZE;
@@ -78,18 +87,20 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
 
   // Draw a fixed number of candidate positions per sector and keep each with a
   // probability equal to the galaxy density there: an inhomogeneous Poisson
-  // process whose intensity traces the galaxy, with no lattice and seamless
-  // across sector edges. An accepted system's physics is sampled from its own
-  // seed (`hashSystem`) so it never depends on how many candidates were rejected.
+  // process whose intensity traces whichever galaxy covers the point, with no
+  // lattice and seamless across sector edges. An accepted system's physics is
+  // sampled from its own seed (`hashSystem`), its stars biased toward hot-blue or
+  // cool-red by the local star-formation activity, so it never depends on how
+  // many candidates were rejected.
   for (let i = 0; i < STAR_DENSITY_PEAK; i++) {
     const x = originX + rng() * SECTOR_SIZE;
     const y = originY + rng() * SECTOR_SIZE;
-    if (rng() >= galaxyDensity(galaxy, x, y))
+    if (rng() >= galaxyDensityAt(worldSeed, x, y))
       continue;
 
     const systemSeed = hashSystem(worldSeed, sx, sy, i, 0);
     const srng = makeSeededRng(systemSeed);
-    const star = sampleStar(srng);
+    const star = sampleStar(srng, galaxyActivityAt(worldSeed, x, y));
     const radius = starVisualRadius(star.radius);
     const name = nameStar(star.spectralClass, systemSeed);
     const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, srng);
@@ -111,5 +122,19 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
     systems.push({ name, planets, radius, star, x, y });
   }
 
-  return { sx, sy, systems };
+  // A galaxy's central black hole lives in the one sector that holds its centre.
+  const blackHoles: BlackHoleData[] = [];
+  const galaxy = galaxyCenteredIn(worldSeed, originX, originY, originX + SECTOR_SIZE, originY + SECTOR_SIZE);
+  if (galaxy) {
+    blackHoles.push({
+      name: `${galaxy.name} SMBH`,
+      mass: galaxy.blackHoleMass,
+      radius: blackHoleVisualRadius(galaxy.blackHoleMass),
+      schwarzschildRadius: galaxy.schwarzschildRadius,
+      x: galaxy.centerX,
+      y: galaxy.centerY,
+    });
+  }
+
+  return { blackHoles, sx, sy, systems };
 }

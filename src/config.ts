@@ -13,18 +13,35 @@
 // positions are drawn and each is kept with probability equal to the normalised
 // density there (1 at the core, 0 past the rim). The galaxy is a finite disc of
 // radius `GALAXY_RADIUS_LY` with an exponential falloff `GALAXY_SCALE_LENGTH_LY`;
-// a spiral galaxy (vs elliptical, chosen per seed at `GALAXY_SPIRAL_CHANCE`) adds
-// `GALAXY_ARMS_MIN`–`GALAXY_ARMS_MAX` logarithmic arms of pitch
-// `GALAXY_ARM_PITCH_DEG` and contrast `GALAXY_ARM_STRENGTH`.
+// spiral / barred-spiral galaxies add `GALAXY_ARMS_MIN`–`GALAXY_ARMS_MAX`
+// logarithmic arms of pitch `GALAXY_ARM_PITCH_DEG` and contrast
+// `GALAXY_ARM_STRENGTH`; the morphology mix (spiral / barred / elliptical /
+// lenticular) is drawn by realistic field fractions in `galaxies.ts`.
 export const LY_PER_SECTOR = 0.01;
 export const STAR_DENSITY_PEAK = 100;
 export const GALAXY_RADIUS_LY = 2.5;
 export const GALAXY_SCALE_LENGTH_LY = 0.5;
-export const GALAXY_SPIRAL_CHANCE = 0.7;
 export const GALAXY_ARMS_MIN = 2;
 export const GALAXY_ARMS_MAX = 4;
 export const GALAXY_ARM_PITCH_DEG = 18;
 export const GALAXY_ARM_STRENGTH = 0.7;
+
+// ── Universe: galaxy field, black holes, stellar populations ─────────────
+// The universe tiles into galaxy cells of `GALAXY_CELL_LY`; each cell holds one
+// galaxy with probability `GALAXY_OCCUPANCY`, its centre jittered within the
+// cell, and `GALAXY_DWARF_CHANCE` of them are smaller dwarfs. Each galaxy hosts
+// a central black hole whose mass spans `BLACK_HOLE_MASS_MIN`–`MAX` (M☉, scaled
+// from galaxy size in an M–σ spirit) and draws at `BLACK_HOLE_DISC_AU` visual
+// size. `POP_BIAS` sets how strongly galactic position tilts stellar
+// populations — star-forming arms toward hot blue stars, old cores / ellipticals
+// toward cool red ones.
+export const GALAXY_CELL_LY = 80;
+export const GALAXY_OCCUPANCY = 0.55;
+export const GALAXY_DWARF_CHANCE = 0.45;
+export const BLACK_HOLE_MASS_MIN = 1e6;
+export const BLACK_HOLE_MASS_MAX = 1e10;
+export const BLACK_HOLE_DISC_AU = 0.5;
+export const POP_BIAS = 1.1;
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range

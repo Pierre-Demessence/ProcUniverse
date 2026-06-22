@@ -1,6 +1,7 @@
 import { clamp } from '@pierre/ecs/modules/math';
 
 import {
+  BLACK_HOLE_DISC_AU,
   LY_PER_SECTOR,
   PLANET_DISC_BASE_AU,
   PLANET_DISC_MAX_AU,
@@ -42,4 +43,9 @@ export function planetVisualRadius(radiusEarth: number): number {
     PLANET_DISC_MIN_AU,
     PLANET_DISC_MAX_AU,
   );
+}
+
+/** Non-physical drawn black-hole-disc radius (AU), gently scaled by SMBH mass. */
+export function blackHoleVisualRadius(massSolar: number): number {
+  return BLACK_HOLE_DISC_AU * clamp(0.4 + 0.12 * (Math.log10(massSolar) - 6), 0.4, 1.5);
 }

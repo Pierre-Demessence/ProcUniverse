@@ -7,7 +7,9 @@
 | Scale bar | A map-style bar one grid-cell wide labels the current view scale, auto-selecting km / AU / ly. | Done (zoom-and-scale) |
 | FPS HUD | Frame-time / FPS overlay via the engine `stats` module. | Done (Phase 0) |
 | Procedural systems | Deterministic star systems generated per sector. | Done (Phase 1) |
-| Galaxy structure | Stars are placed by a seeded galaxy density field — a finite spiral (core + logarithmic arms) or elliptical disc — instead of a lattice; the zoomed-out glow shows the same shape. | Done (Realistic-sim E) |
+| Galaxy structure | Many galaxies of varied morphology (spiral, barred, elliptical, lenticular, plus dwarfs) are placed across the universe by a seeded grid; star placement follows each galaxy's density field, and the zoomed-out glow shows every galaxy. | Done (Realistic-sim E/G) |
+| Stellar populations | Star colours follow galactic position: star-forming spiral arms skew hot and blue, old cores and elliptical / lenticular galaxies cool and red; the galaxy glow is tinted to match. | Done (Realistic-sim G) |
+| Central black holes | Each galaxy hosts a central supermassive black hole (M–σ-style mass, Schwarzschild radius) shown as a marker at its core and inspectable like any other body. | Done (Realistic-sim G) |
 | Physical star data | Each star's seeded mass (Kroupa IMF) derives luminosity, radius, temperature, spectral class, lifetime, and a blackbody colour. | Done (Realistic-sim A) |
 | Keplerian orbits | Planets trace elliptical orbits; period depends on the host star mass and semi-major axis, faster at periapsis (Kepler II). | Done (Realistic-sim B) |
 | Realistic scale | AU within systems, light-years between stars (~10⁵× ratio); orbital periods are real years; a non-physical visual disc keeps bodies visible. | Done (Realistic-sim C) |

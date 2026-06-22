@@ -7,11 +7,14 @@ import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { OrbitElementsDef } from '../sim/orbits';
+import { BlackHoleDef } from './galaxies';
 import { NameDef } from './naming';
 import { PlanetPhysicalDef } from './planets';
 import { StarPhysicalDef } from './stars';
 
 const STAR_STROKE = 'rgba(255, 255, 255, 0.65)';
+const BLACK_HOLE_FILL = '#05060d';
+const BLACK_HOLE_RING = 'rgba(255, 190, 120, 0.9)';
 
 /**
  * Spawn ECS entities for a generated sector: one star per system, plus one
@@ -32,6 +35,7 @@ export function spawnSector(
   const orbits = world.getStore(OrbitElementsDef);
   const starPhysicals = world.getStore(StarPhysicalDef);
   const planetPhysicals = world.getStore(PlanetPhysicalDef);
+  const blackHoles = world.getStore(BlackHoleDef);
   const names = world.getStore(NameDef);
   const ids: EntityId[] = [];
 
@@ -72,6 +76,23 @@ export function spawnSector(
       names.set(id, { name: planet.name });
       ids.push(id);
     }
+  }
+
+  // A galaxy's central black hole: a dark disc ringed by an accretion glow,
+  // positioned at the galaxy centre in the floating render frame.
+  for (const bh of data.blackHoles) {
+    const id = world.createEntity();
+    positions.set(id, { x: bh.x - originX, y: bh.y - originY });
+    renderables.set(id, {
+      fill: BLACK_HOLE_FILL,
+      kind: 'circle',
+      lineWidth: bh.radius * 0.18,
+      radius: bh.radius,
+      stroke: BLACK_HOLE_RING,
+    });
+    blackHoles.set(id, { mass: bh.mass, schwarzschildRadius: bh.schwarzschildRadius });
+    names.set(id, { name: bh.name });
+    ids.push(id);
   }
 
   return ids;

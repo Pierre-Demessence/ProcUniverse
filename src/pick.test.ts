@@ -9,6 +9,7 @@ import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 import { describe, expect, it } from 'vitest';
 
+import { BlackHoleDef } from './generation/galaxies';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 import { pickBodyAt } from './pick';
@@ -39,6 +40,7 @@ function makeWorld(): EcsWorld {
   world.registerComponent(RenderableDef);
   world.registerComponent(StarPhysicalDef);
   world.registerComponent(PlanetPhysicalDef);
+  world.registerComponent(BlackHoleDef);
   return world;
 }
 

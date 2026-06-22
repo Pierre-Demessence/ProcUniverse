@@ -12,6 +12,7 @@ import type { EcsWorld } from '@pierre/ecs';
 import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
+import type { BlackHolePhysical } from '../generation/galaxies';
 import type { PlanetPhysical, PlanetType, WaterState } from '../generation/planets';
 import type { StarPhysical } from '../generation/stars';
 import type { PickResult } from '../pick';
@@ -20,6 +21,7 @@ import type { OrbitElements } from '../sim/orbits';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
+import { BlackHoleDef } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
@@ -101,6 +103,15 @@ export function formatPeriod(years: number): string {
   if (seconds < SECONDS_PER_YEAR)
     return `${sigFigs(seconds / SECONDS_PER_DAY)} days`;
   return `${sigFigs(years)} yr`;
+}
+
+/** A supermassive mass in the largest fitting unit (billion / million M☉). */
+export function formatSolarMasses(massSolar: number): string {
+  if (massSolar >= 1e9)
+    return `${sigFigs(massSolar / 1e9)} billion M☉`;
+  if (massSolar >= 1e6)
+    return `${sigFigs(massSolar / 1e6)} million M☉`;
+  return formatQuantity(massSolar, 'M☉');
 }
 
 /** A planet type as a display label, e.g. `gas-giant` -> `Gas giant`. */
@@ -219,6 +230,19 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
   );
 }
 
+function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; name: string }): VNode {
+  return (
+    <div style={PANEL_CSS}>
+      <div style={NAME_CSS}>{name}</div>
+      <div style={CAPTION_CSS}>BLACK HOLE · SUPERMASSIVE</div>
+      <div style={BODY_CSS}>
+        <Row label="Mass" value={formatSolarMasses(blackHole.mass)} />
+        <Row label="Schwarzschild r" value={formatQuantity(blackHole.schwarzschildRadius, 'AU')} />
+      </div>
+    </div>
+  );
+}
+
 interface InspectorPanelProps {
   selection: Signal<PickResult | null>;
   getWorld: () => EcsWorld | null;
@@ -234,6 +258,12 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
     const star = world.getStore(StarPhysicalDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
     return star ? <StarPanel name={identity?.name ?? ''} star={star} /> : null;
+  }
+
+  if (sel.kind === 'black-hole') {
+    const blackHole = world.getStore(BlackHoleDef).get(sel.id);
+    const identity = world.getStore(NameDef).get(sel.id);
+    return blackHole ? <BlackHolePanel blackHole={blackHole} name={identity?.name ?? ''} /> : null;
   }
 
   const planet = world.getStore(PlanetPhysicalDef).get(sel.id);

@@ -3,6 +3,7 @@ import type { RandomFn } from '@pierre/ecs/modules/rng';
 
 import { simpleComponent } from '@pierre/ecs/component-store';
 
+import { POP_BIAS } from '../config';
 import { blackbodyColor } from './blackbody';
 import { T_SUN } from './units';
 
@@ -77,9 +78,18 @@ const IMF_AREA_TOTAL = IMF_AREA_LOW + IMF_AREA_HIGH;
  * Sample a stellar mass (M☉) from the Kroupa IMF by inverse-CDF: pick a point
  * in the total probability area, then invert whichever power-law segment it
  * falls in. Consumes exactly one `rng()` draw.
+ *
+ * `activity` ∈ [0, 1] biases the draw by galactic stellar population: a
+ * star-forming value near 1 (spiral arms) warps it toward high-mass, hot, blue
+ * stars; a quiescent value near 0 (old cores, ellipticals) toward low-mass,
+ * cool, red ones; 0.5 (the default) is the unbiased IMF.
  */
-export function sampleStellarMass(rng: RandomFn): number {
-  const area = rng() * IMF_AREA_TOTAL;
+export function sampleStellarMass(rng: RandomFn, activity = 0.5): number {
+  // Warp the uniform draw by a population gamma: <1 lifts it toward the rare
+  // high-mass tail (young/blue), >1 pushes it toward low mass (old/red); the
+  // 0.5 midpoint gives gamma = 1, i.e. the unbiased IMF.
+  const gamma = Math.exp(POP_BIAS * (0.5 - activity) * 2);
+  const area = rng() ** gamma * IMF_AREA_TOTAL;
   if (area < IMF_AREA_LOW)
     return powerLawInverse(IMF_MIN_MASS, IMF_ALPHA_LOW, IMF_COEF_LOW, area);
   return powerLawInverse(IMF_BREAK_MASS, IMF_ALPHA_HIGH, IMF_COEF_HIGH, area - IMF_AREA_LOW);
@@ -141,12 +151,12 @@ export function spectralClassFromTemperature(tempK: number): SpectralClass {
 
 /**
  * Derive a star's full physical state from one seeded mass draw: sample the
- * mass from the IMF, then chain mass → luminosity, radius, temperature,
- * colour, spectral class, and lifetime. Pure and deterministic for a given
- * `rng` stream position.
+ * mass from the IMF (optionally `activity`-biased by stellar population), then
+ * chain mass → luminosity, radius, temperature, colour, spectral class, and
+ * lifetime. Pure and deterministic for a given `rng` stream position.
  */
-export function sampleStar(rng: RandomFn): StarPhysical {
-  const mass = sampleStellarMass(rng);
+export function sampleStar(rng: RandomFn, activity = 0.5): StarPhysical {
+  const mass = sampleStellarMass(rng, activity);
   const luminosity = luminosityFromMass(mass);
   const radius = radiusFromMass(mass);
   const temperature = temperatureFromLuminosityRadius(luminosity, radius);
