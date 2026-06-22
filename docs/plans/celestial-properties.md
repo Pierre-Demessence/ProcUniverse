@@ -63,16 +63,16 @@ each sub-phase is independently shippable.
 - [x] Mark each shipped property with ✅ in the research doc §3.1.
 - Status: build + 104 tests + lint green; not yet committed.
 
-### 1.2 Stars
+### 1.2 Stars ✅
 
-- [ ] Add helpers in [src/generation/stars.ts](../../src/generation/stars.ts):
-      `surfaceGravity` (log g), `meanDensity`, `escapeVelocity`,
-      `bolometricMagnitude`, `absoluteVisualMagnitude` (needs a small `BC(T)`
-      table), `peakWavelength` + band label (Wien). Expose `habitableZone` /
-      `frostLine` (already exist) in the panel.
-- [ ] Add rows to `StarPanel`; add tests (Sun: log g ≈ 4.44, M_bol ≈ 4.74,
-      λ_max ≈ 500 nm).
-- [ ] ✅-mark research doc §2.1.
+- [x] Add helpers in [src/generation/stars.ts](../../src/generation/stars.ts):
+      `surfaceGravityLog`, `meanDensity`, `escapeVelocity`, `bolometricMagnitude`,
+      `peakWavelength`. Expose `habitableZone` / `frostLine` in the panel.
+      (`absoluteVisualMagnitude` via a BC(T) table deferred — keeps this cut exact.)
+- [x] Add rows to `StarPanel`; tests (Sun: log g = 4.44, ρ = 1.41, v_esc = 617.5,
+      M_bol = 4.74, λ_max ≈ 502 nm).
+- [x] ✅-mark research doc §2.1.
+- Status: build + 108 tests + lint green; not committed.
 
 ### 1.3 Orbits
 

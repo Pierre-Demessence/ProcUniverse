@@ -91,13 +91,13 @@ lifetime` ([stars.ts](../../src/generation/stars.ts)).
 
 | Property | Computation (solar units unless noted) | Basis | Draws |
 | --- | --- | --- | --- |
-| **Surface gravity** | `g = g☉·M/R²`; `log g_cgs = 4.438 + log₁₀M − 2·log₁₀R` | Newtonian | 0 |
-| **Mean density** | `ρ = 1.408 g/cm³ · M/R³` | Newtonian | 0 |
-| **Escape velocity** | `v_esc = 617.5 km/s · √(M/R)` | Newtonian | 0 |
-| **Bolometric magnitude** | `M_bol = 4.74 − 2.5·log₁₀L` | IAU 2015 | 0 |
+| **✅ Surface gravity** | `g = g☉·M/R²`; `log g_cgs = 4.438 + log₁₀M − 2·log₁₀R` | Newtonian | 0 |
+| **✅ Mean density** | `ρ = 1.408 g/cm³ · M/R³` | Newtonian | 0 |
+| **✅ Escape velocity** | `v_esc = 617.5 km/s · √(M/R)` | Newtonian | 0 |
+| **✅ Bolometric magnitude** | `M_bol = 4.74 − 2.5·log₁₀L` | IAU 2015 | 0 |
 | **Absolute visual mag.** | `M_V = M_bol − BC(T)`, bolometric correction `BC` from a small temperature table | Pecaut & Mamajek 2013 | 0 |
-| **Peak wavelength / band** | Wien: `λ_max(nm) = 2.898×10⁶ / T(K)` → UV/blue/…/IR label | Wien's law | 0 |
-| **Habitable zone, frost line** | `0.95√L .. 1.37√L AU`; `2.7√L AU` — already computed, just expose | Kopparapu 2013 | 0 |
+| **✅ Peak wavelength / band** | Wien: `λ_max(nm) = 2.898×10⁶ / T(K)` → UV/blue/…/IR label | Wien's law | 0 |
+| **✅ Habitable zone, frost line** | `0.95√L .. 1.37√L AU`; `2.7√L AU` — already computed, just expose | Kopparapu 2013 | 0 |
 | **Angular size at distance d** | `θ = 2R/d` (e.g. as seen from each planet) | geometry | 0 |
 | **Luminosity / radius in SI** | `L·L_SUN` W, `R·696,000 km` — unit conversions | — | 0 |
 

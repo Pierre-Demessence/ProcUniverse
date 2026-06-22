@@ -23,8 +23,8 @@ import { render } from 'preact';
 
 import { BlackHoleDef, estimatedStarCount, galaxyDiameterLy, galaxyRepresentativeActivity } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
-import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, PlanetPhysicalDef, surfaceGravity } from '../generation/planets';
-import { StarPhysicalDef } from '../generation/stars';
+import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, PlanetPhysicalDef, surfaceGravity } from '../generation/planets';
+import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
 import { orbitalPeriod, OrbitElementsDef } from '../sim/orbits';
@@ -196,6 +196,7 @@ function TemperatureRow({ kelvin, label }: { kelvin: number; label: string }): V
 }
 
 function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode {
+  const hz = habitableZone(star.luminosity);
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
@@ -222,8 +223,15 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
         <Row label="Mass" value={formatQuantity(star.mass, 'M☉')} />
         <Row label="Luminosity" value={formatQuantity(star.luminosity, 'L☉')} />
         <Row label="Radius" value={formatQuantity(star.radius, 'R☉')} />
+        <Row label="Density" value={formatQuantity(meanDensity(star.mass, star.radius), 'g/cm³')} />
+        <Row label="Gravity (log g)" value={sigFigs(surfaceGravityLog(star.mass, star.radius))} />
+        <Row label="Escape vel." value={formatQuantity(starEscapeVelocity(star.mass, star.radius), 'km/s')} />
         <TemperatureRow label="Temperature" kelvin={star.temperature} />
+        <Row label="Peak λ" value={formatQuantity(peakWavelength(star.temperature), 'nm')} />
+        <Row label="Bolo. mag" value={sigFigs(bolometricMagnitude(star.luminosity))} />
         <Row label="Lifetime" value={formatLifetime(star.lifetime)} />
+        <Row label="Habitable zone" value={`${sigFigs(hz.inner)}–${sigFigs(hz.outer)} AU`} />
+        <Row label="Frost line" value={formatQuantity(frostLine(star.luminosity), 'AU')} />
       </div>
     </div>
   );

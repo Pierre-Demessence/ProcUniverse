@@ -2,11 +2,16 @@ import { makeSeededRng } from '@pierre/ecs/modules/rng';
 import { describe, expect, it } from 'vitest';
 
 import {
+  bolometricMagnitude,
+  escapeVelocity,
   luminosityFromMass,
+  meanDensity,
+  peakWavelength,
   radiusFromMass,
   sampleStar,
   sampleStellarMass,
   spectralClassFromTemperature,
+  surfaceGravityLog,
   temperatureFromLuminosityRadius,
 } from './stars';
 
@@ -92,5 +97,30 @@ describe('sampleStar', () => {
     expect(star.lifetime).toBeGreaterThan(0);
     expect(star.colorHex).toMatch(/^#[0-9a-f]{6}$/);
     expect(['O', 'B', 'A', 'F', 'G', 'K', 'M']).toContain(star.spectralClass);
+  });
+});
+
+describe('stellar derived quantities', () => {
+  it('anchors the Sun: log g 4.44, ρ 1.41, v_esc 617.5', () => {
+    expect(surfaceGravityLog(1, 1)).toBeCloseTo(4.438, 6);
+    expect(meanDensity(1, 1)).toBeCloseTo(1.408, 6);
+    expect(escapeVelocity(1, 1)).toBeCloseTo(617.5, 6);
+  });
+
+  it('scales surface gravity, density, and escape velocity with M and R', () => {
+    // A compact, massive star has higher gravity, density, and escape velocity.
+    expect(surfaceGravityLog(2, 0.5)).toBeGreaterThan(surfaceGravityLog(1, 1));
+    expect(meanDensity(2, 0.5)).toBeGreaterThan(meanDensity(1, 1));
+    expect(escapeVelocity(4, 1)).toBeCloseTo(2 * 617.5, 6);
+  });
+
+  it('gives M_bol 4.74 for the Sun and brightens (more negative) with L', () => {
+    expect(bolometricMagnitude(1)).toBeCloseTo(4.74, 6);
+    expect(bolometricMagnitude(100)).toBeCloseTo(-0.26, 6);
+  });
+
+  it('places the Sun Wien peak near 502 nm and shifts blue when hotter', () => {
+    expect(peakWavelength(5772)).toBeCloseTo(502, 0);
+    expect(peakWavelength(11544)).toBeLessThan(peakWavelength(5772));
   });
 });

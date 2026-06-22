@@ -170,3 +170,40 @@ export function sampleStar(rng: RandomFn, activity = 0.5): StarPhysical {
     temperature,
   };
 }
+
+// Solar reference values for the derived-quantity helpers below: the Sun's
+// surface gravity as log g (cgs), mean density, and surface escape velocity,
+// plus the IAU 2015 bolometric-magnitude zero point and Wien's constant.
+const SUN_LOG_G_CGS = 4.438;
+const SUN_DENSITY = 1.408; // g/cm³
+const SUN_ESCAPE_VELOCITY = 617.5; // km/s
+const SOLAR_BOLOMETRIC_MAGNITUDE = 4.74; // M_bol,☉ (IAU 2015 Resolution B3)
+const WIEN_CONSTANT_NM_K = 2.897772e6; // λ_max · T, in nm·K
+
+/** Surface gravity as log g (cgs): `log g☉ + log₁₀M − 2·log₁₀R` (Sun = 4.44). */
+export function surfaceGravityLog(mass: number, radius: number): number {
+  return SUN_LOG_G_CGS + Math.log10(mass) - 2 * Math.log10(radius);
+}
+
+/** Mean density (g/cm³): `ρ☉·M/R³` in solar units (Sun = 1.41). */
+export function meanDensity(mass: number, radius: number): number {
+  return (SUN_DENSITY * mass) / radius ** 3;
+}
+
+/** Surface escape velocity (km/s): `√(M/R)` in solar units (Sun = 617.5). */
+export function escapeVelocity(mass: number, radius: number): number {
+  return SUN_ESCAPE_VELOCITY * Math.sqrt(mass / radius);
+}
+
+/**
+ * Absolute bolometric magnitude: `M_bol,☉ − 2.5·log₁₀L`, with the IAU 2015 zero
+ * point `M_bol,☉ = 4.74` (Sun = 4.74). Brighter stars are more negative.
+ */
+export function bolometricMagnitude(luminosity: number): number {
+  return SOLAR_BOLOMETRIC_MAGNITUDE - 2.5 * Math.log10(luminosity);
+}
+
+/** Wien peak-emission wavelength (nm): `2.898×10⁶ / T` (Sun ≈ 502 nm, green). */
+export function peakWavelength(temperature: number): number {
+  return WIEN_CONSTANT_NM_K / temperature;
+}
