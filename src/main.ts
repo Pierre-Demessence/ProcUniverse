@@ -10,7 +10,7 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
 import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
-import { BlackHoleDef } from './generation/galaxies';
+import { BlackHoleDef, galaxyAt } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
@@ -100,12 +100,15 @@ export function start(container: HTMLElement, seed: number): () => void {
   };
   syncViewport();
 
-  // Frame the first system of the origin sector so there is content centred at
-  // startup.
+  // Frame the home galaxy's centre at startup so its central black hole is in
+  // view; fall back to the first system (or the sector centre) if absent.
+  const homeGalaxy = galaxyAt(seed, 0, 0);
   const originSector = cache.get(0, 0);
-  const focus = originSector.systems.length > 0
-    ? originSector.systems[0]
-    : { x: SECTOR_SIZE / 2, y: SECTOR_SIZE / 2 };
+  const focus = homeGalaxy
+    ? { x: homeGalaxy.centerX, y: homeGalaxy.centerY }
+    : originSector.systems.length > 0
+      ? originSector.systems[0]
+      : { x: SECTOR_SIZE / 2, y: SECTOR_SIZE / 2 };
   controller.camera.x = focus.x;
   controller.camera.y = focus.y;
   controller.camera.zoom = canvas.height / SYSTEM_VIEW_AU;

@@ -13,8 +13,10 @@ import { PlanetPhysicalDef } from './planets';
 import { StarPhysicalDef } from './stars';
 
 const STAR_STROKE = 'rgba(255, 255, 255, 0.65)';
-const BLACK_HOLE_FILL = '#05060d';
-const BLACK_HOLE_RING = 'rgba(255, 190, 120, 0.9)';
+// A true-black core rimmed by a bright accretion glow. The fill must NOT match
+// the scene background (#05060d) or the disc is invisible against it.
+const BLACK_HOLE_FILL = '#000000';
+const BLACK_HOLE_RING = 'rgba(255, 170, 90, 0.95)';
 
 /**
  * Spawn ECS entities for a generated sector: one star per system, plus one
@@ -86,7 +88,7 @@ export function spawnSector(
     renderables.set(id, {
       fill: BLACK_HOLE_FILL,
       kind: 'circle',
-      lineWidth: bh.radius * 0.18,
+      lineWidth: bh.radius * 0.4,
       radius: bh.radius,
       stroke: BLACK_HOLE_RING,
     });

@@ -40,7 +40,7 @@ export const GALAXY_OCCUPANCY = 0.55;
 export const GALAXY_DWARF_CHANCE = 0.45;
 export const BLACK_HOLE_MASS_MIN = 1e6;
 export const BLACK_HOLE_MASS_MAX = 1e10;
-export const BLACK_HOLE_DISC_AU = 0.5;
+export const BLACK_HOLE_DISC_AU = 4;
 export const POP_BIAS = 1.1;
 // Drawn galaxy-field sprite radius as a multiple of the galaxy's world radius.
 export const GALAXY_SPRITE_SCALE = 2.5;

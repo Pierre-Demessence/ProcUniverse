@@ -5,6 +5,7 @@ import { worldToView } from '@pierre/ecs/modules/camera';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
+import { BlackHoleDef } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
@@ -15,6 +16,7 @@ const STAR_FONT = '12px ui-monospace, monospace';
 const PLANET_FONT = '10px ui-monospace, monospace';
 const STAR_COLOR = 'rgba(214, 230, 255, 0.95)';
 const PLANET_COLOR = 'rgba(184, 206, 240, 0.72)';
+const BLACK_HOLE_COLOR = 'rgba(255, 190, 130, 0.95)';
 const SHADOW = 'rgba(2, 4, 10, 0.9)';
 
 /**
@@ -58,6 +60,11 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, cam: Camera, wor
   ctx2d.font = PLANET_FONT;
   ctx2d.fillStyle = PLANET_COLOR;
   for (const [id] of world.query(PlanetPhysicalDef))
+    label(id);
+
+  ctx2d.font = STAR_FONT;
+  ctx2d.fillStyle = BLACK_HOLE_COLOR;
+  for (const [id] of world.query(BlackHoleDef))
     label(id);
 
   ctx2d.restore();
