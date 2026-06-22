@@ -53,6 +53,15 @@ export function start(container: HTMLElement, seed: number): () => void {
     throw new Error('ProcUniverse: 2D canvas context is unavailable.');
   let fadeMsLeft = 0;
 
+  // Offscreen copy of the last rendered scene (without HUD overlays).  On
+  // clean frames we blit this back so the cheap overlay pass always draws on
+  // a fresh copy of the scene without re-rendering the expensive content.
+  const sceneCache = document.createElement('canvas');
+  const sceneCacheCtx = sceneCache.getContext('2d');
+  if (!sceneCacheCtx)
+    throw new Error('ProcUniverse: 2D canvas context is unavailable.');
+  let sceneCacheValid = false;
+
   // Size the backing store to device pixels before the camera is created, so it
   // reads real dimensions rather than the canvas default (300x150).
   const sizeCanvas = (): void => {
@@ -63,7 +72,10 @@ export function start(container: HTMLElement, seed: number): () => void {
     canvas.height = Math.max(1, Math.round(h * dpr));
     fadeCanvas.width = canvas.width;
     fadeCanvas.height = canvas.height;
+    sceneCache.width = canvas.width;
+    sceneCache.height = canvas.height;
     fadeMsLeft = 0;
+    sceneCacheValid = false;
   };
   sizeCanvas();
 
@@ -183,6 +195,17 @@ export function start(container: HTMLElement, seed: number): () => void {
   window.addEventListener('pointerup', onPickUp);
   window.addEventListener('keydown', onPickKey);
 
+  // Dirty-frame tracking: at non-system tiers nothing animates, so when the
+  // camera is still the view is identical frame to frame.  Skip the heavy
+  // render pass and just measure FPS.
+  let lastCamX = camera.x;
+  let lastCamY = camera.y;
+  let lastCamZoom = camera.zoom;
+  let lastVpW = camera.viewportW;
+  let lastVpH = camera.viewportH;
+  let lastSelection: Selection | null = null;
+  let lastDrawnCount = 0;
+
   const renderSource = new AnimationFrameTickSource();
   const unsubscribe = renderSource.subscribe((info) => {
     const dt = info.deltaMs ?? 0;
@@ -192,107 +215,139 @@ export function start(container: HTMLElement, seed: number): () => void {
     const tier = selectTier(camera, currentTier);
     const tierChanged = tier !== currentTier;
     currentTier = tier;
-    const range = visibleSectors(camera);
 
-    // Rebase the render origin so the renderer always draws on small, precise
-    // local coordinates. At the system tier we rebase onto the focused star
-    // itself, dropping planet coords to tens of AU: without this, discs drawn at
-    // ~10^5 AU local coordinates lose canvas path precision and render as jagged
-    // blobs. Zoomed out, snap to the sector grid and rebase only on large
-    // drifts. Respawn the streamed systems whenever the origin moves.
-    let originX = renderOriginX;
-    let originY = renderOriginY;
-    if (tier === 'system') {
-      const focus = nearestStar(cache, camera.x, camera.y);
-      originX = focus ? focus.x : Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
-      originY = focus ? focus.y : Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
-    }
-    else if (Math.abs(camera.x - renderOriginX) > REBASE_DIST || Math.abs(camera.y - renderOriginY) > REBASE_DIST) {
-      originX = Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
-      originY = Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
-    }
-    if (originX !== renderOriginX || originY !== renderOriginY) {
-      renderOriginX = originX;
-      renderOriginY = originY;
-      streamer.clear();
-    }
+    const camMoved = camera.x !== lastCamX || camera.y !== lastCamY || camera.zoom !== lastCamZoom;
+    lastCamX = camera.x;
+    lastCamY = camera.y;
+    lastCamZoom = camera.zoom;
+    const vpChanged = camera.viewportW !== lastVpW || camera.viewportH !== lastVpH;
+    lastVpW = camera.viewportW;
+    lastVpH = camera.viewportH;
+    const selChanged = selection !== lastSelection;
+    lastSelection = selection;
 
-    // Stream full systems only at the system tier; otherwise despawn them.
-    if (tier === 'system')
-      streamer.update(range, renderOriginX, renderOriginY);
-    else
-      streamer.clear();
-    // Flush despawns, drop the (subscriber-less) lifecycle events the
-    // spawns/despawns queued, and clear the stores' dirty sets (nothing
-    // consumes them) before anything reads the entity set.
-    world.endOfTick();
-    world.clearAllDirty();
+    // At the system tier orbits animate so every frame is dirty; at other
+    // tiers a cross-fade, camera move, viewport change, or selection change
+    // dirties the view.
+    const dirty = tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0;
 
-    if (tier === 'system')
-      updateOrbits(world, simSeconds);
+    if (dirty) {
+      const range = visibleSectors(camera);
 
-    // Capture the previous (old-tier) frame to cross-fade out of on a tier change.
-    if (tierChanged) {
-      fadeCtx.clearRect(0, 0, fadeCanvas.width, fadeCanvas.height);
-      fadeCtx.drawImage(canvas, 0, 0);
-      fadeMsLeft = TIER_FADE_MS;
-    }
+      // Rebase the render origin so the renderer always draws on small, precise
+      // local coordinates. At the system tier we rebase onto the focused star
+      // itself, dropping planet coords to tens of AU: without this, discs drawn at
+      // ~10^5 AU local coordinates lose canvas path precision and render as jagged
+      // blobs. Zoomed out, snap to the sector grid and rebase only on large
+      // drifts. Respawn the streamed systems whenever the origin moves.
+      let originX = renderOriginX;
+      let originY = renderOriginY;
+      if (tier === 'system') {
+        const focus = nearestStar(cache, camera.x, camera.y);
+        originX = focus ? focus.x : Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
+        originY = focus ? focus.y : Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+      }
+      else if (Math.abs(camera.x - renderOriginX) > REBASE_DIST || Math.abs(camera.y - renderOriginY) > REBASE_DIST) {
+        originX = Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
+        originY = Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+      }
+      if (originX !== renderOriginX || originY !== renderOriginY) {
+        renderOriginX = originX;
+        renderOriginY = originY;
+        streamer.clear();
+      }
 
-    const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
-    const result = renderFrame({
-      cache,
-      camera: localCam,
-      canvas,
-      ctx2d,
-      originX: renderOriginX,
-      originY: renderOriginY,
-      range,
-      renderer,
-      seed,
-      tier,
-      world,
-    });
+      // Stream full systems only at the system tier; otherwise despawn them.
+      if (tier === 'system')
+        streamer.update(range, renderOriginX, renderOriginY);
+      else
+        streamer.clear();
+      // Flush despawns, drop the (subscriber-less) lifecycle events the
+      // spawns/despawns queued, and clear the stores' dirty sets (nothing
+      // consumes them) before anything reads the entity set.
+      world.endOfTick();
+      world.clearAllDirty();
 
-    // Cross-fade: blend the captured old-tier frame over the new one.
-    if (fadeMsLeft > 0) {
-      ctx2d.save();
-      ctx2d.globalAlpha = Math.min(1, fadeMsLeft / TIER_FADE_MS);
-      ctx2d.drawImage(fadeCanvas, 0, 0);
-      ctx2d.restore();
-      fadeMsLeft -= dt;
-    }
+      if (tier === 'system')
+        updateOrbits(world, simSeconds);
 
-    // Track the selected body: clear it if it streamed out or the tier left the
-    // system view, otherwise draw its reticle at the body's live screen position
-    // (so it follows an orbiting planet) and refresh the data panel.
-    if (selection) {
-      if (selection.kind === 'galaxy') {
-        if (tier !== 'galaxy-field') {
-          selection = null;
+      // Capture the previous (old-tier) frame to cross-fade out of on a tier change.
+      if (tierChanged) {
+        fadeCtx.clearRect(0, 0, fadeCanvas.width, fadeCanvas.height);
+        fadeCtx.drawImage(canvas, 0, 0);
+        fadeMsLeft = TIER_FADE_MS;
+      }
+
+      const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
+      const result = renderFrame({
+        cache,
+        camera: localCam,
+        canvas,
+        ctx2d,
+        originX: renderOriginX,
+        originY: renderOriginY,
+        range,
+        renderer,
+        seed,
+        tier,
+        world,
+      });
+
+      // Cross-fade: blend the captured old-tier frame over the new one.
+      if (fadeMsLeft > 0) {
+        ctx2d.save();
+        ctx2d.globalAlpha = Math.min(1, fadeMsLeft / TIER_FADE_MS);
+        ctx2d.drawImage(fadeCanvas, 0, 0);
+        ctx2d.restore();
+        fadeMsLeft -= dt;
+      }
+
+      // Track the selected body: clear it if it streamed out or the tier left the
+      // system view, otherwise draw its reticle at the body's live screen position
+      // (so it follows an orbiting planet) and refresh the data panel.
+      if (selection) {
+        if (selection.kind === 'galaxy') {
+          if (tier !== 'galaxy-field') {
+            selection = null;
+          }
+          else {
+            const screen = worldToView(selection.galaxy.centerX - renderOriginX, selection.galaxy.centerY - renderOriginY, localCam);
+            drawSelectReticle(ctx2d, screen.vx, screen.vy, selection.galaxy.radius * GALAXY_SPRITE_SCALE * camera.zoom);
+          }
         }
         else {
-          const screen = worldToView(selection.galaxy.centerX - renderOriginX, selection.galaxy.centerY - renderOriginY, localCam);
-          drawSelectReticle(ctx2d, screen.vx, screen.vy, selection.galaxy.radius * GALAXY_SPRITE_SCALE * camera.zoom);
+          const pos = tier === 'system' ? positions.get(selection.id) : undefined;
+          if (!pos) {
+            selection = null;
+          }
+          else {
+            const renderable = renderables.get(selection.id);
+            const discRadius = renderable?.kind === 'circle' ? renderable.radius : 0;
+            const screen = worldToView(pos.x, pos.y, localCam);
+            drawSelectReticle(ctx2d, screen.vx, screen.vy, discRadius * camera.zoom);
+          }
         }
       }
-      else {
-        const pos = tier === 'system' ? positions.get(selection.id) : undefined;
-        if (!pos) {
-          selection = null;
-        }
-        else {
-          const renderable = renderables.get(selection.id);
-          const discRadius = renderable?.kind === 'circle' ? renderable.radius : 0;
-          const screen = worldToView(pos.x, pos.y, localCam);
-          drawSelectReticle(ctx2d, screen.vx, screen.vy, discRadius * camera.zoom);
-        }
-      }
+
+      const status = streamer.status();
+      lastDrawnCount = result < 0 ? status.stars + status.planets : result;
+
+      // Snapshot the fully-composed scene (background + content + reticle +
+      // cross-fade, but NO overlays) so clean frames can blit it back and
+      // only redraw the cheap HUD on top.
+      sceneCacheCtx.clearRect(0, 0, sceneCache.width, sceneCache.height);
+      sceneCacheCtx.drawImage(canvas, 0, 0);
+      sceneCacheValid = true;
     }
+    else if (sceneCacheValid) {
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      ctx2d.drawImage(sceneCache, 0, 0);
+    }
+
+    // Lightweight HUD overlays and DOM updates — cheap enough to run every
+    // frame so the time display and frame-time sparkline stay live.
+    frameStats.setCounter('drawn', lastDrawnCount);
     inspector.update(world, selection);
-
-    const status = streamer.status();
-    frameStats.setCounter('drawn', result < 0 ? status.stars + status.planets : result);
-
     drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS });
     drawHint(ctx2d, canvas, tier);
     drawScaleBar(ctx2d, camera);
