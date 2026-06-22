@@ -27,7 +27,7 @@ import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
-import { orbitalPeriod, OrbitElementsDef } from '../sim/orbits';
+import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
 
 export interface Inspector {
   dispose: () => void;
@@ -256,8 +256,11 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} />
         <Row label="Earth index" value={sigFigs(earthSimilarityIndex(planet.radius, planet.density, escape, planet.equilibriumTemp))} />
         <Row label="Orbit a" value={formatQuantity(orbit.a, 'AU')} />
+        <Row label="Peri / Apo" value={`${sigFigs(periapsis(orbit))} / ${sigFigs(apoapsis(orbit))} AU`} />
         <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} />
+        <Row label="Orbital speed" value={formatQuantity(meanOrbitalSpeed(orbit), 'km/s')} />
         <Row label="Eccentricity" value={sigFigs(orbit.e)} />
+        <Row label="Flux swing" value={`${sigFigs(insolationSwing(orbit))}×`} />
       </div>
     </div>
   );

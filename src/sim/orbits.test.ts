@@ -2,7 +2,7 @@ import type { OrbitElements } from './orbits';
 
 import { describe, expect, it } from 'vitest';
 
-import { orbitalPeriod, writeOrbitPosition } from './orbits';
+import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, periapsis, writeOrbitPosition } from './orbits';
 
 function makeOrbit(overrides: Partial<OrbitElements> = {}): OrbitElements {
   return { a: 100, argPeriapsis: 0, cx: 0, cy: 0, e: 0, meanAnomaly0: 0, starMass: 1, ...overrides };
@@ -78,5 +78,28 @@ describe('writeOrbitPosition', () => {
     const light = step(makeOrbit({ a: 100, starMass: 1 }), 0, dt);
     const heavy = step(makeOrbit({ a: 100, starMass: 4 }), 0, dt);
     expect(heavy).toBeGreaterThan(light);
+  });
+});
+
+describe('orbit derived quantities', () => {
+  it('gives periapsis a(1−e) and apoapsis a(1+e)', () => {
+    const orbit = makeOrbit({ a: 100, e: 0.4 });
+    expect(periapsis(orbit)).toBeCloseTo(60, 6);
+    expect(apoapsis(orbit)).toBeCloseTo(140, 6);
+  });
+
+  it('matches Earth mean orbital speed ≈ 29.8 km/s', () => {
+    expect(meanOrbitalSpeed(makeOrbit({ a: 1, starMass: 1 }))).toBeCloseTo(29.78, 1);
+  });
+
+  it('speeds up around a heavier star and slows farther out', () => {
+    const earth = meanOrbitalSpeed(makeOrbit({ a: 1, starMass: 1 }));
+    expect(meanOrbitalSpeed(makeOrbit({ a: 1, starMass: 4 }))).toBeGreaterThan(earth);
+    expect(meanOrbitalSpeed(makeOrbit({ a: 4, starMass: 1 }))).toBeLessThan(earth);
+  });
+
+  it('has unit flux swing for a circle and grows with eccentricity', () => {
+    expect(insolationSwing(makeOrbit({ e: 0 }))).toBeCloseTo(1, 6);
+    expect(insolationSwing(makeOrbit({ e: 0.5 }))).toBeCloseTo(9, 6);
   });
 });

@@ -211,12 +211,12 @@ Stored today: `a, e, argPeriapsis, meanAnomaly0, starMass`
 
 | Property | Computation | Basis | Draws |
 | --- | --- | --- | --- |
-| **Periapsis / apoapsis** | `a(1−e)` / `a(1+e)` | geometry | 0 |
-| **Mean orbital speed** | `v̄ = (2πa/P)·(1 − e²/4 − …)` | series | 0 |
+| **✅ Periapsis / apoapsis** | `a(1−e)` / `a(1+e)` | geometry | 0 |
+| **✅ Mean orbital speed** | `v̄ = (2πa/P)·(1 − e²/4 − …)` | series | 0 |
 | **Peri / apo speed (exact)** | vis-viva `v = √(GM(2/r − 1/a))`; `v_peri = (2πa/P)·√((1+e)/(1−e))`, apo inverse | vis-viva | 0 |
 | **Specific energy / ang. momentum** | `ε = −GM/2a`; `h = √(GM·a(1−e²))` | two-body | 0 |
 | **Mean motion** | `n = 2π/P` | Kepler | 0 |
-| **Insolation swing peri↔apo** | flux ratio `((1+e)/(1−e))²` | inverse-square | 0 |
+| **✅ Insolation swing peri↔apo** | flux ratio `((1+e)/(1−e))²` | inverse-square | 0 |
 | **Synodic period (pair)** | `1/P_syn = abs(1/P₁ − 1/P₂)` | kinematics | 0 |
 
 ### 4.2 `DIST` — already sampled / refinable

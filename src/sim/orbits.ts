@@ -6,9 +6,11 @@ import { simpleComponent } from '@pierre/ecs/component-store';
 import { worldToView } from '@pierre/ecs/modules/camera';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
-import { SECONDS_PER_YEAR } from '../generation/units';
+import { KM_PER_AU, SECONDS_PER_YEAR } from '../generation/units';
 
 const TAU = Math.PI * 2;
+// One AU per year expressed in km/s, for converting orbital speeds.
+const KM_S_PER_AU_YEAR = KM_PER_AU / SECONDS_PER_YEAR;
 
 /**
  * Keplerian orbital elements. A planet's position is a closed-form (analytic)
@@ -50,6 +52,33 @@ export const OrbitElementsDef: ComponentDef<OrbitElements> = simpleComponent<Orb
  */
 export function orbitalPeriod(starMass: number, a: number): number {
   return Math.sqrt(a ** 3 / starMass);
+}
+
+/** Periapsis distance (AU): the closest approach to the star, `a(1 − e)`. */
+export function periapsis(orbit: OrbitElements): number {
+  return orbit.a * (1 - orbit.e);
+}
+
+/** Apoapsis distance (AU): the farthest point from the star, `a(1 + e)`. */
+export function apoapsis(orbit: OrbitElements): number {
+  return orbit.a * (1 + orbit.e);
+}
+
+/**
+ * Mean orbital speed (km/s): the circular-equivalent `2πa/P`, converted from
+ * AU/year to km/s. Earth ≈ 29.8 km/s.
+ */
+export function meanOrbitalSpeed(orbit: OrbitElements): number {
+  return ((TAU * orbit.a) / orbitalPeriod(orbit.starMass, orbit.a)) * KM_S_PER_AU_YEAR;
+}
+
+/**
+ * Insolation swing: the peri-to-apo stellar-flux ratio `((1+e)/(1−e))²` (flux
+ * ∝ 1/r²). 1 for a circle; large for eccentric orbits, where it drives the
+ * seasonal temperature extremes. Defined for closed ellipses (`e < 1`).
+ */
+export function insolationSwing(orbit: OrbitElements): number {
+  return ((1 + orbit.e) / (1 - orbit.e)) ** 2;
 }
 
 /**

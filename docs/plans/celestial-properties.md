@@ -74,13 +74,16 @@ each sub-phase is independently shippable.
 - [x] ✅-mark research doc §2.1.
 - Status: build + 108 tests + lint green; not committed.
 
-### 1.3 Orbits
+### 1.3 Orbits ✅
 
-- [ ] Add helpers in [src/sim/orbits.ts](../../src/sim/orbits.ts): `periapsis`,
-      `apoapsis`, `meanOrbitalSpeed`, `periSpeed`/`apoSpeed` (vis-viva),
-      `meanMotion`, specific energy / angular momentum, peri↔apo insolation swing.
-- [ ] Add rows to `PlanetPanel` (orbit section); tests for a known ellipse.
-- [ ] ✅-mark research doc §4.1.
+- [x] Add helpers in [src/sim/orbits.ts](../../src/sim/orbits.ts): `periapsis`,
+      `apoapsis`, `meanOrbitalSpeed` (km/s), `insolationSwing`. (vis-viva peri/apo
+      speeds, specific energy / angular momentum, mean motion, and the two-body
+      synodic period deferred — technical, niche for the inspector.)
+- [x] Add rows to `PlanetPanel` (orbit section): Peri / Apo, Orbital speed, Flux
+      swing; tests for a known ellipse + Earth's 29.8 km/s.
+- [x] ✅-mark research doc §4.1.
+- Status: build + 112 tests + lint green; not committed.
 
 ### 1.4 Black holes
 
