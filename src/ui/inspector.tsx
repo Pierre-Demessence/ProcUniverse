@@ -12,25 +12,26 @@ import type { EcsWorld } from '@pierre/ecs';
 import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
-import type { BlackHolePhysical } from '../generation/galaxies';
+import type { BlackHolePhysical, GalaxyParams, GalaxyType } from '../generation/galaxies';
 import type { PlanetPhysical, PlanetType, WaterState } from '../generation/planets';
 import type { StarPhysical } from '../generation/stars';
-import type { PickResult } from '../pick';
+import type { Selection } from '../pick';
 import type { OrbitElements } from '../sim/orbits';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { BlackHoleDef } from '../generation/galaxies';
+import { BlackHoleDef, estimatedStarCount, galaxyDiameterLy, galaxyRepresentativeActivity } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
+import { populationColorCss } from '../render/galaxy-sprites';
 import { orbitalPeriod, OrbitElementsDef } from '../sim/orbits';
 
 export interface Inspector {
   dispose: () => void;
-  update: (world: EcsWorld, selection: PickResult | null) => void;
+  update: (world: EcsWorld, selection: Selection | null) => void;
 }
 
 /** Display unit for temperatures: absolute kelvin or degrees Celsius. */
@@ -114,10 +115,27 @@ export function formatSolarMasses(massSolar: number): string {
   return formatQuantity(massSolar, 'M☉');
 }
 
+/** A large count in the largest fitting unit (billion / million / thousand). */
+export function formatCount(value: number): string {
+  if (value >= 1e9)
+    return `${sigFigs(value / 1e9)} billion`;
+  if (value >= 1e6)
+    return `${sigFigs(value / 1e6)} million`;
+  if (value >= 1e3)
+    return `${sigFigs(value / 1e3)} thousand`;
+  return sigFigs(value);
+}
+
 /** A planet type as a display label, e.g. `gas-giant` -> `Gas giant`. */
 export function formatPlanetType(type: PlanetType): string {
   const spaced = type.replace('-', ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** A galaxy morphology label, e.g. a dwarf `barred-spiral` -> `Dwarf barred spiral`. */
+export function formatGalaxyType(type: GalaxyType, dwarf: boolean): string {
+  const spaced = type.replace('-', ' ');
+  return dwarf ? `Dwarf ${spaced}` : spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 /** Habitability as `Yes`/`No` plus the inferred surface-water phase. */
@@ -243,15 +261,48 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
   );
 }
 
+function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
+  const swatch = populationColorCss(galaxyRepresentativeActivity(galaxy));
+  return (
+    <div style={PANEL_CSS}>
+      <div style={NAME_CSS}>{galaxy.name}</div>
+      <div style={`${CAPTION_CSS}; display:flex; align-items:center; gap:6px`}>
+        <span
+          style={{
+            background: swatch,
+            borderRadius: '50%',
+            boxShadow: `0 0 6px ${swatch}`,
+            display: 'inline-block',
+            height: '8px',
+            width: '8px',
+          }}
+        />
+        <span>{`GALAXY · ${formatGalaxyType(galaxy.type, galaxy.dwarf).toUpperCase()}`}</span>
+      </div>
+      <div style={BODY_CSS}>
+        <Row label="Diameter" value={`${sigFigs(galaxyDiameterLy(galaxy))} ly`} />
+        <Row label="Stars" value={`~${formatCount(estimatedStarCount(galaxy))}`} />
+        <Row label="Black hole" value={formatSolarMasses(galaxy.blackHoleMass)} />
+      </div>
+    </div>
+  );
+}
+
 interface InspectorPanelProps {
-  selection: Signal<PickResult | null>;
+  selection: Signal<Selection | null>;
   getWorld: () => EcsWorld | null;
 }
 
 function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | null {
   const sel = selection.value;
+  if (!sel)
+    return null;
+
+  if (sel.kind === 'galaxy')
+    return <GalaxyPanel galaxy={sel.galaxy} />;
+
   const world = getWorld();
-  if (!sel || !world)
+  if (!world)
     return null;
 
   if (sel.kind === 'star') {
@@ -278,7 +329,7 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
  * `dispose` unmounts and detaches it.
  */
 export function createInspector(container: HTMLElement): Inspector {
-  const selection = signal<PickResult | null>(null);
+  const selection = signal<Selection | null>(null);
   let world: EcsWorld | null = null;
 
   const mount = document.createElement('div');
@@ -290,7 +341,7 @@ export function createInspector(container: HTMLElement): Inspector {
       render(null, mount);
       mount.remove();
     },
-    update(nextWorld: EcsWorld, nextSelection: PickResult | null): void {
+    update(nextWorld: EcsWorld, nextSelection: Selection | null): void {
       world = nextWorld;
       // Called every frame: the render loop holds a stable selection reference
       // between picks, so this assignment is an Object.is no-op until the

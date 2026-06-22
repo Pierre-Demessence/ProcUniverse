@@ -42,6 +42,8 @@ export const BLACK_HOLE_MASS_MIN = 1e6;
 export const BLACK_HOLE_MASS_MAX = 1e10;
 export const BLACK_HOLE_DISC_AU = 0.5;
 export const POP_BIAS = 1.1;
+// Drawn galaxy-field sprite radius as a multiple of the galaxy's world radius.
+export const GALAXY_SPRITE_SCALE = 2.5;
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
@@ -77,12 +79,15 @@ export const PICK_PX = 14;
 export const CLICK_SLOP_PX = 5;
 
 // ── Level-of-detail tiers ─────────────────────────────────────────────
-// `SYSTEM_TIER_MAX_AU` collapses a system to a dot once the view is wider than
-// this; `GALAXY_TIER_SECTORS` switches to the density glow above this many
-// sectors across. `TIER_HYSTERESIS` is the dead-band that stops boundary
-// thrash; `TIER_FADE_MS` is the cross-fade duration between tiers.
+// Zoom-bounded tiers (in → out): system, star, galaxy (one galaxy's density
+// glow), galaxy-field (each galaxy a discrete sprite), universe (the cosmic
+// glow). `SYSTEM_TIER_MAX_AU` collapses a system to a dot; the `*_SECTORS`
+// thresholds switch tiers at that many sectors across. `TIER_HYSTERESIS` is the
+// dead-band that stops boundary thrash; `TIER_FADE_MS` is the tier cross-fade.
 export const SYSTEM_TIER_MAX_AU = 300;
 export const GALAXY_TIER_SECTORS = 16;
+export const GALAXY_FIELD_SECTORS = 8000;
+export const UNIVERSE_SECTORS = 80000;
 export const TIER_HYSTERESIS = 1.25;
 export const TIER_FADE_MS = 220;
 

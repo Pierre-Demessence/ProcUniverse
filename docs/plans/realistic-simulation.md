@@ -270,10 +270,19 @@ aggregate tiers + cosmic web). Detail: [universe-hierarchy.md](universe-hierarch
       ellipticals to cool-red; the zoomed-out glow is tinted to match.
 - [ ] Browser E2E (Pierre): fly between galaxies; varied morphologies + colours; inspect a black hole.
 
-**G2 — cosmic structure (deferred)**
+**G2a — galaxy-field tier + galaxy inspection — DONE**
 
-- [ ] Dedicated galaxy-field + universe LOD tiers (sprites / labels) + galaxy picking.
-- [ ] Cosmic-web clustered galaxy placement (the morphology–density relation).
+- [x] A `galaxy-field` LOD tier (each galaxy a tinted sprite + `NGC-…` label) and a `universe`
+      backstop tier (the aggregation glow), inserted into the five-tier zoom selector.
+- [x] Galaxy picking + a galaxy inspector panel (morphology, diameter, estimated star count, dominant
+      population colour, central black-hole mass).
+- [ ] Browser E2E (Pierre): galaxies as labelled sprites; click one to inspect it.
+
+**G2b — cosmic web (deferred)**
+
+- [ ] Cosmic-web clustered galaxy placement (the morphology–density relation) + a distinct universe
+      visual.
+- [ ] Irregular galaxies (the deferred 5th morphology).
 - [ ] Only if realistic galaxy sizes are ever wanted: galaxy-relative hierarchical addressing.
 
 ### Phase H — Identity & naming

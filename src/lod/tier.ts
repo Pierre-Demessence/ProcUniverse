@@ -2,17 +2,19 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
-import { GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS } from '../config';
+import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_SECTORS } from '../config';
 import { SECTOR_SIZE } from '../scale';
 
 /**
  * Level-of-detail tier. The representation switches with zoom so the on-screen
- * draw count stays bounded regardless of how many systems exist:
+ * draw count stays bounded regardless of how many bodies exist (in → out):
  * - `system`: full systems (star + planets + orbits), streamed as ECS entities.
  * - `star`: each system is a single dot (no planets), drawn immediate-mode.
- * - `galaxy`: per-aggregate-cell density glow; individual systems are not drawn.
+ * - `galaxy`: one galaxy's per-aggregate-cell density glow.
+ * - `galaxy-field`: each galaxy a discrete tinted sprite + label.
+ * - `universe`: the cosmic-scale aggregate glow.
  */
-export type Tier = 'system' | 'star' | 'galaxy';
+export type Tier = 'galaxy' | 'galaxy-field' | 'star' | 'system' | 'universe';
 
 export interface SectorRange {
   maxSx: number;
@@ -34,31 +36,33 @@ export function sectorsAcross(cam: Camera): number {
   return (Math.max(cam.viewportW, cam.viewportH) / cam.zoom) / SECTOR_SIZE;
 }
 
-// Dead-band so a zoom hovering at a tier boundary doesn't thrash (each
-// system<->star flip is a full despawn/respawn of the visible sectors).
+// Tiers ordered by zoom (in → out); `BOUNDARIES[i]` is the sectors-across value
+// separating `TIER_ORDER[i]` from the next tier out.
+const TIER_ORDER = ['system', 'star', 'galaxy', 'galaxy-field', 'universe'] as const;
+const BOUNDARIES = [STAR_AT, GALAXY_TIER_SECTORS, GALAXY_FIELD_SECTORS, UNIVERSE_SECTORS];
 
-/** Choose the tier from zoom, with hysteresis around the boundaries. */
+/**
+ * Choose the tier from zoom, with a hysteresis dead-band around the boundaries
+ * so a zoom hovering at one doesn't thrash (each crossing re-streams the view).
+ */
 export function selectTier(cam: Camera, prev: Tier): Tier {
   const across = sectorsAcross(cam);
-  if (prev === 'system') {
-    if (across > GALAXY_TIER_SECTORS * TIER_HYSTERESIS)
-      return 'galaxy';
-    if (across > STAR_AT * TIER_HYSTERESIS)
-      return 'star';
-    return 'system';
+  let idx = BOUNDARIES.length;
+  for (let i = 0; i < BOUNDARIES.length; i++) {
+    const b = BOUNDARIES[i];
+    if (b !== undefined && across < b) {
+      idx = i;
+      break;
+    }
   }
-  if (prev === 'star') {
-    if (across < STAR_AT / TIER_HYSTERESIS)
-      return 'system';
-    if (across > GALAXY_TIER_SECTORS * TIER_HYSTERESIS)
-      return 'galaxy';
-    return 'star';
-  }
-  if (across < STAR_AT / TIER_HYSTERESIS)
-    return 'system';
-  if (across < GALAXY_TIER_SECTORS / TIER_HYSTERESIS)
-    return 'star';
-  return 'galaxy';
+  const prevIdx = TIER_ORDER.indexOf(prev);
+  const upper = BOUNDARIES[prevIdx];
+  const lower = BOUNDARIES[prevIdx - 1];
+  if (idx > prevIdx && upper !== undefined && across < upper * TIER_HYSTERESIS)
+    idx = prevIdx;
+  else if (idx < prevIdx && lower !== undefined && across > lower / TIER_HYSTERESIS)
+    idx = prevIdx;
+  return TIER_ORDER[idx] ?? prev;
 }
 
 /** Inclusive range of sector coordinates overlapping the camera view. */

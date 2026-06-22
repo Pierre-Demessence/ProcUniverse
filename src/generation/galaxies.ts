@@ -16,7 +16,9 @@ import {
   GALAXY_OCCUPANCY,
   GALAXY_RADIUS_LY,
   GALAXY_SCALE_LENGTH_LY,
+  STAR_DENSITY_PEAK,
 } from '../config';
+import { SECTOR_SIZE } from '../scale';
 import { hashGalaxy } from './hash';
 import { nameGalaxy } from './naming';
 import { AU_PER_LY, SCHWARZSCHILD_AU_PER_SOLAR_MASS } from './units';
@@ -291,4 +293,41 @@ export function galaxyCenteredIn(worldSeed: number, minX: number, minY: number, 
   if (g && g.centerX >= minX && g.centerX < maxX && g.centerY >= minY && g.centerY < maxY)
     return g;
   return null;
+}
+
+/** Rough visible diameter of a galaxy in light-years (≈ 2× the disc radius). */
+export function galaxyDiameterLy(g: GalaxyParams): number {
+  return (2 * g.radius) / AU_PER_LY;
+}
+
+/** A galaxy's representative population activity for colouring (0 old … 1 young). */
+export function galaxyRepresentativeActivity(g: GalaxyParams): number {
+  return g.type === 'spiral' || g.type === 'barred-spiral' ? 0.7 : 0.12;
+}
+
+/**
+ * A rough display estimate of a galaxy's star count. The generator keeps
+ * `STAR_DENSITY_PEAK` candidates per sector weighted by density, so the total is
+ * the density integral over the disc (≈ 2π·scaleLength² for an exponential disc)
+ * divided by the sector area.
+ */
+export function estimatedStarCount(g: GalaxyParams): number {
+  const sectorArea = SECTOR_SIZE * SECTOR_SIZE;
+  return Math.round((STAR_DENSITY_PEAK * 2 * Math.PI * g.scaleLength * g.scaleLength) / sectorArea);
+}
+
+/** Yield every galaxy whose cell overlaps the world rectangle `[minX,maxX]×[minY,maxY]`. */
+export function* galaxiesInRect(worldSeed: number, minX: number, minY: number, maxX: number, maxY: number): Generator<GalaxyParams> {
+  const cell = GALAXY_CELL_LY * AU_PER_LY;
+  const gx0 = Math.floor(minX / cell);
+  const gx1 = Math.floor(maxX / cell);
+  const gy0 = Math.floor(minY / cell);
+  const gy1 = Math.floor(maxY / cell);
+  for (let gy = gy0; gy <= gy1; gy++) {
+    for (let gx = gx0; gx <= gx1; gx++) {
+      const g = galaxyInCell(worldSeed, gx, gy);
+      if (g)
+        yield g;
+    }
+  }
 }

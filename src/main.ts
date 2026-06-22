@@ -1,5 +1,5 @@
 import type { Tier } from './lod/tier';
-import type { PickResult } from './pick';
+import type { Selection } from './pick';
 
 import { EcsWorld } from '@pierre/ecs';
 import { worldToView } from '@pierre/ecs/modules/camera';
@@ -9,7 +9,7 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
-import { CLICK_SLOP_PX, REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
+import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
 import { BlackHoleDef } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
@@ -17,7 +17,7 @@ import { StarPhysicalDef } from './generation/stars';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
-import { pickBodyAt } from './pick';
+import { pickBodyAt, pickGalaxyAt } from './pick';
 import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
 import { drawSelectReticle } from './render/select-reticle';
@@ -142,7 +142,7 @@ export function start(container: HTMLElement, seed: number): () => void {
   // only when it barely moved — a real drag pans the view and never selects.
   // Escape and empty-space clicks clear the selection; the render loop clears it
   // when the body streams out or the tier changes.
-  let selection: PickResult | null = null;
+  let selection: Selection | null = null;
   let pointerDownX = 0;
   let pointerDownY = 0;
 
@@ -159,13 +159,17 @@ export function start(container: HTMLElement, seed: number): () => void {
     pointerDownY = e.clientY;
   };
   const onPickUp = (e: PointerEvent): void => {
-    if (currentTier !== 'system')
-      return;
     if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX)
       return;
     const { bx, by } = toBackingPx(e.clientX, e.clientY);
     const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
-    selection = pickBodyAt(world, localCam, bx, by);
+    if (currentTier === 'system') {
+      selection = pickBodyAt(world, localCam, bx, by);
+    }
+    else if (currentTier === 'galaxy-field') {
+      const galaxy = pickGalaxyAt(seed, localCam, renderOriginX, renderOriginY, bx, by);
+      selection = galaxy ? { galaxy, kind: 'galaxy' } : null;
+    }
   };
   const onPickKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape')
@@ -258,15 +262,26 @@ export function start(container: HTMLElement, seed: number): () => void {
     // system view, otherwise draw its reticle at the body's live screen position
     // (so it follows an orbiting planet) and refresh the data panel.
     if (selection) {
-      const pos = tier === 'system' ? positions.get(selection.id) : undefined;
-      if (!pos) {
-        selection = null;
+      if (selection.kind === 'galaxy') {
+        if (tier !== 'galaxy-field') {
+          selection = null;
+        }
+        else {
+          const screen = worldToView(selection.galaxy.centerX - renderOriginX, selection.galaxy.centerY - renderOriginY, localCam);
+          drawSelectReticle(ctx2d, screen.vx, screen.vy, selection.galaxy.radius * GALAXY_SPRITE_SCALE * camera.zoom);
+        }
       }
       else {
-        const renderable = renderables.get(selection.id);
-        const discRadius = renderable?.kind === 'circle' ? renderable.radius : 0;
-        const screen = worldToView(pos.x, pos.y, localCam);
-        drawSelectReticle(ctx2d, screen.vx, screen.vy, discRadius * camera.zoom);
+        const pos = tier === 'system' ? positions.get(selection.id) : undefined;
+        if (!pos) {
+          selection = null;
+        }
+        else {
+          const renderable = renderables.get(selection.id);
+          const discRadius = renderable?.kind === 'circle' ? renderable.radius : 0;
+          const screen = worldToView(pos.x, pos.y, localCam);
+          drawSelectReticle(ctx2d, screen.vx, screen.vy, discRadius * camera.zoom);
+        }
       }
     }
     inspector.update(world, selection);

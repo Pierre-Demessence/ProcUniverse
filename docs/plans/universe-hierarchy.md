@@ -121,3 +121,76 @@ random across the universe (cosmic-web clustering deferred to G2).
 - [x] Static pipeline (lint / build / test) + peer review (LGTM) + docs.
 - [ ] Browser E2E handed off to Pierre (fly between galaxies; varied morphologies + colours;
       inspect a black hole).
+
+## G2 design — cosmic structure & polish
+
+Builds on the G1 galaxy grid. Two sub-phases.
+
+### G2a — galaxies as first-class bodies (dedicated galaxy-field tier + picking)
+
+At G1 the zoomed-out view is the aggregated density glow. G2a makes each galaxy a discrete,
+legible, inspectable object.
+
+- **New tier** `galaxy-field` in `tier.ts` above `galaxy` (one more sectors-across threshold +
+  hysteresis): active once a single galaxy shrinks below a sprite, so many galaxies are in view.
+- **Render** (`render/draw-galaxy-field.ts`): iterate the visible galaxy **cells** (view rect ÷
+  `GALAXY_CELL`), and for each occupied cell draw one tinted sprite at the galaxy centre — size from
+  `galaxy.radius·zoom`, colour from its representative population (spiral → blue-ish, elliptical /
+  lenticular → red-ish) — plus its `NGC-…` label when the sprite is large enough. Bounded by the
+  visible cell count (cells are 80 ly, so few are ever on screen at this tier).
+- **Galaxy picking + inspector**: extend the selection model so a click at the galaxy-field tier can
+  select a **galaxy** (not an ECS entity). `Selection = { kind:'entity', … } | { kind:'galaxy',
+  galaxy: GalaxyParams }`; `pickGalaxyAt` scans visible cells for the galaxy whose disc holds the
+  cursor. A `GalaxyPanel` shows name, morphology (incl. dwarf), diameter (ly), and the central
+  black-hole mass.
+
+### G2b — the cosmic web (clustering + universe tier)
+
+- **Clustered placement**: a smooth large-scale `cosmicDensity(Gx, Gy)` field (value noise over
+  galaxy-cell coords) modulates occupancy — filaments dense, voids empty — replacing the flat
+  `GALAXY_OCCUPANCY`. The **home cell stays forced-occupied**.
+- **Morphology–density relation**: in dense regions bias `drawType` toward elliptical / lenticular
+  ("red and dead" cluster cores); the field stays spiral-rich.
+- **New tier** `universe` above `galaxy-field`: a cosmic-web glow aggregating galaxy cells by
+  `cosmicDensity` (reusing the power-of-two aggregation), so the largest zoom shows filaments + voids.
+
+### G2a — confirmed scope & subtasks
+
+Decisions (Pierre): build **G2a first** (galaxy sprites + labels + picking + galaxy inspector);
+**keep deferring irregular** galaxies; the galaxy inspector shows name, morphology (incl. dwarf),
+diameter (ly), SMBH mass, **plus an estimated star count and a dominant-population colour swatch**.
+
+Tier structure: insert `galaxy-field` (discrete galaxy sprites) **and** a `universe` backstop tier
+above it. `galaxy` and `universe` both use the existing bounded aggregation glow (`drawGalaxy`), so
+the `galaxy-field` sprite band stays bounded between two zoom thresholds; the distinct cosmic-web
+`universe` visual + clustering is G2b. Zoom-out reads: stars → galaxy-structure glow → galaxy
+sprites → cosmic glow.
+
+- [x] `config.ts`: `GALAXY_FIELD_SECTORS`, `UNIVERSE_SECTORS` thresholds + `GALAXY_SPRITE_SCALE`.
+- [x] `tier.ts`: add `galaxy-field` + `universe` to `Tier`; rewrite `selectTier` for five tiers with
+      hysteresis (ordered boundaries).
+- [x] `render/galaxy-sprites.ts` (new): shared population colour ramp + cached tinted glow sprites
+      (moved out of `draw-galaxy.ts`, which then imports them).
+- [x] `render/draw-galaxy-field.ts` (new): iterate visible galaxy cells, draw one tinted sprite per
+      galaxy (size ∝ radius, colour from population) + `NGC-…` label when large enough.
+- [x] `galaxies.ts`: `estimatedStarCount(g)`, `galaxyDiameterLy(g)`, `galaxyRepresentativeActivity(g)`,
+      and a `galaxiesInRect` iterator for the field tier + picking.
+- [x] `scene.ts`: route `galaxy-field` → `drawGalaxyField`, `universe` → `drawGalaxy`.
+- [x] `pick.ts` + selection model: `pickGalaxyAt` (scan visible cells); a `Selection` union of an
+      entity pick or a galaxy pick.
+- [x] `inspector.tsx`: `GalaxyPanel` (name, morphology, diameter, SMBH mass, est. star count, colour
+      swatch); render it for a galaxy selection.
+- [x] `main.ts`: galaxy-field-tier picking; the selection union through `inspector.update`; a reticle
+      at the galaxy centre; clear each selection when its tier is left.
+- [x] Tests: five-tier `selectTier` boundaries + hysteresis; `estimatedStarCount` / `galaxyDiameterLy`
+      monotonic; `pickGalaxyAt` hits a galaxy (93/93).
+- [x] Static pipeline (lint / build / test) + peer review (LGTM) + docs.
+- [ ] Browser E2E handed off to Pierre (galaxies as labelled sprites; click one to inspect it).
+
+## G2b design — cosmic web (deferred)
+
+### Open questions (confirm before building G2b)
+
+1. **Cosmic web strength**: how clumpy — subtle filaments, or strong voids? (a tunable knob; default
+   moderate.)
+2. **Irregular galaxies**: fold the deferred 5th morphology in then (needs a lumpy noise density)?

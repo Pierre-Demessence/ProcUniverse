@@ -10,6 +10,7 @@ import { cameraToView } from '@pierre/ecs/modules/camera';
 
 import { drawOrbitRings } from '../sim/orbits';
 import { drawGalaxy } from './draw-galaxy';
+import { drawGalaxyField } from './draw-galaxy-field';
 import { drawBodyLabels } from './draw-labels';
 import { drawStars } from './draw-stars';
 import { drawReferenceGrid } from './grid';
@@ -44,8 +45,11 @@ export function renderFrame(deps: FrameDeps): number {
   ctx2d.fillStyle = BACKGROUND;
   ctx2d.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (tier === 'galaxy')
+  if (tier === 'galaxy' || tier === 'universe')
     return drawGalaxy(ctx2d, camera, seed, originX, originY);
+
+  if (tier === 'galaxy-field')
+    return drawGalaxyField(ctx2d, camera, seed, originX, originY);
 
   if (tier === 'star')
     return drawStars(ctx2d, camera, cache, range, originX, originY);

@@ -2,12 +2,14 @@ import type { EcsWorld } from '@pierre/ecs';
 import type { EntityId } from '@pierre/ecs/entity-id';
 import type { Camera } from '@pierre/ecs/modules/camera';
 
-import { viewToWorld } from '@pierre/ecs/modules/camera';
+import type { GalaxyParams } from './generation/galaxies';
+
+import { cameraViewRect, viewToWorld } from '@pierre/ecs/modules/camera';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
-import { PICK_PX } from './config';
-import { BlackHoleDef } from './generation/galaxies';
+import { GALAXY_SPRITE_SCALE, PICK_PX } from './config';
+import { BlackHoleDef, galaxiesInRect } from './generation/galaxies';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 
@@ -17,6 +19,15 @@ export interface PickResult {
   id: EntityId;
   kind: BodyKind;
 }
+
+/** A picked galaxy (galaxy-field tier); carries its data directly (no entity). */
+export interface GalaxyPick {
+  galaxy: GalaxyParams;
+  kind: 'galaxy';
+}
+
+/** The current inspector selection: an entity body or a galaxy. */
+export type Selection = GalaxyPick | PickResult;
 
 /**
  * Find the body nearest the cursor within the pick tolerance, or `null`. Both
@@ -59,5 +70,32 @@ export function pickBodyAt(world: EcsWorld, localCam: Camera, bx: number, by: nu
   for (const [id] of world.query(BlackHoleDef))
     consider(id, 'black-hole');
 
+  return best;
+}
+
+/**
+ * Find the galaxy whose disc holds the cursor at the galaxy-field tier, or
+ * `null`. `localCam` is in the floating render-origin frame; galaxy centres are
+ * absolute, so the cursor is unprojected and shifted back by the render origin.
+ */
+export function pickGalaxyAt(worldSeed: number, localCam: Camera, originX: number, originY: number, bx: number, by: number): GalaxyParams | null {
+  const { wx, wy } = viewToWorld(bx, by, localCam);
+  const ax = wx + originX;
+  const ay = wy + originY;
+  const halo = PICK_PX / localCam.zoom;
+  const rect = cameraViewRect(localCam);
+  const minX = rect.x + originX;
+  const minY = rect.y + originY;
+
+  let best: GalaxyParams | null = null;
+  let bestDist = Infinity;
+  for (const g of galaxiesInRect(worldSeed, minX, minY, minX + rect.w, minY + rect.h)) {
+    const dist = Math.hypot(g.centerX - ax, g.centerY - ay);
+    const tolerance = Math.max(g.radius * GALAXY_SPRITE_SCALE, halo);
+    if (dist <= tolerance && dist < bestDist) {
+      bestDist = dist;
+      best = g;
+    }
+  }
   return best;
 }

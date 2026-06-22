@@ -6,11 +6,15 @@ import { BLACK_HOLE_MASS_MAX, BLACK_HOLE_MASS_MIN, GALAXY_CELL_LY } from '../con
 import { SECTOR_SIZE } from '../scale';
 import {
   blackHoleMassFromSize,
+  estimatedStarCount,
+  galaxiesInRect,
   galaxyActivityOf,
   galaxyAt,
   galaxyCenteredIn,
   galaxyDensityAt,
   galaxyDensityOf,
+  galaxyDiameterLy,
+  galaxyRepresentativeActivity,
   makeGalaxy,
 } from './galaxies';
 import { AU_PER_LY } from './units';
@@ -163,5 +167,24 @@ describe('galaxyAt / galaxyDensityAt / galaxyCenteredIn', () => {
   it('reports a galaxy centre inside its own sector box only', () => {
     expect(galaxyCenteredIn(SEED, 0, 0, SECTOR_SIZE, SECTOR_SIZE)?.centerX).toBe(0);
     expect(galaxyCenteredIn(SEED, 7 * SECTOR_SIZE, 0, 8 * SECTOR_SIZE, SECTOR_SIZE)).toBeNull();
+  });
+});
+
+describe('galaxy-field helpers', () => {
+  it('reports a positive diameter and a star estimate that grows with size', () => {
+    expect(galaxyDiameterLy(spiral)).toBeGreaterThan(0);
+    const big = { ...spiral, scaleLength: spiral.scaleLength * 2 };
+    expect(estimatedStarCount(big)).toBeGreaterThan(estimatedStarCount(spiral));
+  });
+
+  it('colours spirals younger (bluer) than spheroidals', () => {
+    expect(galaxyRepresentativeActivity(spiral)).toBeGreaterThan(galaxyRepresentativeActivity(elliptical));
+  });
+
+  it('iterates galaxies overlapping a rect, including the home galaxy', () => {
+    const cell = GALAXY_CELL_LY * AU_PER_LY;
+    const found = [...galaxiesInRect(SEED, -cell, -cell, cell, cell)];
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.some(g => g.centerX === 0 && g.centerY === 0)).toBe(true);
   });
 });
