@@ -5,6 +5,7 @@
 | Pan and zoom camera | Drag to pan; scroll to zoom toward the cursor, with rapid scrolls accelerating so the full zoom range is a quick flick. | Done (Phase 0) |
 | Reference grid | Adaptive world grid and axes for spatial feedback. | Done (Phase 0) |
 | Scale bar | A map-style bar one grid-cell wide labels the current view scale, auto-selecting km / AU / ly. | Done (zoom-and-scale) |
+| Coordinate readout | Bottom-left readout of the view-centre world position (auto-scaled AU / ly / kly / Mly) plus the current galaxy and the offset from its centre. | Done (Realistic-sim G) |
 | FPS HUD | Frame-time / FPS overlay via the engine `stats` module. | Done (Phase 0) |
 | Procedural systems | Deterministic star systems generated per sector. | Done (Phase 1) |
 | Galaxy structure | Many galaxies of varied morphology (spiral, barred, elliptical, lenticular, plus dwarfs) cluster into a cosmic web of filaments and voids (dense clusters skew red and spheroidal); star placement follows each galaxy's density field. Zooming out resolves them into labelled, clickable galaxy sprites (a panel shows morphology, diameter, star estimate, and the central black hole), then the cosmic-web glow. | Done (Realistic-sim E/G) |
