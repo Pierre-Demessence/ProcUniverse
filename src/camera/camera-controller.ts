@@ -3,7 +3,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { makeCamera, viewToWorld } from '@pierre/ecs/modules/camera';
 import { clamp } from '@pierre/ecs/modules/math';
 
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP } from '../config';
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config';
 
 export interface CameraController {
   readonly camera: Camera;
@@ -29,6 +29,12 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+
+  // Accelerating zoom: rapid same-direction notches build a streak that ramps
+  // the per-notch factor; a pause or direction flip resets it.
+  let wheelStreak = 0;
+  let lastWheelMs = 0;
+  let lastWheelDir = 0;
 
   // Client (CSS-pixel) coords → canvas backing pixels, the space the camera
   // transforms operate in.
@@ -70,7 +76,22 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
     e.preventDefault();
     const { bx, by } = toBacking(e.clientX, e.clientY);
     const before = viewToWorld(bx, by, camera);
-    const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+
+    // Ramp the per-notch factor from ZOOM_STEP up to ZOOM_STEP_MAX as rapid
+    // same-direction notches accumulate, so crossing the ~10¹² zoom range is a
+    // quick flick instead of ~240 notches. A gap over the chaining window or a
+    // direction change resets the streak, restoring the gentle step for fine
+    // control. The cursor-pin math below is unchanged.
+    const now = performance.now();
+    const dir = e.deltaY < 0 ? 1 : -1;
+    wheelStreak = now - lastWheelMs > ZOOM_STREAK_WINDOW_MS || dir !== lastWheelDir
+      ? 0
+      : Math.min(wheelStreak + 1, ZOOM_STREAK_MAX);
+    lastWheelMs = now;
+    lastWheelDir = dir;
+    const stepMag = ZOOM_STEP * (ZOOM_STEP_MAX / ZOOM_STEP) ** (wheelStreak / ZOOM_STREAK_MAX);
+    const factor = dir > 0 ? stepMag : 1 / stepMag;
+
     camera.zoom = clamp(camera.zoom * factor, MIN_ZOOM, MAX_ZOOM);
     const after = viewToWorld(bx, by, camera);
     // Re-pin the pre-zoom world point under the cursor.

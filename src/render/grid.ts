@@ -2,12 +2,12 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 
-const TARGET_PX = 90;
+export const TARGET_PX = 90;
 const MINOR = 'rgba(120, 150, 220, 0.10)';
 const AXIS = 'rgba(140, 180, 255, 0.40)';
 
 /** Round a raw spacing up to the nearest 1/2/5 x 10^k for a stable grid. */
-function niceStep(raw: number): number {
+export function niceStep(raw: number): number {
   if (!(raw > 0))
     return 1;
   const pow = 10 ** Math.floor(Math.log10(raw));

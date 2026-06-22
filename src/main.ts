@@ -13,6 +13,7 @@ import { StarPhysicalDef } from './generation/stars';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
+import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
 import { SECTOR_SIZE } from './scale';
 import { OrbitElementsDef, updateOrbits } from './sim/orbits';
@@ -207,6 +208,7 @@ export function start(container: HTMLElement, seed: number): () => void {
 
     drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS });
     drawHint(ctx2d, canvas, tier);
+    drawScaleBar(ctx2d, camera);
     timeControls.update(simSeconds);
   });
   renderSource.start();

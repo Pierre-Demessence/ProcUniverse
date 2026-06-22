@@ -10,7 +10,7 @@
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
-| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow. |
+| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow, and the HUD scale bar. |
 | `src/ui/` | DOM overlays above the canvas (the simulation clock and time-scale slider). |
 | `src/persistence/` | World-seed persistence via the engine `save` module (random on first run; cleared storage = new universe). |
 | `docs/` | Project documentation and plans. |

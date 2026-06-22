@@ -2,8 +2,9 @@
 
 | Feature | Description | Status |
 | ------- | ----------- | ------ |
-| Pan and zoom camera | Drag to pan; scroll to zoom toward the cursor. | Done (Phase 0) |
+| Pan and zoom camera | Drag to pan; scroll to zoom toward the cursor, with rapid scrolls accelerating so the full zoom range is a quick flick. | Done (Phase 0) |
 | Reference grid | Adaptive world grid and axes for spatial feedback. | Done (Phase 0) |
+| Scale bar | A map-style bar one grid-cell wide labels the current view scale, auto-selecting km / AU / ly. | Done (zoom-and-scale) |
 | FPS HUD | Frame-time / FPS overlay via the engine `stats` module. | Done (Phase 0) |
 | Procedural systems | Deterministic star systems generated per sector. | Done (Phase 1) |
 | Physical star data | Each star's seeded mass (Kroupa IMF) derives luminosity, radius, temperature, spectral class, lifetime, and a blackbody colour. | Done (Realistic-sim A) |

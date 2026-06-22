@@ -18,14 +18,28 @@ export const JITTER_FRACTION = 0.15;
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
-// (planet inspection down to a galaxy-scale field). `SYSTEM_VIEW_AU` is the
-// world height framed at startup. `REBASE_SECTORS` is how far the camera may
-// drift (in sectors) before the floating origin re-snaps when zoomed out.
+// (planet inspection down to a galaxy-scale field). Rapid consecutive notches
+// accelerate: the factor ramps from `ZOOM_STEP` to `ZOOM_STEP_MAX` over
+// `ZOOM_STREAK_MAX` notches (chained while the gap stays under
+// `ZOOM_STREAK_WINDOW_MS`), so the ~10¹² range is a quick flick rather than ~240
+// notches; a pause or direction change resets to the gentle step. `SYSTEM_VIEW_AU`
+// is the world height framed at startup; `REBASE_SECTORS` is how far the camera
+// may drift (in sectors) before the floating origin re-snaps when zoomed out.
 export const MIN_ZOOM = 1e-8;
 export const MAX_ZOOM = 1e4;
 export const ZOOM_STEP = 1.12;
+export const ZOOM_STEP_MAX = 2.5;
+export const ZOOM_STREAK_MAX = 16;
+export const ZOOM_STREAK_WINDOW_MS = 220;
 export const SYSTEM_VIEW_AU = 40;
 export const REBASE_SECTORS = 8;
+
+// ── On-screen scale bar (world unit = AU) ────────────────────
+// The HUD scale bar mirrors one reference-grid cell and labels its real length.
+// A cell below `SCALE_KM_BELOW_AU` is shown in kilometres, at or above
+// `SCALE_LY_ABOVE_AU` in light-years, otherwise in AU.
+export const SCALE_KM_BELOW_AU = 0.01;
+export const SCALE_LY_ABOVE_AU = 10000;
 
 // ── Level-of-detail tiers ─────────────────────────────────────────────
 // `SYSTEM_TIER_MAX_AU` collapses a system to a dot once the view is wider than
