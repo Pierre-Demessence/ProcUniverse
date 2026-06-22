@@ -14,6 +14,7 @@
 | Time controls | Simulation-date readout (epoch 2100-01-01 UTC) and a stepped speed slider (pause → 1 day/s, incl. sub-real-time). | Done (Realistic-sim C — time) |
 | LOD streaming | Zoom-bounded tiers (systems → star dots → density glow) with streaming, floating origin, and tier cross-fades. | Done (Phase 2) |
 | Seed persistence | Random world seed minted on first load and saved via the engine `save` module; reload = identical universe, clear storage = new one. | Done (Phase 4 — seed) |
+| Body inspector | Click a star or planet to pin a panel of its seed-derived physics; a four-arrow reticle locks the body and tracks it as it orbits. Escape or an empty-space click dismisses. | Done (Phase F) |
 | Naming & player deltas | Deterministic system/star names; visited/named deltas. | Planned (Phase 4) |
 
 Roadmap detail: [plans/procedural-universe.md](plans/procedural-universe.md) and

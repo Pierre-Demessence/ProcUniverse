@@ -41,6 +41,14 @@ export const REBASE_SECTORS = 8;
 export const SCALE_KM_BELOW_AU = 0.01;
 export const SCALE_LY_ABOVE_AU = 10000;
 
+// ── Inspector / body picking ──────────────────────────────────────────
+// A body within `PICK_PX` screen pixels of the cursor (or inside its drawn
+// disc, whichever is larger) is selectable. A pointer gesture only counts as a
+// click when it moves less than `CLICK_SLOP_PX`; anything more is a pan and
+// never selects, so dragging the view never pins a panel.
+export const PICK_PX = 14;
+export const CLICK_SLOP_PX = 5;
+
 // ── Level-of-detail tiers ─────────────────────────────────────────────
 // `SYSTEM_TIER_MAX_AU` collapses a system to a dot once the view is wider than
 // this; `GALAXY_TIER_SECTORS` switches to the density glow above this many

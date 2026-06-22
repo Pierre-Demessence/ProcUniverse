@@ -1,22 +1,27 @@
 import type { Tier } from './lod/tier';
+import type { PickResult } from './pick';
 
 import { EcsWorld } from '@pierre/ecs';
+import { worldToView } from '@pierre/ecs/modules/camera';
 import { Canvas2DRenderer, RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { drawStatsOverlay, FrameStats } from '@pierre/ecs/modules/stats';
 import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
-import { REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
+import { CLICK_SLOP_PX, REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
+import { pickBodyAt } from './pick';
 import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
+import { drawSelectReticle } from './render/select-reticle';
 import { SECTOR_SIZE } from './scale';
 import { OrbitElementsDef, updateOrbits } from './sim/orbits';
+import { createInspector } from './ui/inspector';
 import { createTimeControls } from './ui/time-controls';
 
 const TARGET_MS = 1000 / 60;
@@ -61,6 +66,7 @@ export function start(container: HTMLElement, seed: number): () => void {
 
   const controller = createCameraController(canvas);
   const timeControls = createTimeControls(container);
+  const inspector = createInspector(container);
 
   const world = new EcsWorld();
   world.registerComponent(PositionDef);
@@ -68,6 +74,9 @@ export function start(container: HTMLElement, seed: number): () => void {
   world.registerComponent(OrbitElementsDef);
   world.registerComponent(StarPhysicalDef);
   world.registerComponent(PlanetPhysicalDef);
+
+  const positions = world.getStore(PositionDef);
+  const renderables = world.getStore(RenderableDef);
 
   // Deterministic universe: sectors are generated on demand and cached; the
   // streamer spawns/despawns full systems for the sectors in view at the system
@@ -124,6 +133,44 @@ export function start(container: HTMLElement, seed: number): () => void {
   const { camera } = controller;
   let simSeconds = 0;
   let currentTier: Tier = 'system';
+
+  // Body selection (system tier only). A pointer gesture is treated as a pick
+  // only when it barely moved — a real drag pans the view and never selects.
+  // Escape and empty-space clicks clear the selection; the render loop clears it
+  // when the body streams out or the tier changes.
+  let selection: PickResult | null = null;
+  let pointerDownX = 0;
+  let pointerDownY = 0;
+
+  const toBackingPx = (clientX: number, clientY: number): { bx: number; by: number } => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      bx: (clientX - rect.left) * (canvas.width / rect.width),
+      by: (clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const onPickDown = (e: PointerEvent): void => {
+    pointerDownX = e.clientX;
+    pointerDownY = e.clientY;
+  };
+  const onPickUp = (e: PointerEvent): void => {
+    if (currentTier !== 'system')
+      return;
+    if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX)
+      return;
+    const { bx, by } = toBackingPx(e.clientX, e.clientY);
+    const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
+    selection = pickBodyAt(world, localCam, bx, by);
+  };
+  const onPickKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape')
+      selection = null;
+  };
+  canvas.addEventListener('pointerdown', onPickDown);
+  window.addEventListener('pointerup', onPickUp);
+  window.addEventListener('keydown', onPickKey);
+
   const renderSource = new AnimationFrameTickSource();
   const unsubscribe = renderSource.subscribe((info) => {
     const dt = info.deltaMs ?? 0;
@@ -203,6 +250,23 @@ export function start(container: HTMLElement, seed: number): () => void {
       fadeMsLeft -= dt;
     }
 
+    // Track the selected body: clear it if it streamed out or the tier left the
+    // system view, otherwise draw its reticle at the body's live screen position
+    // (so it follows an orbiting planet) and refresh the data panel.
+    if (selection) {
+      const pos = tier === 'system' ? positions.get(selection.id) : undefined;
+      if (!pos) {
+        selection = null;
+      }
+      else {
+        const renderable = renderables.get(selection.id);
+        const discRadius = renderable?.kind === 'circle' ? renderable.radius : 0;
+        const screen = worldToView(pos.x, pos.y, localCam);
+        drawSelectReticle(ctx2d, screen.vx, screen.vy, discRadius * camera.zoom);
+      }
+    }
+    inspector.update(world, selection);
+
     const status = streamer.status();
     frameStats.setCounter('drawn', result < 0 ? status.stars + status.planets : result);
 
@@ -218,8 +282,12 @@ export function start(container: HTMLElement, seed: number): () => void {
     unsubscribe();
     resizeObserver.disconnect();
     dprQuery?.removeEventListener('change', onDprChange);
+    canvas.removeEventListener('pointerdown', onPickDown);
+    window.removeEventListener('pointerup', onPickUp);
+    window.removeEventListener('keydown', onPickKey);
     controller.dispose();
     timeControls.dispose();
+    inspector.dispose();
   };
 }
 

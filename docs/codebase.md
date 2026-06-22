@@ -6,12 +6,13 @@
 | `src/main.ts` | Entry: canvas, DPR/resize, ECS world, the LOD render loop, and the HUD. |
 | `src/config.ts` | Central tuning knobs in one place: density, camera/zoom, LOD tiers, orbit architecture, visual-disc sizing, and simulation time. |
 | `src/scale.ts` | Spatial-scale source of truth: the AU world unit, light-years per sector, and the star visual-radius mapping. |
+| `src/pick.ts` | Cursor-to-body picking: the nearest star or planet within the click tolerance, for the inspector. |
 | `src/generation/` | Deterministic seed-driven sector generation (pure data — including stellar, orbital, and planetary physics) plus entity spawning. |
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
-| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow, and the HUD scale bar. |
-| `src/ui/` | DOM overlays above the canvas (the simulation clock and time-scale slider). |
+| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow, the HUD scale bar, and the selection reticle. |
+| `src/ui/` | DOM overlays above the canvas (the simulation clock / time-scale slider and the body-inspector panel). |
 | `src/persistence/` | World-seed persistence via the engine `save` module (random on first run; cleared storage = new universe). |
 | `docs/` | Project documentation and plans. |
 
