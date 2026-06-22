@@ -34,3 +34,20 @@ export function starVisualRadius(radiusSolar: number): number {
     STAR_VIS_MAX_AU,
   );
 }
+
+// Planets get the same non-physical treatment (an Earth is ~4e-5 AU). The disc
+// stays smaller than a star's and than the orbit gaps, but a gas giant still
+// reads as visibly larger than a rocky world.
+const PLANET_VIS_BASE_AU = 0.05;
+const PLANET_VIS_PER_DECADE_AU = 0.045;
+const PLANET_VIS_MIN_AU = 0.02;
+const PLANET_VIS_MAX_AU = 0.18;
+
+/** Non-physical drawn planet-disc radius (AU) from a physical radius (R⊕). */
+export function planetVisualRadius(radiusEarth: number): number {
+  return clamp(
+    PLANET_VIS_BASE_AU + PLANET_VIS_PER_DECADE_AU * Math.log10(radiusEarth),
+    PLANET_VIS_MIN_AU,
+    PLANET_VIS_MAX_AU,
+  );
+}

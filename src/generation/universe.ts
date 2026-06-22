@@ -1,10 +1,12 @@
+import type { PlanetPhysical } from './planets';
 import type { StarPhysical } from './stars';
 
 import { lerp } from '@pierre/ecs/modules/math';
 import { makeSeededRng, randomInt } from '@pierre/ecs/modules/rng';
 
-import { SECTOR_SIZE, starVisualRadius } from '../scale';
+import { planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
 import { hashSector } from './hash';
+import { samplePlanet } from './planets';
 import { sampleStar } from './stars';
 
 const TAU = Math.PI * 2;
@@ -19,16 +21,11 @@ const JITTER = CELL * 0.15;
 const PLANET_MIN = 1;
 const PLANET_MAX = 5;
 
-// Orbit geometry, in AU: an inner edge plus linear gaps. Real spacing is
-// roughly geometric (Titius–Bode); that refinement is Phase D.
-const ORBIT_INNER_AU = 0.4;
-const ORBIT_GAP_MIN_AU = 0.3;
-const ORBIT_GAP_MAX_AU = 3;
-
-// Non-physical drawn planet-disc radius, in AU (decoupled from physical size,
-// which Phase D derives), kept small relative to the orbit gaps.
-const PLANET_VIS_MIN_AU = 0.05;
-const PLANET_VIS_MAX_AU = 0.16;
+// Orbits are spaced geometrically (Titius–Bode-like): each is 1.4–2.0× the
+// previous, growing outward from an inner edge in AU.
+const ORBIT_INNER_AU = 0.25;
+const ORBIT_RATIO_MIN = 1.4;
+const ORBIT_RATIO_MAX = 2;
 
 // Eccentricity is squared-biased toward 0 (median ~0.1), so most orbits are
 // near-circular with the occasional elongated one — as observed.
@@ -51,6 +48,7 @@ export interface PlanetData {
   color: string;
   e: number;
   meanAnomaly0: number;
+  physical: PlanetPhysical;
   radius: number;
 }
 
@@ -98,15 +96,15 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const planets: PlanetData[] = [];
       let a = ORBIT_INNER_AU;
       for (let i = 0; i < planetCount; i++) {
-        a += lerp(ORBIT_GAP_MIN_AU, ORBIT_GAP_MAX_AU, rng());
+        a *= lerp(ORBIT_RATIO_MIN, ORBIT_RATIO_MAX, rng());
         // Draw into locals so eslint's object-key sorting cannot reorder the
         // rng() side effects and shift the deterministic stream.
         const color = choose(PLANET_COLORS, rng);
         const e = rng() ** 2 * ECC_MAX;
         const argPeriapsis = rng() * TAU;
         const meanAnomaly0 = rng() * TAU;
-        const planetRadius = lerp(PLANET_VIS_MIN_AU, PLANET_VIS_MAX_AU, rng());
-        planets.push({ a, argPeriapsis, color, e, meanAnomaly0, radius: planetRadius });
+        const physical = samplePlanet(rng, star.luminosity, a);
+        planets.push({ a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
       }
 
       if (occupied)

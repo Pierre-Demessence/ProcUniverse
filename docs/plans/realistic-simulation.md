@@ -217,16 +217,19 @@ render loop hides regressions that static checks miss).
 
 ### Phase D — Planet physics
 
-- [ ] Frost line `a_frost ≈ 2.7·sqrt(L)` AU; habitable zone bounds `∝ sqrt(L)`.
-- [ ] Per planet: sample mass; type by mass + (`a` vs. frost line); radius via
+- [x] Frost line `a_frost ≈ 2.7·sqrt(L)` AU; habitable zone bounds `∝ sqrt(L)`.
+- [x] Per planet: sample mass; type by mass + (`a` vs. frost line); radius via
       Forecaster/Zeng mass–radius; density; `T_eq`; `inHabitableZone` and
       water-state flags.
-- [ ] Geometric (Titius–Bode-ish) spacing; seeded planet count; optional
-      Hill-stability nudge.
-- [ ] `PlanetPhysical` component written by `spawnSector`.
-- [ ] Tests: Earth-like inputs (1 L☉, 1 AU, A≈0.3) → `T_eq ≈ 255 K`; HZ brackets
+- [x] Geometric (Titius–Bode-ish) spacing; seeded planet count. *(Optional
+      Hill-stability nudge skipped for now.)*
+- [x] `PlanetPhysical` component written by `spawnSector`; the drawn planet disc
+      now derives from the physical radius (`scale.planetVisualRadius`).
+- [x] Tests: Earth-like inputs (1 L☉, 1 AU, A≈0.3) → `T_eq ≈ 255 K`; HZ brackets
       ~1 AU for the Sun; gas giants land beyond the frost line.
 - [ ] Browser E2E: inspecting systems shows plausible, varied planet data.
+      *(Visible now: geometric spacing + type-scaled planet sizes; reading the
+      numeric data needs the Phase F inspector.)*
 
 ### Phase E — Galaxy placement (eliminate the grid) — in v1
 

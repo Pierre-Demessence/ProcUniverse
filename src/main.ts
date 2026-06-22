@@ -7,6 +7,7 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
+import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
@@ -66,6 +67,7 @@ export function start(container: HTMLElement, seed: number): () => void {
   world.registerComponent(RenderableDef);
   world.registerComponent(OrbitElementsDef);
   world.registerComponent(StarPhysicalDef);
+  world.registerComponent(PlanetPhysicalDef);
 
   // Deterministic universe: sectors are generated on demand and cached; the
   // streamer spawns/despawns full systems for the sectors in view at the system
