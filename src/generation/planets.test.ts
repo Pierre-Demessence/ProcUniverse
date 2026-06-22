@@ -2,6 +2,7 @@ import { makeSeededRng } from '@pierre/ecs/modules/rng';
 import { describe, expect, it } from 'vitest';
 
 import {
+  atmosphereType,
   centralPressure,
   classifyType,
   compositionClass,
@@ -12,8 +13,10 @@ import {
   habitableZone,
   massToRadius,
   oblateness,
+  retainsAtmosphere,
   samplePlanet,
   surfaceGravity,
+  surfaceTemperature,
 } from './planets';
 
 describe('frost line and habitable zone', () => {
@@ -202,5 +205,45 @@ describe('oblateness', () => {
     // Earth: 24 h → tiny; faster spin → more oblate.
     expect(oblateness(24, 1, 1)).toBeLessThan(0.01);
     expect(oblateness(5, 1, 1)).toBeGreaterThan(oblateness(24, 1, 1));
+  });
+});
+
+describe('atmosphere & surface temperature', () => {
+  it('keeps an atmosphere on Earth/Venus/Mars but not the Moon or Mercury (cosmic shoreline)', () => {
+    expect(retainsAtmosphere(11.19, 1)).toBe(true); // Earth
+    expect(retainsAtmosphere(10.36, 1.9)).toBe(true); // Venus
+    expect(retainsAtmosphere(5.03, 0.43)).toBe(true); // Mars (thin)
+    expect(retainsAtmosphere(2.38, 1)).toBe(false); // Moon
+    expect(retainsAtmosphere(4.25, 6.6)).toBe(false); // Mercury
+  });
+
+  it('labels atmosphere by type and temperature, or None below the shoreline', () => {
+    expect(atmosphereType('rocky', false, 288)).toBe('None');
+    expect(atmosphereType('gas-giant', true, 120)).toBe('Hydrogen / helium');
+    expect(atmosphereType('ice-giant', true, 70)).toBe('H/He + methane');
+    expect(atmosphereType('rocky', true, 700)).toBe('CO₂ (runaway)');
+    expect(atmosphereType('rocky', true, 288)).toBe('N₂ / CO₂');
+    expect(atmosphereType('rocky', true, 150)).toBe('Thin N₂');
+  });
+
+  it('adds an Earth-like greenhouse and none for airless or giant worlds', () => {
+    expect(surfaceTemperature(255, 'rocky', true)).toBeCloseTo(288, 0);
+    expect(surfaceTemperature(255, 'rocky', false)).toBe(255);
+    expect(surfaceTemperature(120, 'gas-giant', true)).toBe(120);
+    expect(surfaceTemperature(400, 'rocky', true)).toBeGreaterThan(400 + 33);
+  });
+});
+
+describe('metallicity and planet mass', () => {
+  it('forms more massive planets in metal-rich systems', () => {
+    const poor = makeSeededRng(33);
+    const rich = makeSeededRng(33);
+    let poorMass = 0;
+    let richMass = 0;
+    for (let i = 0; i < 500; i++) {
+      poorMass += samplePlanet(poor, 1, 1, 1, 4.6e9, -0.5).mass;
+      richMass += samplePlanet(rich, 1, 1, 1, 4.6e9, 0.5).mass;
+    }
+    expect(richMass).toBeGreaterThan(poorMass);
   });
 });

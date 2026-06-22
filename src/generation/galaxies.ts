@@ -52,12 +52,14 @@ export type GalaxyType = 'barred-spiral' | 'elliptical' | 'lenticular' | 'spiral
 
 /** A galaxy's central supermassive black hole, attached to its marker entity. */
 export interface BlackHolePhysical {
+  eddingtonRatio: number;
   mass: number;
   schwarzschildRadius: number;
   spin: number;
 }
 
 export const BlackHoleDef: ComponentDef<BlackHolePhysical> = simpleComponent<BlackHolePhysical>('blackHole', {
+  eddingtonRatio: 'number',
   mass: 'number',
   schwarzschildRadius: 'number',
   spin: 'number',
@@ -72,6 +74,7 @@ export interface GalaxyParams {
   name: string;
   arms: number;
   armStrength: number;
+  blackHoleEddingtonRatio: number;
   blackHoleMass: number;
   blackHoleSpin: number;
   centerX: number;
@@ -164,6 +167,15 @@ export function eddingtonLuminosity(massSolar: number): number {
   return EDDINGTON_LUMINOSITY_PER_SOLAR_MASS * massSolar;
 }
 
+// Eddington-ratio threshold above which a black hole is an active galactic
+// nucleus (a bright accreting quasar/AGN); most hosts sit far below it.
+const AGN_THRESHOLD = 0.02;
+
+/** Whether a black hole is an active galactic nucleus (accreting near Eddington). */
+export function isActiveGalacticNucleus(eddingtonRatio: number): boolean {
+  return eddingtonRatio > AGN_THRESHOLD;
+}
+
 // Cosmic-web value noise: hash a coarse grid of nodes (every COSMIC_WEB_CELLS
 // galaxy cells) and bilinearly interpolate for a smooth large-scale density.
 const COSMIC_SALT = 0x1B873593;
@@ -233,11 +245,13 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number): GalaxyPar
   const sizeNorm = (sizeScale - DWARF_SIZE[0]) / (NORMAL_SIZE[1] - DWARF_SIZE[0]);
   const blackHoleMass = blackHoleMassFromSize(sizeNorm, heavy, rng());
   const blackHoleSpin = rng();
+  const blackHoleEddingtonRatio = 10 ** lerp(-6, 0, rng() ** 3);
 
   return {
     name: nameGalaxy(hash),
     arms,
     armStrength: GALAXY_ARM_STRENGTH,
+    blackHoleEddingtonRatio,
     blackHoleMass,
     blackHoleSpin,
     centerX,
@@ -458,4 +472,57 @@ export function environmentClass(cosmicDensity: number): string {
   if (cosmicDensity < 0.7)
     return 'Filament';
   return 'Cluster';
+}
+
+// Per-seed age of the universe: an independent hash of the world seed mapped to
+// 8–18 Gyr (ours is ~13.8). Kept off the rng stream so it never perturbs body
+// draws — it only shifts values (the stellar age ceiling and enrichment).
+const UNIVERSE_AGE_SALT = 0x1F123BB5;
+const UNIVERSE_AGE_MIN_YEARS = 8e9;
+const UNIVERSE_AGE_MAX_YEARS = 18e9;
+
+/**
+ * Per-seed age of the universe (years), drawn from an independent hash of the
+ * world seed (8–18 Gyr). Independent of the rng stream, so it never perturbs
+ * body draws — it only shifts values: a young universe is metal-poor and
+ * planet-sparse, an old one enriched and remnant-heavy (research §7.1).
+ */
+export function universeAge(worldSeed: number): number {
+  const u = hashGalaxy((worldSeed ^ UNIVERSE_AGE_SALT) >>> 0, 0, 0) / 4294967296;
+  return lerp(UNIVERSE_AGE_MIN_YEARS, UNIVERSE_AGE_MAX_YEARS, u);
+}
+
+// Mean stellar mass (M☉) of a Kroupa IMF, and the specific star-formation rate
+// (M☉/yr per M☉ of stars) of a fully star-forming disc.
+const MEAN_STELLAR_MASS = 0.4;
+const SFR_SPECIFIC = 1e-10;
+
+/** A galaxy's total stellar mass (M☉): its star count times the mean stellar mass. */
+export function galaxyStellarMass(g: GalaxyParams): number {
+  return estimatedStarCount(g) * MEAN_STELLAR_MASS;
+}
+
+/** Star-formation rate (M☉/yr): stellar mass scaled by its population activity. */
+export function starFormationRate(g: GalaxyParams): number {
+  return galaxyStellarMass(g) * galaxyRepresentativeActivity(g) * SFR_SPECIFIC;
+}
+
+/** Mean stellar age (Gyr) by morphology: spheroidals are old, discs younger. */
+export function meanStellarAge(g: GalaxyParams): number {
+  if (g.type === 'elliptical' || g.type === 'lenticular')
+    return 10;
+  if (g.type === 'barred-spiral')
+    return 6;
+  return 5;
+}
+
+/** Cold-gas mass fraction by morphology: spirals are gas-rich, early-types poor. */
+export function gasFraction(g: GalaxyParams): number {
+  if (g.type === 'elliptical')
+    return 0.02;
+  if (g.type === 'lenticular')
+    return 0.05;
+  if (g.type === 'barred-spiral')
+    return 0.12;
+  return 0.15;
 }

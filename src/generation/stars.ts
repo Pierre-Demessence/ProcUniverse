@@ -168,33 +168,42 @@ const METALLICITY_MEAN = -0.05;
 const METALLICITY_SIGMA = 0.2;
 const METALLICITY_MIN = -1.5;
 const METALLICITY_MAX = 0.5;
+// Metallicity enriches with cosmic epoch: an older universe has had more stellar
+// generations, so its field stars are more metal-rich (dex per Gyr above the
+// present epoch).
+const METALLICITY_AGE_SLOPE = 0.02;
+
+/** Metallicity mean shift (dex) for a universe older/younger than the present epoch. */
+function metallicityEpochOffset(universeAgeYears: number): number {
+  return (METALLICITY_AGE_SLOPE * (universeAgeYears - UNIVERSE_AGE_YEARS)) / 1e9;
+}
 
 /**
  * Sample a metallicity `[Fe/H]` (dex) from one draw: map the uniform through a
  * Tukey-lambda approximation to the standard-normal quantile, then scale and
- * clamp it — a clean one-draw Gaussian-ish field-star metallicity.
+ * clamp it. `meanOffset` shifts the centre for the cosmic epoch (older = richer).
  */
-function sampleMetallicity(rng: RandomFn): number {
+function sampleMetallicity(rng: RandomFn, meanOffset = 0): number {
   const u = clamp(rng(), 1e-6, 1 - 1e-6);
   const z = (u ** 0.135 - (1 - u) ** 0.135) / 0.1975;
-  return clamp(METALLICITY_MEAN + METALLICITY_SIGMA * z, METALLICITY_MIN, METALLICITY_MAX);
+  return clamp(METALLICITY_MEAN + meanOffset + METALLICITY_SIGMA * z, METALLICITY_MIN, METALLICITY_MAX);
 }
 
 /**
  * Derive a star's full physical state. Mass is the primary draw (luminosity,
  * radius, temperature, colour, class, lifetime all chain from it); then two
  * further appended draws give the star's `age` — uniform up to the lesser of its
- * main-sequence lifetime and the age of the universe — and its `metallicity`.
- * Pure and deterministic for a given `rng` stream position; consumes three draws.
+ * main-sequence lifetime and the universe's age — and its `metallicity` (centred
+ * for the cosmic epoch). Pure and deterministic; consumes three draws.
  */
-export function sampleStar(rng: RandomFn, activity = 0.5): StarPhysical {
+export function sampleStar(rng: RandomFn, activity = 0.5, universeAgeYears = UNIVERSE_AGE_YEARS): StarPhysical {
   const mass = sampleStellarMass(rng, activity);
   const luminosity = luminosityFromMass(mass);
   const radius = radiusFromMass(mass);
   const temperature = temperatureFromLuminosityRadius(luminosity, radius);
   const lifetime = lifetimeFromMassLuminosity(mass, luminosity);
-  const age = rng() * Math.min(lifetime, UNIVERSE_AGE_YEARS);
-  const metallicity = sampleMetallicity(rng);
+  const age = rng() * Math.min(lifetime, universeAgeYears);
+  const metallicity = sampleMetallicity(rng, metallicityEpochOffset(universeAgeYears));
   return {
     age,
     colorHex: blackbodyColor(temperature),

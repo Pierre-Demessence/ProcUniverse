@@ -19,11 +19,17 @@ import {
   galaxyDensityOf,
   galaxyDiameterLy,
   galaxyRepresentativeActivity,
+  galaxyStellarMass,
+  gasFraction,
   hawkingTemperature,
   innermostStableOrbit,
+  isActiveGalacticNucleus,
   makeGalaxy,
+  meanStellarAge,
   photonSphere,
   shadowDiameter,
+  starFormationRate,
+  universeAge,
   velocityDispersion,
 } from './galaxies';
 import { AU_PER_LY } from './units';
@@ -34,6 +40,7 @@ const spiral: GalaxyParams = {
   name: 'NGC-TEST0',
   arms: 2,
   armStrength: 0.7,
+  blackHoleEddingtonRatio: 0.01,
   blackHoleMass: 1e7,
   blackHoleSpin: 0.5,
   centerX: 1000,
@@ -253,6 +260,42 @@ describe('galaxy derived quantities', () => {
         expect(g.blackHoleSpin).toBeLessThan(1);
       }
     }
+  });
+});
+
+describe('galaxy population stats', () => {
+  it('gives spirals a higher SFR and gas fraction, and a younger mean age, than ellipticals', () => {
+    expect(starFormationRate(spiral)).toBeGreaterThan(starFormationRate(elliptical));
+    expect(gasFraction(spiral)).toBeGreaterThan(gasFraction(elliptical));
+    expect(meanStellarAge(spiral)).toBeLessThan(meanStellarAge(elliptical));
+    expect(galaxyStellarMass(spiral)).toBeGreaterThan(0);
+  });
+});
+
+describe('black-hole accretion', () => {
+  it('flags an AGN only above the Eddington threshold', () => {
+    expect(isActiveGalacticNucleus(0.5)).toBe(true);
+    expect(isActiveGalacticNucleus(1e-4)).toBe(false);
+  });
+
+  it('assigns each galaxy an Eddington ratio in (0, 1]', () => {
+    for (let gx = 0; gx <= 5; gx++) {
+      const g = makeGalaxy(SEED, gx, 0);
+      if (g) {
+        expect(g.blackHoleEddingtonRatio).toBeGreaterThan(0);
+        expect(g.blackHoleEddingtonRatio).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+});
+
+describe('universeAge', () => {
+  it('is deterministic per seed, within 8-18 Gyr, and varies by seed', () => {
+    expect(universeAge(SEED)).toBe(universeAge(SEED));
+    expect(universeAge(SEED)).toBeGreaterThanOrEqual(8e9);
+    expect(universeAge(SEED)).toBeLessThanOrEqual(18e9);
+    const ages = new Set([universeAge(1), universeAge(2), universeAge(3), universeAge(4)].map(a => Math.round(a / 1e8)));
+    expect(ages.size).toBeGreaterThan(1);
   });
 });
 

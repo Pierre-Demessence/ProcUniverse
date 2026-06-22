@@ -86,6 +86,16 @@ const EARTH_RADIUS_M = 6.371e6;
 const EARTH_SURFACE_GRAVITY_MS2 = 9.81;
 const OBLATENESS_FACTOR = 0.75;
 const TAU = Math.PI * 2;
+// Cosmic-shoreline threshold (Zahnle & Catling 2017): a body keeps an atmosphere
+// when v_esc⁴ / insolation exceeds this — calibrated so Mercury/Moon are bare
+// while Mars/Earth/Venus retain theirs.
+const COSMIC_SHORELINE_THRESHOLD = 400;
+// Greenhouse warming (K) for an Earth-like atmosphere at Earth's equilibrium
+// temperature, growing with temperature toward a Venus-like runaway.
+const GREENHOUSE_K = 33;
+// Planet-metallicity correlation (Fischer & Valenti 2005): metal-rich systems
+// form more massive planets. Warps the mass draw toward high mass as [Fe/H] rises.
+const METALLICITY_MASS_BIAS = 1;
 
 /** Snow line in AU: beyond it volatiles condense and giants tend to form. */
 export function frostLine(luminositySolar: number): number {
@@ -145,15 +155,16 @@ function waterStateFor(tempK: number): WaterState {
 }
 
 /**
- * Sample a planet mass (M⊕). Inside the frost line only rocky/super-Earth
- * masses form; beyond it, volatiles let bodies grow into ice and gas giants, so
- * the distribution is wider and skewed toward larger masses. One `rng()` draw.
+ * Sample a planet mass (M⊕). Inside the frost line only rocky/super-Earth masses
+ * form; beyond it, volatiles let bodies grow into ice and gas giants. A higher
+ * stellar `metallicity` warps the draw toward more massive planets (Fischer &
+ * Valenti 2005). One `rng()` draw.
  */
-function samplePlanetMass(rng: RandomFn, beyondFrostLine: boolean): number {
-  const u = rng();
+function samplePlanetMass(rng: RandomFn, beyondFrostLine: boolean, metallicity: number): number {
+  const warped = rng() ** Math.exp(-METALLICITY_MASS_BIAS * metallicity);
   if (beyondFrostLine)
-    return 10 ** lerp(Math.log10(0.3), Math.log10(3000), u ** 0.7);
-  return 10 ** lerp(Math.log10(0.05), Math.log10(12), u);
+    return 10 ** lerp(Math.log10(0.3), Math.log10(3000), warped ** 0.7);
+  return 10 ** lerp(Math.log10(0.05), Math.log10(12), warped);
 }
 
 /**
@@ -187,15 +198,16 @@ function tidalLockTimescale(a: number, massEarth: number, starMassSolar: number,
 
 /**
  * Derive a planet's full physical state, given its host star's luminosity (L☉),
- * mass (M☉), and age (years), and the planet's semi-major axis (AU). Mass is the
- * primary draw (everything chemical and thermal chains from it); four further
- * appended draws give rotation, axial tilt, moon count, and a ring flag. A planet
- * whose tidal-locking time is shorter than the star's age is spin-locked, so its
+ * mass (M☉), age (years), and metallicity ([Fe/H]), and the planet's semi-major
+ * axis (AU). Mass is the primary draw (everything chemical and thermal chains
+ * from it, biased toward giants in metal-rich systems); four further appended
+ * draws give rotation, axial tilt, moon count, and a ring flag. A planet whose
+ * tidal-locking time is shorter than the star's age is spin-locked, so its
  * rotation period becomes its orbital period. Consumes five draws.
  */
-export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, starMassSolar: number, starAgeYears: number): PlanetPhysical {
+export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, starMassSolar: number, starAgeYears: number, starMetallicity = 0): PlanetPhysical {
   const beyond = a >= frostLine(luminositySolar);
-  const mass = samplePlanetMass(rng, beyond);
+  const mass = samplePlanetMass(rng, beyond, starMetallicity);
   const type = classifyType(mass, beyond);
   const radius = massToRadius(mass);
   const temperature = equilibriumTemp(luminositySolar, a, albedoFor(type));
@@ -295,4 +307,44 @@ export function oblateness(rotationPeriodHours: number, massEarth: number, radiu
   const radiusM = radiusEarth * EARTH_RADIUS_M;
   const gravity = (massEarth / radiusEarth ** 2) * EARTH_SURFACE_GRAVITY_MS2;
   return (OBLATENESS_FACTOR * omega ** 2 * radiusM) / gravity;
+}
+
+/**
+ * Whether a planet retains a substantial atmosphere — the "cosmic shoreline":
+ * retention scales as `v_esc⁴` against the cumulative stellar (XUV) insolation
+ * (Zahnle & Catling 2017). High gravity and low irradiation keep an atmosphere.
+ */
+export function retainsAtmosphere(escapeVelocityKms: number, insolation: number): boolean {
+  return escapeVelocityKms ** 4 / insolation > COSMIC_SHORELINE_THRESHOLD;
+}
+
+/**
+ * A coarse atmosphere-composition label from planet type and temperature: giants
+ * are H/He(+ices), warm rocky worlds run to CO₂, temperate ones to N₂/CO₂, cold
+ * ones to a thin N₂ — or "None" for a body below the cosmic shoreline.
+ */
+export function atmosphereType(type: PlanetType, hasAtmosphere: boolean, equilibriumTempK: number): string {
+  if (!hasAtmosphere)
+    return 'None';
+  if (type === 'gas-giant')
+    return 'Hydrogen / helium';
+  if (type === 'ice-giant')
+    return 'H/He + methane';
+  if (equilibriumTempK > 600)
+    return 'CO₂ (runaway)';
+  if (equilibriumTempK > 250)
+    return 'N₂ / CO₂';
+  return 'Thin N₂';
+}
+
+/**
+ * Greenhouse-corrected surface temperature (K): the equilibrium temperature plus
+ * a warming that grows with temperature for a rocky world with an atmosphere
+ * (Earth ≈ +33 K; hotter worlds trend toward a Venus-like runaway). Airless or
+ * giant bodies report their equilibrium temperature unchanged. Approximate.
+ */
+export function surfaceTemperature(equilibriumTempK: number, type: PlanetType, hasAtmosphere: boolean): number {
+  if (!hasAtmosphere || type === 'gas-giant' || type === 'ice-giant')
+    return equilibriumTempK;
+  return equilibriumTempK + GREENHOUSE_K * (equilibriumTempK / EARTH_EQUILIBRIUM_TEMP) ** 2;
 }

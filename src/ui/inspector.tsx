@@ -21,9 +21,9 @@ import type { OrbitElements } from '../sim/orbits';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyDiameterLy, galaxyRepresentativeActivity, hawkingTemperature, innermostStableOrbit, photonSphere, shadowDiameter, velocityDispersion } from '../generation/galaxies';
+import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyDiameterLy, galaxyRepresentativeActivity, gasFraction, hawkingTemperature, innermostStableOrbit, isActiveGalacticNucleus, meanStellarAge, photonSphere, shadowDiameter, starFormationRate, velocityDispersion } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
-import { centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, surfaceGravity } from '../generation/planets';
+import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
@@ -242,6 +242,7 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
 
 function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
   const escape = escapeVelocity(planet.mass, planet.radius);
+  const hasAtmosphere = retainsAtmosphere(escape, planet.insolation);
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
@@ -259,7 +260,9 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Axial tilt" value={`${Math.round(planet.obliquity)}°`} />
         <Row label="Moons" value={`${planet.moonCount}${planet.hasRings ? ' · rings' : ''}`} />
         <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} />
+        <TemperatureRow label="Surface" kelvin={surfaceTemperature(planet.equilibriumTemp, planet.type, hasAtmosphere)} />
         <Row label="Insolation" value={formatQuantity(planet.insolation, 'S⊕')} />
+        <Row label="Atmosphere" value={atmosphereType(planet.type, hasAtmosphere, planet.equilibriumTemp)} />
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} />
         <Row label="Earth index" value={sigFigs(earthSimilarityIndex(planet.radius, planet.density, escape, planet.equilibriumTemp))} />
         <Row label="Orbit a" value={formatQuantity(orbit.a, 'AU')} />
@@ -286,6 +289,7 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
         <Row label="ISCO" value={formatQuantity(innermostStableOrbit(blackHole.schwarzschildRadius, blackHole.spin), 'AU')} />
         <Row label="Shadow Ø" value={formatQuantity(shadowDiameter(blackHole.schwarzschildRadius), 'AU')} />
         <Row label="Eddington L" value={`${formatCount(eddingtonLuminosity(blackHole.mass))} L☉`} />
+        <Row label="Accretion" value={`${blackHole.eddingtonRatio.toExponential(1)} L_Edd${isActiveGalacticNucleus(blackHole.eddingtonRatio) ? ' (AGN)' : ''}`} />
         <Row label="Hawking T" value={`${hawkingTemperature(blackHole.mass).toExponential(1)} K`} />
         <Row label="Evaporation" value={`${evaporationTime(blackHole.mass).toExponential(1)} yr`} />
       </div>
@@ -314,6 +318,9 @@ function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
       <div style={BODY_CSS}>
         <Row label="Diameter" value={`${sigFigs(galaxyDiameterLy(galaxy))} ly`} />
         <Row label="Stars" value={`~${formatCount(estimatedStarCount(galaxy))}`} />
+        <Row label="SFR" value={`${sigFigs(starFormationRate(galaxy))} M☉/yr`} />
+        <Row label="Mean age" value={`${meanStellarAge(galaxy)} Gyr`} />
+        <Row label="Gas fraction" value={`${Math.round(gasFraction(galaxy) * 100)}%`} />
         <Row label="Dispersion σ" value={formatQuantity(velocityDispersion(galaxy.blackHoleMass), 'km/s')} />
         <Row label="Environment" value={environmentClass(galaxy.cosmicDensity)} />
         <Row label="Black hole" value={formatSolarMasses(galaxy.blackHoleMass)} />

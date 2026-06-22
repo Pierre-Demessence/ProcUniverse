@@ -14,7 +14,7 @@ import {
   STAR_DENSITY_PEAK,
 } from '../config';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
-import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt } from './galaxies';
+import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt, universeAge } from './galaxies';
 import { hashSector, hashSystem } from './hash';
 import { namePlanet, nameStar } from './naming';
 import { samplePlanet } from './planets';
@@ -55,6 +55,7 @@ export interface SystemData {
 
 export interface BlackHoleData {
   name: string;
+  eddingtonRatio: number;
   mass: number;
   radius: number;
   schwarzschildRadius: number;
@@ -85,6 +86,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
   const systems: SystemData[] = [];
   const originX = sx * SECTOR_SIZE;
   const originY = sy * SECTOR_SIZE;
+  const cosmicAge = universeAge(worldSeed);
 
   // Draw a fixed number of candidate positions per sector and keep each with a
   // probability equal to the galaxy density there: an inhomogeneous Poisson
@@ -101,7 +103,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
 
     const systemSeed = hashSystem(worldSeed, sx, sy, i, 0);
     const srng = makeSeededRng(systemSeed);
-    const star = sampleStar(srng, galaxyActivityAt(worldSeed, x, y));
+    const star = sampleStar(srng, galaxyActivityAt(worldSeed, x, y), cosmicAge);
     const radius = starVisualRadius(star.radius);
     const name = nameStar(star.spectralClass, systemSeed);
     const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, srng);
@@ -116,7 +118,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const e = srng() ** 2 * ECC_MAX;
       const argPeriapsis = srng() * TAU;
       const meanAnomaly0 = srng() * TAU;
-      const physical = samplePlanet(srng, star.luminosity, a, star.mass, star.age);
+      const physical = samplePlanet(srng, star.luminosity, a, star.mass, star.age, star.metallicity);
       planets.push({ name: namePlanet(name, j), a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
     }
 
@@ -129,6 +131,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
   if (galaxy) {
     blackHoles.push({
       name: `${galaxy.name} SMBH`,
+      eddingtonRatio: galaxy.blackHoleEddingtonRatio,
       mass: galaxy.blackHoleMass,
       radius: blackHoleVisualRadius(galaxy.blackHoleMass),
       schwarzschildRadius: galaxy.schwarzschildRadius,

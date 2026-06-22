@@ -1,7 +1,7 @@
 import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { SCALE_LY_ABOVE_AU } from '../config';
-import { galaxyAt } from '../generation/galaxies';
+import { galaxyAt, universeAge } from '../generation/galaxies';
 import { auToLy } from '../generation/units';
 
 const MARGIN_PX = 12;
@@ -36,6 +36,7 @@ export function formatCoord(au: number): string {
  */
 export function drawCoords(ctx2d: CanvasRenderingContext2D, cam: Camera, seed: number): void {
   const galaxy = galaxyAt(seed, cam.x, cam.y);
+  const epoch = `Universe age ${threeSigFigs(universeAge(seed) / 1e9)} Gyr`;
   const absolute = `X ${formatCoord(cam.x)}   Y ${formatCoord(cam.y)}`;
   const context = galaxy
     ? `\u0394 ${formatCoord(cam.x - galaxy.centerX)}, ${formatCoord(cam.y - galaxy.centerY)} in ${galaxy.name}`
@@ -46,6 +47,8 @@ export function drawCoords(ctx2d: CanvasRenderingContext2D, cam: Camera, seed: n
   ctx2d.textAlign = 'left';
   ctx2d.textBaseline = 'bottom';
   const contextY = cam.viewportH - 54;
+  ctx2d.fillStyle = CONTEXT_COLOR;
+  ctx2d.fillText(epoch, MARGIN_PX, contextY - 2 * LINE_PX);
   ctx2d.fillStyle = ABSOLUTE_COLOR;
   ctx2d.fillText(absolute, MARGIN_PX, contextY - LINE_PX);
   ctx2d.fillStyle = CONTEXT_COLOR;

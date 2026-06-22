@@ -155,3 +155,29 @@ describe('stellar derived quantities', () => {
     expect(peakWavelength(11544)).toBeLessThan(peakWavelength(5772));
   });
 });
+
+describe('cosmic epoch (universe age)', () => {
+  it('enriches metallicity in an older universe', () => {
+    const young = makeSeededRng(50);
+    const old = makeSeededRng(50);
+    let youngSum = 0;
+    let oldSum = 0;
+    for (let i = 0; i < 500; i++) {
+      youngSum += sampleStar(young, 0.5, 9e9).metallicity;
+      oldSum += sampleStar(old, 0.5, 17e9).metallicity;
+    }
+    expect(oldSum).toBeGreaterThan(youngSum);
+  });
+
+  it('caps age at the per-universe age for long-lived stars', () => {
+    const rng = makeSeededRng(7);
+    let maxAge = 0;
+    for (let i = 0; i < 2000; i++) {
+      const star = sampleStar(rng, 0.5, 9e9);
+      if (star.lifetime > 10e9)
+        maxAge = Math.max(maxAge, star.age);
+    }
+    expect(maxAge).toBeGreaterThan(0);
+    expect(maxAge).toBeLessThanOrEqual(9e9);
+  });
+});

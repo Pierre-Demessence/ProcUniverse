@@ -122,7 +122,7 @@ flat draw and reuses an existing field.
 | **Rotation period** | gyrochronology: `P_rot ≈ f(B−V)·age^0.5` for cool stars (≳ F5); hot stars never spin down (no magnetic braking) → stay fast | Skumanich 1972; Barnes 2007 | needs age |
 | **Activity / X-ray** | rotation–activity relation: `L_X/L_bol` saturates ~10⁻³ for young/fast rotators, then decays with age | Wright et al. 2011 | needs age/rotation |
 | **Multiplicity (binary?)** | companion fraction rises with mass: M ~25%, G ~45%, A ~50%, O/B ≳70% | Duchêne & Kraus 2013 | +1, `COND` on mass |
-| **Giant-planet richness** | occurrence ∝ ~`10^(2·[Fe/H])` — Fe-rich stars host more gas giants | Fischer & Valenti 2005 | `COND` on metallicity |
+| **✅ Giant-planet richness** | occurrence ≈ ~`10^(2·[Fe/H])` — Fe-rich stars host more gas giants | Fischer & Valenti 2005 | `COND` on metallicity |
 | **Variability flag** | δ-Scuti / instability-strip membership is a region in the `(T, L)` plane the star may cross | Catelan & Smith 2015 | `COND` on T, L |
 
 ### 2.4 `INPUT` — exact formula, future field
@@ -181,10 +181,10 @@ user asked to "go crazy" — composition, core/surface temperature, atmosphere,
 
 | Property | Relation | Basis | Draws |
 | --- | --- | --- | --- |
-| **Has atmosphere?** | the **cosmic shoreline**: retained when `v_esc⁴ ≳ k·I_xuv` (escape velocity vs. cumulative XUV insolation) | Zahnle & Catling 2017 | 0 (from `v_esc`, insolation) |
-| **Atmosphere type** | by `type` + temperature: giants H/He; ice giants H/He+CH₄ (blue); warm rocky CO₂; cold thin N₂; HZ rocky N₂/CO₂ (O₂ only with life) | Solar System chemistry | 0 |
+| **✅ Has atmosphere?** | the **cosmic shoreline**: retained when `v_esc⁴ ≳ k·I_xuv` (escape velocity vs. cumulative XUV insolation) | Zahnle & Catling 2017 | 0 (from `v_esc`, insolation) |
+| **✅ Atmosphere type** | by `type` + temperature: giants H/He; ice giants H/He+CH₄ (blue); warm rocky CO₂; cold thin N₂; HZ rocky N₂/CO₂ (O₂ only with life) | Solar System chemistry | 0 |
 | **Bond albedo** | by type/cloud/ice (already assumed internally in `albedoFor`) | Solar System | 0 |
-| **Surface temperature** | `T_surf = T_eq + ΔT_greenhouse`; ΔT by atmosphere (Earth +33 K, Venus +500 K, airless 0) | radiative balance | 0 (needs atmosphere) |
+| **✅ Surface temperature** | `T_surf = T_eq + ΔT_greenhouse`; ΔT by atmosphere (Earth +33 K, Venus +500 K, airless 0) | radiative balance | 0 (needs atmosphere) |
 | **Magnetic field** | dynamo scaling `B ∝ ρ^{1/6}·F^{1/3}` (energy flux) — rough, big scatter | Christensen et al. 2009 | weak `COND` on mass/rotation/age |
 | **Plate tectonics?** | favoured by intermediate mass + surface water + youth | speculative | weak `COND` |
 | **Appearance / colour** | composition + temperature → palette (ice white-blue, rock brown-grey, water blue, gas banded, lava glow) | phenomenological | 0 — drives [§9](#9-rendering-hooks-drawing-bodies-from-the-data) |
@@ -253,8 +253,8 @@ Almost everything here is a clean `FORMULA` of mass (with one `DIST` for spin).
 | Property | How | Basis | Draws |
 | --- | --- | --- | --- |
 | **✅ Spin `a*`** | `DIST` over `[0, 1)`; measured AGN spins skew high | X-ray reflection surveys | +1 |
-| **Eddington ratio** | `DIST` (broad lognormal) → sets accretion power | AGN demographics | +1 |
-| **Active (AGN/quasar)?** | `COND`: active fraction ~1–10 %, higher in gas-rich/merging hosts | AGN surveys | `COND` on host gas |
+| **✅ Eddington ratio** | `DIST` (broad lognormal) → sets accretion power | AGN demographics | +1 |
+| **✅ Active (AGN/quasar)?** | `COND`: active fraction ~1–10 %, higher in gas-rich/merging hosts | AGN surveys | `COND` on host gas |
 
 ---
 
@@ -281,10 +281,10 @@ already half-present.
 | Property | Relation | Basis | Draws |
 | --- | --- | --- | --- |
 | **Colour (red/blue)** | from `type`/`activity` — already via `populationColor` | red-sequence/blue-cloud | 0 |
-| **Star-formation rate** | `SFR ∝ M_*^0.7` on the star-forming "main sequence"; ~0 for ellipticals | Noeske et al. 2007 | 0 (uses `activity`) |
-| **Gas-phase metallicity** | mass–metallicity relation (rises with `M_*`, flattens ≳10^10.5) | Tremonti et al. 2004 | `COND` on stellar mass |
-| **Mean stellar age** | ellipticals/lenticulars old (~10 Gyr); spiral disks younger | — | `COND` on type |
-| **Gas fraction / HI mass** | spirals gas-rich, early-types gas-poor | — | `COND` on type |
+| **✅ Star-formation rate** | `SFR ∝ M_*^0.7` on the star-forming "main sequence"; ~0 for ellipticals | Noeske et al. 2007 | 0 (uses `activity`) |
+| **Gas-phase metallicity** | mass–metallicity relation (rises with `M_*`, flattens ≥10^10.5) | Tremonti et al. 2004 | `COND` on stellar mass |
+| **✅ Mean stellar age** | ellipticals/lenticulars old (~10 Gyr); spiral disks younger | — | `COND` on type |
+| **✅ Gas fraction / HI mass** | spirals gas-rich, early-types gas-poor | — | `COND` on type |
 | **Satellite count** | rises with halo mass | ΛCDM subhalo statistics | `COND` on mass |
 
 ### 6.3 `DIST`
@@ -328,12 +328,12 @@ redshift-evolution of the mass–metallicity relation are measured, not guessed.
 The caveat: all of it is calibrated to ΛCDM and our physics, so a different *age*
 under the same physics is sound; different *constants* are not.
 
-**Design.** Draw `T_univ` once per seed via an **independent** hash (like
-`hashSystem`, so it never perturbs a per-body `rng()` stream — it changes
-*values*, not draw *counts*, keeping determinism clean), then thread it into the
-age cap, a metallicity offset, planet abundance, and galaxy colour/morphology.
-Keep it fixed at 13.8 Gyr for the first cuts. This is a **Phase 3** cross-cutting
-theme, not a single field.
+**✅ Implemented (Phase 3f).** `universeAge(worldSeed)` draws a per-seed age in
+8–18 Gyr from an independent hash; it threads into the stellar age cap and a
+metallicity epoch offset (older = richer = more giants), and is shown in the
+coords HUD. Galaxy colour/morphology coupling is left as a refinement. For the
+first cuts the default stays 13.8 Gyr when no age is supplied. This is a
+cross-cutting theme, not a single field.
 
 ---
 

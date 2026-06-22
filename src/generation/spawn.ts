@@ -92,7 +92,7 @@ export function spawnSector(
       radius: bh.radius,
       stroke: BLACK_HOLE_RING,
     });
-    blackHoles.set(id, { mass: bh.mass, schwarzschildRadius: bh.schwarzschildRadius, spin: bh.spin });
+    blackHoles.set(id, { eddingtonRatio: bh.eddingtonRatio, mass: bh.mass, schwarzschildRadius: bh.schwarzschildRadius, spin: bh.spin });
     names.set(id, { name: bh.name });
     ids.push(id);
   }

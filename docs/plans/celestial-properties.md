@@ -154,17 +154,26 @@ sampler. Each sub-phase shifts the universe once.
 
 ## Phase 3 — `COND` (relations, mostly no new draws)
 
-- [ ] Metallicity → giant-planet richness (gate the planet-mass sampler by
-      `[Fe/H]`).
-- [ ] Has-atmosphere (cosmic shoreline) → atmosphere type → greenhouse surface
-      temperature.
+- [x] Metallicity → giant-planet richness: `samplePlanetMass` warps the mass draw
+      by `[Fe/H]` (metal-rich → more giants), `samplePlanet` takes the star's
+      metallicity. **(3b — shifts the universe, planets change.)**
+- [x] Has-atmosphere (cosmic shoreline) → atmosphere type → greenhouse surface
+      temperature. Derived (no draws): `retainsAtmosphere`, `atmosphereType`,
+      `surfaceTemperature` + PlanetPanel Surface/Atmosphere rows; tests anchored
+      to Solar System bodies. **(3a — done, green, no universe shift.)**
 - [ ] Magnetic field (dynamo scaling), star variability flag, rotation→activity.
-- [ ] Galaxy: SFR, mass–metallicity, mean age, gas fraction, satellite count.
-- [ ] Black hole: AGN-active flag from Eddington ratio.
-- [ ] **Universe age `T_univ` (cross-cutting global knob).** Draw once per seed
-      via an independent hash; thread into the stellar age cap, a metallicity
-      offset, planet abundance, and galaxy colour/morphology. Fixed at 13.8 Gyr
-      until then. See research-doc §7.1.
+      **Deferred** — needs a stellar rotation field (not yet sampled) and is a
+      weak, high-scatter `COND`.
+- [x] Galaxy: SFR, mean age, gas fraction (derived: `starFormationRate`,
+      `meanStellarAge`, `gasFraction`, `galaxyStellarMass` + GalaxyPanel rows).
+      Mass–metallicity and satellite count deferred. **(3c — no shift.)**
+- [x] Black hole: AGN-active flag from Eddington ratio (`blackHoleEddingtonRatio`
+      trailing draw — galaxies byte-identical; `isActiveGalacticNucleus` +
+      BlackHolePanel Accretion row). **(3e.)**
+- [x] **Universe age `T_univ` (cross-cutting global knob).** `universeAge(seed)`
+      (independent hash, 8–18 Gyr) threads into the stellar age cap + metallicity
+      epoch offset; shown in the coords HUD. **(3f — shifts values, not draw
+      counts.)** Galaxy-colour coupling deferred.
 
 ---
 
