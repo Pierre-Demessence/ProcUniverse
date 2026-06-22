@@ -16,7 +16,8 @@ import {
   SUBGRID,
 } from '../config';
 import { planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
-import { hashSector } from './hash';
+import { hashSector, hashSystem } from './hash';
+import { namePlanet, nameStar } from './naming';
 import { samplePlanet } from './planets';
 import { sampleStar } from './stars';
 
@@ -38,6 +39,7 @@ const PLANET_COLORS = [
 ];
 
 export interface PlanetData {
+  name: string;
   a: number;
   argPeriapsis: number;
   color: string;
@@ -48,6 +50,7 @@ export interface PlanetData {
 }
 
 export interface SystemData {
+  name: string;
   planets: PlanetData[];
   radius: number;
   star: StarPhysical;
@@ -86,6 +89,9 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const y = originY + (gy + 0.5) * CELL + (rng() * 2 - 1) * JITTER;
       const star = sampleStar(rng);
       const radius = starVisualRadius(star.radius);
+      // Names fold only seed + coordinates + class (no rng()), so deriving them
+      // here never shifts the deterministic physics draws below.
+      const name = nameStar(star.spectralClass, hashSystem(worldSeed, sx, sy, gx, gy));
       const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, rng);
 
       const planets: PlanetData[] = [];
@@ -99,11 +105,11 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
         const argPeriapsis = rng() * TAU;
         const meanAnomaly0 = rng() * TAU;
         const physical = samplePlanet(rng, star.luminosity, a);
-        planets.push({ a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
+        planets.push({ name: namePlanet(name, i), a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
       }
 
       if (occupied)
-        systems.push({ planets, radius, star, x, y });
+        systems.push({ name, planets, radius, star, x, y });
     }
   }
 

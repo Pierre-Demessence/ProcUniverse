@@ -10,6 +10,7 @@ import { cameraToView } from '@pierre/ecs/modules/camera';
 
 import { drawOrbitRings } from '../sim/orbits';
 import { drawGalaxy } from './draw-galaxy';
+import { drawBodyLabels } from './draw-labels';
 import { drawStars } from './draw-stars';
 import { drawReferenceGrid } from './grid';
 
@@ -52,5 +53,6 @@ export function renderFrame(deps: FrameDeps): number {
   drawReferenceGrid(ctx2d, camera, originX, originY);
   drawOrbitRings(ctx2d, camera, world);
   renderer.render({ ctx2d, view: cameraToView(camera), world });
+  drawBodyLabels(ctx2d, camera, world);
   return -1;
 }

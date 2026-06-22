@@ -20,6 +20,7 @@ import type { OrbitElements } from '../sim/orbits';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
+import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { OrbitElementsDef } from '../sim/orbits';
@@ -89,6 +90,7 @@ const PANEL_CSS = [
 ].join(';');
 
 const CAPTION_CSS = 'font-size:10px; letter-spacing:0.12em; color:rgba(160,190,240,0.6)';
+const NAME_CSS = 'font-size:13px; font-weight:600; letter-spacing:0.03em; color:#eaf2ff';
 const BODY_CSS = 'display:flex; flex-direction:column; gap:3px';
 const ROW_CSS = 'display:flex; justify-content:space-between; gap:16px';
 const LABEL_CSS = 'color:rgba(160,190,240,0.7)';
@@ -103,9 +105,10 @@ function Row({ label, value }: { label: string; value: string }): VNode {
   );
 }
 
-function StarPanel({ star }: { star: StarPhysical }): VNode {
+function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode {
   return (
     <div style={PANEL_CSS}>
+      <div style={NAME_CSS}>{name}</div>
       <div style={CAPTION_CSS}>{`STAR · CLASS ${star.spectralClass}`}</div>
       <div style={BODY_CSS}>
         <div style={`${ROW_CSS}; align-items:center`}>
@@ -136,9 +139,10 @@ function StarPanel({ star }: { star: StarPhysical }): VNode {
   );
 }
 
-function PlanetPanel({ orbit, planet }: { orbit: OrbitElements; planet: PlanetPhysical }): VNode {
+function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
   return (
     <div style={PANEL_CSS}>
+      <div style={NAME_CSS}>{name}</div>
       <div style={CAPTION_CSS}>{`PLANET · ${formatPlanetType(planet.type).toUpperCase()}`}</div>
       <div style={BODY_CSS}>
         <Row label="Mass" value={formatQuantity(planet.mass, 'M⊕')} />
@@ -166,12 +170,14 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
 
   if (sel.kind === 'star') {
     const star = world.getStore(StarPhysicalDef).get(sel.id);
-    return star ? <StarPanel star={star} /> : null;
+    const identity = world.getStore(NameDef).get(sel.id);
+    return star ? <StarPanel name={identity?.name ?? ''} star={star} /> : null;
   }
 
   const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
   const orbit = world.getStore(OrbitElementsDef).get(sel.id);
-  return planet && orbit ? <PlanetPanel orbit={orbit} planet={planet} /> : null;
+  const identity = world.getStore(NameDef).get(sel.id);
+  return planet && orbit ? <PlanetPanel name={identity?.name ?? ''} orbit={orbit} planet={planet} /> : null;
 }
 
 /**

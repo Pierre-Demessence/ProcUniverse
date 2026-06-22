@@ -43,4 +43,15 @@ describe('generateSectorData', () => {
       }
     }
   });
+
+  it('assigns deterministic catalogue names tied to the star class and orbit order', () => {
+    const { systems } = generateSectorData(1337, 0, 0);
+    for (const sys of systems) {
+      expect(sys.name.startsWith(`${sys.star.spectralClass}-`)).toBe(true);
+      sys.planets.forEach((p, i) => {
+        // Innermost planet is 'b' (98), then 'c', 'd', …, mirroring exoplanet naming.
+        expect(p.name).toBe(`${sys.name} ${String.fromCharCode(98 + i)}`);
+      });
+    }
+  });
 });

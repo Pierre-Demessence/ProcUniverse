@@ -11,7 +11,7 @@
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
-| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow, the HUD scale bar, and the selection reticle. |
+| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy glow, body name labels, the HUD scale bar, and the selection reticle. |
 | `src/ui/` | Preact + signals HUD overlays above the canvas (the simulation clock / time-scale slider and the body-inspector panel). |
 | `src/persistence/` | World-seed persistence via the engine `save` module (random on first run; cleared storage = new universe). |
 | `docs/` | Project documentation and plans. |
@@ -36,4 +36,5 @@
   (`createX(container) → { update, dispose }`) and push per-frame values through
   `@preact/signals` so only the bound text node updates.
 - Persistence (seed + player deltas) → `src/persistence/` (`seed.ts` persists
-  the world seed today; player deltas and naming are deferred).
+  the world seed today; player deltas are deferred — body naming is a pure seed
+  function in `src/generation/naming.ts`, so it needs no persistence).

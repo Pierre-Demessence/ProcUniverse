@@ -193,7 +193,8 @@ ProcUniverse/
       bootstrap into `start(container, seed)`.)
 - [x] Reload -> identical universe. (Browser-verified: seed stable across
       reloads; a fresh seed after clearing storage.)
-- [ ] Deterministic naming of systems / stars. (Deferred.)
+- [x] Deterministic naming of systems / stars. Pure seed functions (no
+      persistence needed); see realistic-simulation.md Phase H.
 - [ ] Player deltas (visited / named) via `modules/save`. (Deferred.)
 
 ### Phase 5 (optional) — WebGL dense tier

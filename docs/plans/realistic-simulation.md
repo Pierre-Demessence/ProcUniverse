@@ -263,9 +263,28 @@ render loop hides regressions that static checks miss).
 
 ### Phase H — Identity & naming
 
-- [ ] Deterministic names tied to physical type (spectral class + catalogue-style
-      id) and galaxy. Coordinates with `procedural-universe.md` Phase 4
-      (persistence).
+Names are pure functions of the seed (world seed → sector → cell → orbital
+order) plus the star's spectral class, so **nothing is persisted** — a
+regenerated sector reproduces identical names. This resolves the naming half of
+`procedural-universe.md` Phase 4 (player deltas remain its only deferred item).
+
+- [x] `hashSystem(seed, sx, sy, gx, gy)` — a per-system uint32 independent of the
+      generation rng stream, so deriving a name never perturbs the physics draws.
+- [x] `naming.ts`: `nameStar` (spectral-class prefix + base-36 catalogue number,
+      e.g. `G-4F2A9`) and `namePlanet` (exoplanet letters: innermost = `b`),
+      plus a `NameDef` identity component.
+- [x] `generateSectorData` writes `SystemData.name` / `PlanetData.name`;
+      `spawnSector` attaches `NameDef` to every star and planet entity.
+- [x] Inspector panel shows the name as its title.
+- [x] Body labels rendered next to each body at the system tier
+      (`render/draw-labels.ts`), tracking it in screen space so a planet's name
+      follows it along its orbit.
+- [x] Tests: catalogue format, class prefix, planet lettering, `hashSystem`
+      variation/determinism, and seed-stable names in `generateSectorData`.
+- [ ] Browser E2E (Pierre): names legible and well-placed; planet labels follow
+      orbits; HUD title matches the on-canvas label.
+- [ ] Galaxy fold-in: once Phase G lands, mix the galaxy index into `hashSystem`
+      so names are tied to the galaxy as well as the sector.
 
 ---
 
