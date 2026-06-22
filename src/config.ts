@@ -11,10 +11,10 @@
 // divided into a `SUBGRID × SUBGRID` lattice; each cell has a star unless it
 // rolls empty, jittered off the lattice by a fraction of a cell. Lower
 // `LY_PER_SECTOR` to pack stars closer together (easier interstellar travel).
-export const LY_PER_SECTOR = 6;
-export const SUBGRID = 4;
-export const EMPTY_CHANCE = 0.3;
-export const JITTER_FRACTION = 0.15;
+export const LY_PER_SECTOR = 0.01;
+export const SUBGRID = 32;
+export const EMPTY_CHANCE = 0.9;
+export const JITTER_FRACTION = 0.85;
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
