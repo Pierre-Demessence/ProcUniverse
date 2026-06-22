@@ -208,12 +208,12 @@ render loop hides regressions that static checks miss).
 - [x] Runtime time-scale: accumulate `simSeconds += dt·timeScale`; expose a slider
       (discrete preset steps: pause · 0.25× … 1 day/s, default 1×). Includes a
       human-readable **sim-date** readout (epoch 2100-01-01 UTC = second 0).
-- [ ] Validate: no positional jitter when zoomed onto a planet far from origin;
+- [x] Validate: no positional jitter when zoomed onto a planet far from origin;
       bounded draw count preserved across the (now larger) zoom range.
 - [ ] Emptiness mitigations: confirm LOD aggregates fill the field on zoom-out;
       add accelerating zoom. *(Accelerating/momentum zoom deferred to a follow-up;
       the full range is ~10¹² so traversal is many wheel-notches until then.)*
-- [ ] Browser E2E: zoom from a planet out to neighbouring stars; verify the gap
+- [x] Browser E2E: zoom from a planet out to neighbouring stars; verify the gap
       is large, the aggregates fill in, the time slider works, and 60+ fps holds.
 
 ### Phase D — Planet physics
@@ -228,7 +228,7 @@ render loop hides regressions that static checks miss).
       now derives from the physical radius (`scale.planetVisualRadius`).
 - [x] Tests: Earth-like inputs (1 L☉, 1 AU, A≈0.3) → `T_eq ≈ 255 K`; HZ brackets
       ~1 AU for the Sun; gas giants land beyond the frost line.
-- [ ] Browser E2E: inspecting systems shows plausible, varied planet data.
+- [x] Browser E2E: inspecting systems shows plausible, varied planet data.
       *(Visible now: geometric spacing + type-scaled planet sizes; reading the
       numeric data needs the Phase F inspector.)*
 
@@ -243,11 +243,11 @@ render loop hides regressions that static checks miss).
 
 ### Phase F — Inspector overlay — in v1
 
-- [ ] Pick-at-cursor → data panel showing the picked body's derived properties
+- [x] Pick-at-cursor → data panel showing the picked body's derived properties
       (star: mass/L/R/T/class; planet: mass/radius/type/Teq/habitability).
-- [ ] Hit-testing across tiers; extensible to moons / black holes / aggregates
+- [x] Hit-testing across tiers; extensible to moons / black holes / aggregates
       later.
-- [ ] Browser E2E: click a star and a planet; verify the panel reads plausible,
+- [x] Browser E2E: click a star and a planet; verify the panel reads plausible,
       seed-stable data.
 
 ### Phase G — Galaxy & universe hierarchy — next milestone
