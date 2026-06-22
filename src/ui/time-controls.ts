@@ -6,35 +6,7 @@
  * elapse per real second (0 pauses).
  */
 
-const EPOCH_MS = Date.UTC(2100, 0, 1);
-
-/**
- * Discrete speed stops (simulated seconds per real second). Index 0 pauses; the
- * rest run from sub-real-time up through whole-year-per-second rates. Orbital
- * periods are real years, so the high end is needed to see motion; the slider
- * snaps to these so the displayed rate is always a clean, legible value.
- */
-export const SPEED_STEPS = [
-  0,
-  0.25,
-  0.5,
-  0.75,
-  1,
-  1.25,
-  1.5,
-  2,
-  3,
-  4,
-  10,
-  60,
-  3600,
-  86400,
-  432000,
-  2592000,
-  31557600,
-  315576000,
-];
-const DEFAULT_STEP_INDEX = 14; // 5 days/s — a lively but calm default for year-long orbits
+import { DEFAULT_SPEED_INDEX, SIM_EPOCH_MS, SPEED_STEPS } from '../config';
 
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
@@ -63,7 +35,7 @@ function trim(value: number): string {
 
 /** Format `simSeconds` since the epoch as `YYYY-MM-DD HH:MM:SS UTC`. */
 export function formatSimDate(simSeconds: number): string {
-  const date = new Date(EPOCH_MS + simSeconds * 1000);
+  const date = new Date(SIM_EPOCH_MS + simSeconds * 1000);
   if (Number.isNaN(date.getTime()))
     return 'date beyond range';
   return `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} `
@@ -92,7 +64,7 @@ export function formatRate(scale: number): string {
  * readout each frame, and `dispose()` to detach.
  */
 export function createTimeControls(container: HTMLElement): TimeControls {
-  let timeScale = SPEED_STEPS[DEFAULT_STEP_INDEX];
+  let timeScale = SPEED_STEPS[DEFAULT_SPEED_INDEX];
 
   const panel = document.createElement('div');
   panel.style.cssText = [
@@ -129,7 +101,7 @@ export function createTimeControls(container: HTMLElement): TimeControls {
   slider.min = '0';
   slider.max = String(SPEED_STEPS.length - 1);
   slider.step = '1';
-  slider.value = String(DEFAULT_STEP_INDEX);
+  slider.value = String(DEFAULT_SPEED_INDEX);
   slider.style.cssText = 'flex:1; accent-color:#6f93b0; cursor:pointer';
   slider.setAttribute('aria-label', 'Simulation speed');
 

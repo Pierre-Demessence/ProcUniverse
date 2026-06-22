@@ -2,6 +2,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
+import { GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS } from '../config';
 import { SECTOR_SIZE } from '../scale';
 
 /**
@@ -20,13 +21,9 @@ export interface SectorRange {
   minSy: number;
 }
 
-// Tier thresholds, measured in sectors spanning the larger viewport axis. A
-// realistic system (~tens of AU) is a vanishing fraction of a sector (hundreds
-// of thousands of AU), so the system→star boundary is set in AU and converted;
-// the star→galaxy boundary is naturally in sectors.
-const SYSTEM_TIER_MAX_AU = 300;
+// The system→star boundary is configured in AU (a realistic system is a
+// vanishing fraction of a sector) and converted to sectors-across here.
 const STAR_AT = SYSTEM_TIER_MAX_AU / SECTOR_SIZE;
-const GALAXY_AT = 16;
 
 /**
  * Sector span of the larger viewport axis at the current zoom. Selecting the
@@ -39,28 +36,27 @@ export function sectorsAcross(cam: Camera): number {
 
 // Dead-band so a zoom hovering at a tier boundary doesn't thrash (each
 // system<->star flip is a full despawn/respawn of the visible sectors).
-const HYSTERESIS = 1.25;
 
 /** Choose the tier from zoom, with hysteresis around the boundaries. */
 export function selectTier(cam: Camera, prev: Tier): Tier {
   const across = sectorsAcross(cam);
   if (prev === 'system') {
-    if (across > GALAXY_AT * HYSTERESIS)
+    if (across > GALAXY_TIER_SECTORS * TIER_HYSTERESIS)
       return 'galaxy';
-    if (across > STAR_AT * HYSTERESIS)
+    if (across > STAR_AT * TIER_HYSTERESIS)
       return 'star';
     return 'system';
   }
   if (prev === 'star') {
-    if (across < STAR_AT / HYSTERESIS)
+    if (across < STAR_AT / TIER_HYSTERESIS)
       return 'system';
-    if (across > GALAXY_AT * HYSTERESIS)
+    if (across > GALAXY_TIER_SECTORS * TIER_HYSTERESIS)
       return 'galaxy';
     return 'star';
   }
-  if (across < STAR_AT / HYSTERESIS)
+  if (across < STAR_AT / TIER_HYSTERESIS)
     return 'system';
-  if (across < GALAXY_AT / HYSTERESIS)
+  if (across < GALAXY_TIER_SECTORS / TIER_HYSTERESIS)
     return 'star';
   return 'galaxy';
 }

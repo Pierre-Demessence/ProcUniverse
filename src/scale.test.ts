@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { LY_PER_SECTOR } from './config';
 import { AU_PER_LY } from './generation/units';
-import { LY_PER_SECTOR, SECTOR_SIZE, starVisualRadius } from './scale';
+import { SECTOR_SIZE, starVisualRadius } from './scale';
 
 describe('scale', () => {
   it('sizes a sector from the light-years-per-sector knob', () => {

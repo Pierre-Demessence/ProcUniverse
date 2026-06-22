@@ -4,6 +4,17 @@ import type { StarPhysical } from './stars';
 import { lerp } from '@pierre/ecs/modules/math';
 import { makeSeededRng, randomInt } from '@pierre/ecs/modules/rng';
 
+import {
+  ECC_MAX,
+  EMPTY_CHANCE,
+  JITTER_FRACTION,
+  ORBIT_INNER_AU,
+  ORBIT_RATIO_MAX,
+  ORBIT_RATIO_MIN,
+  PLANET_MAX,
+  PLANET_MIN,
+  SUBGRID,
+} from '../config';
 import { planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
 import { hashSector } from './hash';
 import { samplePlanet } from './planets';
@@ -11,25 +22,9 @@ import { sampleStar } from './stars';
 
 const TAU = Math.PI * 2;
 
-const SUBGRID = 4;
+// Per-cell size and the absolute jitter, derived from the configured density.
 const CELL = SECTOR_SIZE / SUBGRID;
-const EMPTY_CHANCE = 0.3;
-// Jitter stars off the sub-grid lattice by a fraction of a cell; Phase E
-// replaces the grid with a galaxy density field.
-const JITTER = CELL * 0.15;
-
-const PLANET_MIN = 1;
-const PLANET_MAX = 5;
-
-// Orbits are spaced geometrically (Titius–Bode-like): each is 1.4–2.0× the
-// previous, growing outward from an inner edge in AU.
-const ORBIT_INNER_AU = 0.25;
-const ORBIT_RATIO_MIN = 1.4;
-const ORBIT_RATIO_MAX = 2;
-
-// Eccentricity is squared-biased toward 0 (median ~0.1), so most orbits are
-// near-circular with the occasional elongated one — as observed.
-const ECC_MAX = 0.4;
+const JITTER = CELL * JITTER_FRACTION;
 
 const PLANET_COLORS = [
   '#8a6f52',

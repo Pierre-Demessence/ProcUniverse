@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatRate, formatSimDate, sliderToScale, SPEED_STEPS } from './time-controls';
+import { SPEED_STEPS } from '../config';
+import { formatRate, formatSimDate, sliderToScale } from './time-controls';
 
 describe('formatSimDate', () => {
   it('anchors second 0 to 1 January 2100 UTC', () => {

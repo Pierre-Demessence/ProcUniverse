@@ -7,6 +7,7 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
+import { REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 import { SectorCache } from './lod/sector-cache';
@@ -18,9 +19,7 @@ import { OrbitElementsDef, updateOrbits } from './sim/orbits';
 import { createTimeControls } from './ui/time-controls';
 
 const TARGET_MS = 1000 / 60;
-const REBASE_DIST = SECTOR_SIZE * 8;
-const SYSTEM_VIEW_AU = 40;
-const FADE_MS = 220;
+const REBASE_DIST = SECTOR_SIZE * REBASE_SECTORS;
 const HINT = 'Drag to pan  ·  Scroll to zoom';
 
 /**
@@ -176,7 +175,7 @@ export function start(container: HTMLElement, seed: number): () => void {
     if (tierChanged) {
       fadeCtx.clearRect(0, 0, fadeCanvas.width, fadeCanvas.height);
       fadeCtx.drawImage(canvas, 0, 0);
-      fadeMsLeft = FADE_MS;
+      fadeMsLeft = TIER_FADE_MS;
     }
 
     const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
@@ -197,7 +196,7 @@ export function start(container: HTMLElement, seed: number): () => void {
     // Cross-fade: blend the captured old-tier frame over the new one.
     if (fadeMsLeft > 0) {
       ctx2d.save();
-      ctx2d.globalAlpha = Math.min(1, fadeMsLeft / FADE_MS);
+      ctx2d.globalAlpha = Math.min(1, fadeMsLeft / TIER_FADE_MS);
       ctx2d.drawImage(fadeCanvas, 0, 0);
       ctx2d.restore();
       fadeMsLeft -= dt;
