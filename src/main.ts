@@ -135,11 +135,26 @@ export function start(container: HTMLElement, seed: number): () => void {
     currentTier = tier;
     const range = visibleSectors(camera);
 
-    // Rebase the render origin when the camera drifts far from it; respawn the
-    // streamed systems relative to the new origin.
-    if (Math.abs(camera.x - renderOriginX) > REBASE_DIST || Math.abs(camera.y - renderOriginY) > REBASE_DIST) {
-      renderOriginX = Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
-      renderOriginY = Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+    // Rebase the render origin so the renderer always draws on small, precise
+    // local coordinates. At the system tier we rebase onto the focused star
+    // itself, dropping planet coords to tens of AU: without this, discs drawn at
+    // ~10^5 AU local coordinates lose canvas path precision and render as jagged
+    // blobs. Zoomed out, snap to the sector grid and rebase only on large
+    // drifts. Respawn the streamed systems whenever the origin moves.
+    let originX = renderOriginX;
+    let originY = renderOriginY;
+    if (tier === 'system') {
+      const focus = nearestStar(cache, camera.x, camera.y);
+      originX = focus ? focus.x : Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
+      originY = focus ? focus.y : Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+    }
+    else if (Math.abs(camera.x - renderOriginX) > REBASE_DIST || Math.abs(camera.y - renderOriginY) > REBASE_DIST) {
+      originX = Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
+      originY = Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+    }
+    if (originX !== renderOriginX || originY !== renderOriginY) {
+      renderOriginX = originX;
+      renderOriginY = originY;
       streamer.clear();
     }
 
@@ -205,6 +220,24 @@ export function start(container: HTMLElement, seed: number): () => void {
     controller.dispose();
     timeControls.dispose();
   };
+}
+
+/** The system nearest the camera within its sector, or null if the sector is empty. */
+function nearestStar(cache: SectorCache, camX: number, camY: number): { x: number; y: number } | null {
+  const sx = Math.floor(camX / SECTOR_SIZE);
+  const sy = Math.floor(camY / SECTOR_SIZE);
+  let best: { x: number; y: number } | null = null;
+  let bestDist = Infinity;
+  for (const sys of cache.get(sx, sy).systems) {
+    const dx = sys.x - camX;
+    const dy = sys.y - camY;
+    const d = dx * dx + dy * dy;
+    if (d < bestDist) {
+      bestDist = d;
+      best = { x: sys.x, y: sys.y };
+    }
+  }
+  return best;
 }
 
 function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, tier: Tier): void {

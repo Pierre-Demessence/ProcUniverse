@@ -192,10 +192,11 @@ render loop hides regressions that static checks miss).
 - [x] Adopt AU within systems and ly-per-sector between systems; retune
       `SECTOR_SIZE`, zoom range (`MIN/MAX_ZOOM`), and tier thresholds for the
       ~10⁵× orbital-vs-interstellar ratio.
-- [ ] Star-local floating origin at the system tier (rebase to focused star).
-      *(Deferred: the sector-snapped origin already keeps planets jitter-free at
-      `MAX_ZOOM = 1e4` px/AU — rendered coords ≤ ~3e6 AU → sub-1e-5 px error.
-      Revisit only if a deeper zoom tier is added.)*
+- [x] Star-local floating origin at the system tier (rebase to focused star).
+      *(Required after all: the engine draws each disc's `arc()` at its local
+      world coordinate, and the canvas loses path precision at ~10⁵ AU, so discs
+      rendered as jagged "potatoes" and star strokes as scribbles until the
+      origin was moved onto the focused star — `nearestStar` in `main.ts`.)*
 - [x] `visualRadius` mapping (decouple drawn disc size from physical radius);
       keep bodies visible without distorting positions. *(Stars derive their
       disc from physical R☉ via `scale.starVisualRadius`; planets keep an AU
