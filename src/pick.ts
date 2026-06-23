@@ -27,8 +27,14 @@ export interface GalaxyPick {
   kind: 'galaxy';
 }
 
-/** The current inspector selection: an entity body or a galaxy. */
-export type Selection = GalaxyPick | PickResult;
+/** The picked universe root (from the location tree); carries the world seed. */
+export interface UniversePick {
+  kind: 'universe';
+  seed: number;
+}
+
+/** The current inspector selection: an entity body, a galaxy, or the universe. */
+export type Selection = GalaxyPick | PickResult | UniversePick;
 
 /**
  * Find the body nearest the cursor within the pick tolerance, or `null`. Both

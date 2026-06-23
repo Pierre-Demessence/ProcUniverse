@@ -12,7 +12,7 @@ describe('navNodes', () => {
   it('shows only the Universe root at the cosmic tier', () => {
     const nodes = navNodes(state({ galaxy: { name: 'NGC-1A2B' }, tier: 'universe' }));
     expect(nodes).toHaveLength(1);
-    expect(nodes[0]).toMatchObject({ depth: 0, key: 'universe', kind: 'universe', selectable: false });
+    expect(nodes[0]).toMatchObject({ depth: 0, key: 'universe', kind: 'universe', selectable: true });
   });
 
   it('shows the Universe root only in intergalactic space', () => {
@@ -60,13 +60,13 @@ describe('navNodes', () => {
     ]);
   });
 
-  it('marks every node selectable except the Universe root', () => {
+  it('marks every node selectable', () => {
     const nodes = navNodes(state({
       galaxy: { name: 'NGC-1A2B' },
       system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }] },
       tier: 'system',
     }));
-    expect(nodes.map(n => n.selectable)).toEqual([false, true, true, true]);
+    expect(nodes.map(n => n.selectable)).toEqual([true, true, true, true]);
   });
 });
 

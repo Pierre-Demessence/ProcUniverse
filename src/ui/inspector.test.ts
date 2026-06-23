@@ -7,6 +7,7 @@ import {
   formatPeriod,
   formatPlanetType,
   formatQuantity,
+  formatSeed,
   formatTemperature,
   sigFigs,
   temperatureUnit,
@@ -87,5 +88,17 @@ describe('formatHabitability', () => {
   it('combines the zone verdict with the water phase', () => {
     expect(formatHabitability(true, 'liquid')).toBe('Yes · liquid');
     expect(formatHabitability(false, 'ice')).toBe('No · ice');
+  });
+});
+
+describe('formatSeed', () => {
+  it('formats a seed as 8-digit uppercase hex', () => {
+    expect(formatSeed(0)).toBe('0x00000000');
+    expect(formatSeed(0xF3A19C4)).toBe('0x0F3A19C4');
+    expect(formatSeed(0xFFFFFFFF)).toBe('0xFFFFFFFF');
+  });
+
+  it('treats the seed as an unsigned 32-bit value', () => {
+    expect(formatSeed(-1)).toBe('0xFFFFFFFF');
   });
 });

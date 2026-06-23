@@ -21,7 +21,7 @@ import type { OrbitElements } from '../sim/orbits';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyDiameterLy, galaxyRepresentativeActivity, gasFraction, hawkingTemperature, innermostStableOrbit, isActiveGalacticNucleus, meanStellarAge, photonSphere, shadowDiameter, starFormationRate, velocityDispersion } from '../generation/galaxies';
+import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyAt, galaxyDiameterLy, galaxyRepresentativeActivity, gasFraction, hawkingTemperature, innermostStableOrbit, isActiveGalacticNucleus, meanStellarAge, photonSphere, shadowDiameter, starFormationRate, universeAge, velocityDispersion } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
 import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
@@ -141,6 +141,11 @@ export function formatGalaxyType(type: GalaxyType, dwarf: boolean): string {
 /** Habitability as `Yes`/`No` plus the inferred surface-water phase. */
 export function formatHabitability(inHabitableZone: boolean, waterState: WaterState): string {
   return `${inHabitableZone ? 'Yes' : 'No'} · ${waterState}`;
+}
+
+/** A world seed as an 8-digit uppercase hex identity, e.g. `0x0F3A19C4`. */
+export function formatSeed(seed: number): string {
+  return `0x${(seed >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
 }
 
 const PANEL_CSS = [
@@ -297,6 +302,21 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
   );
 }
 
+function UniversePanel({ seed }: { seed: number }): VNode {
+  const home = galaxyAt(seed, 0, 0);
+  return (
+    <div style={PANEL_CSS}>
+      <div style={NAME_CSS}>Universe</div>
+      <div style={CAPTION_CSS}>UNIVERSE</div>
+      <div style={BODY_CSS}>
+        <Row label="Seed" value={formatSeed(seed)} />
+        <Row label="Age" value={formatLifetime(universeAge(seed))} />
+        <Row label="Home galaxy" value={home ? home.name : '\u2014'} />
+      </div>
+    </div>
+  );
+}
+
 function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
   const swatch = populationColorCss(galaxyRepresentativeActivity(galaxy));
   return (
@@ -338,6 +358,9 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
   const sel = selection.value;
   if (!sel)
     return null;
+
+  if (sel.kind === 'universe')
+    return <UniversePanel seed={sel.seed} />;
 
   if (sel.kind === 'galaxy')
     return <GalaxyPanel galaxy={sel.galaxy} />;

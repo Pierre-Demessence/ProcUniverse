@@ -77,7 +77,7 @@ const NODE_GLYPH: Record<NavNodeKind, string> = {
  */
 export function navNodes(state: NavState): NavNode[] {
   const nodes: NavNode[] = [
-    { name: '', depth: 0, key: 'universe', kind: 'universe', label: 'Universe', selectable: false },
+    { name: '', depth: 0, key: 'universe', kind: 'universe', label: 'Universe', selectable: true },
   ];
 
   const showGalaxy = state.tier !== 'universe' && state.galaxy !== null;

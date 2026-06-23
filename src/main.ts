@@ -209,7 +209,10 @@ export function start(container: HTMLElement, seed: number): () => void {
   // recompute the galaxy under the camera; the Universe node is not selectable.
   const navTree = createNavTree(container, {
     onSelect(node: NavNode): void {
-      if (node.kind === 'galaxy') {
+      if (node.kind === 'universe') {
+        selection = { kind: 'universe', seed };
+      }
+      else if (node.kind === 'galaxy') {
         const g = galaxyAt(seed, camera.x, camera.y);
         selection = g ? { galaxy: g, kind: 'galaxy' } : null;
       }
@@ -341,7 +344,7 @@ export function start(container: HTMLElement, seed: number): () => void {
             drawSelectReticle(ctx2d, screen.vx, screen.vy, selection.galaxy.radius * GALAXY_SPRITE_SCALE * camera.zoom);
           }
         }
-        else {
+        else if (selection.kind !== 'universe') {
           const pos = tier === 'system' ? positions.get(selection.id) : undefined;
           if (!pos) {
             selection = null;
@@ -446,6 +449,8 @@ function buildNavState(seed: number, cache: SectorCache, camera: Camera, tier: T
 function selectionKey(world: EcsWorld, selection: Selection | null): string | null {
   if (!selection)
     return null;
+  if (selection.kind === 'universe')
+    return 'universe';
   if (selection.kind === 'galaxy')
     return `galaxy:${selection.galaxy.name}`;
   return world.getStore(NameDef).get(selection.id)?.name ?? null;
