@@ -6,13 +6,13 @@
 | `src/main.ts` | Entry: canvas, DPR/resize, ECS world, the LOD render loop, and the HUD. |
 | `src/config.ts` | Central tuning knobs in one place: density, camera/zoom, LOD tiers, orbit architecture, visual-disc sizing, and simulation time. |
 | `src/scale.ts` | Spatial-scale source of truth: the AU world unit, light-years per sector, and the star visual-radius mapping. |
-| `src/pick.ts` | Cursor-to-body picking: the nearest star or planet within the click tolerance, for the inspector. |
+| `src/pick.ts` | Cursor-to-body picking: the nearest star or planet within the click tolerance, plus a by-name entity lookup for the location tree. |
 | `src/generation/` | Deterministic seed-driven sector generation (pure data — a galaxy field of many galaxies with central black holes that places and colours stars, plus stellar, orbital, and planetary physics) and entity spawning. |
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
 | `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy-density glow, galaxy-field sprites / labels, the cosmic-web universe glow, body name labels, the HUD scale bar + coordinate readout, and the selection reticle. |
-| `src/ui/` | Preact + signals HUD overlays above the canvas (the simulation clock / time-scale slider and the body-inspector panel). |
+| `src/ui/` | Preact + signals HUD overlays above the canvas (the simulation clock / time-scale slider, the body-inspector panel, and the top-left location tree). |
 | `src/persistence/` | World-seed persistence via the engine `save` module (random on first run; cleared storage = new universe). |
 | `docs/` | Project documentation and plans. |
 

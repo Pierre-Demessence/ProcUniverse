@@ -10,6 +10,7 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { GALAXY_SPRITE_SCALE, PICK_PX } from './config';
 import { BlackHoleDef, galaxiesInRect } from './generation/galaxies';
+import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 
@@ -71,6 +72,19 @@ export function pickBodyAt(world: EcsWorld, localCam: Camera, bx: number, by: nu
     consider(id, 'black-hole');
 
   return best;
+}
+
+/**
+ * The streamed entity carrying `name` (a unique seed-derived catalogue name), or
+ * `null`. Used to turn a location-tree node back into the body it names so a
+ * click pins the same inspector selection a canvas pick would.
+ */
+export function findEntityByName(world: EcsWorld, name: string): EntityId | null {
+  for (const [id, n] of world.query(NameDef)) {
+    if (n.name === name)
+      return id;
+  }
+  return null;
 }
 
 /**

@@ -78,6 +78,21 @@ export const REBASE_SECTORS = 8;
 export const SCALE_KM_BELOW_AU = 0.01;
 export const SCALE_LY_ABOVE_AU = 10000;
 
+// ── Location tree & perf-monitor placement ───────────────────────────
+// The location tree pins to the top-left; each deeper level is inset by
+// `NAV_TREE_INDENT_PX`. The canvas perf-monitor moves to the top-right, just
+// left of the sim-time panel. `STATS_HUD_RIGHT_RESERVE_PX` (the CSS-pixel column
+// the sim panel occupies), `STATS_HUD_GAP_PX`, and `STATS_HUD_TOP_PX` are CSS
+// pixels — scaled by the device pixel ratio to track the DOM sim panel.
+// `STATS_HUD_WIDTH_PX` is the overlay's own width in *backing* pixels (it renders
+// dpr-independently): a generous estimate used to place its left edge so it sits
+// snug left of the sim panel at any dpr — over-estimating only widens the gap.
+export const NAV_TREE_INDENT_PX = 14;
+export const STATS_HUD_TOP_PX = 10;
+export const STATS_HUD_RIGHT_RESERVE_PX = 204;
+export const STATS_HUD_GAP_PX = 40;
+export const STATS_HUD_WIDTH_PX = 160;
+
 // ── Inspector / body picking ──────────────────────────────────────────
 // A body within `PICK_PX` screen pixels of the cursor (or inside its drawn
 // disc, whichever is larger) is selectable. A pointer gesture only counts as a

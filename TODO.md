@@ -40,11 +40,11 @@
   - Store camera position, zoom level in localStorage
   - Restore view state on app start
   - Add "return to origin" button for manual reset
-- [ ] Add "tree view" navigation hierarchy
-  - Show current location: Galaxy → Star → Planets → Moons
+- [x] Add "tree view" navigation hierarchy
+  - Show current location: Galaxy → Star → Planets → Moons (Moons deferred until moons exist)
   - Only show tree nodes relevant to current zoom level
   - Hide star node if not yet zoomed into system
-  - Consider subdividing galaxies (core, inner/outer disk, halo, spiral arms, sectors)
+  - Consider subdividing galaxies (core, inner/outer disk, halo, spiral arms, sectors) — deferred (kept flat for usability)
   - Balance realism with usability
 
 ## Inspector & UX Improvements

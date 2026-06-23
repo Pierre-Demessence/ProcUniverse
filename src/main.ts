@@ -1,5 +1,9 @@
+import type { Camera } from '@pierre/ecs/modules/camera';
+
+import type { SystemData } from './generation/universe';
 import type { Tier } from './lod/tier';
 import type { Selection } from './pick';
+import type { NavNode, NavState, NavSystem } from './ui/nav-tree';
 
 import { EcsWorld } from '@pierre/ecs';
 import { worldToView } from '@pierre/ecs/modules/camera';
@@ -9,7 +13,7 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
-import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, REBASE_SECTORS, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
+import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
 import { BlackHoleDef, galaxyAt } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
@@ -17,7 +21,7 @@ import { StarPhysicalDef } from './generation/stars';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
-import { pickBodyAt, pickGalaxyAt } from './pick';
+import { findEntityByName, pickBodyAt, pickGalaxyAt } from './pick';
 import { drawCoords } from './render/draw-coords';
 import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
@@ -25,6 +29,7 @@ import { drawSelectReticle } from './render/select-reticle';
 import { SECTOR_SIZE } from './scale';
 import { OrbitElementsDef, updateOrbits } from './sim/orbits';
 import { createInspector } from './ui/inspector';
+import { createNavTree } from './ui/nav-tree';
 import { createTimeControls } from './ui/time-controls';
 
 const TARGET_MS = 1000 / 60;
@@ -175,6 +180,10 @@ export function start(container: HTMLElement, seed: number): () => void {
     pointerDownY = e.clientY;
   };
   const onPickUp = (e: PointerEvent): void => {
+    // Ignore releases over the HUD panels (tree / inspector / time): those are
+    // their own clicks, not a canvas pick that should re-select or clear.
+    if (e.target !== canvas)
+      return;
     if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX)
       return;
     const { bx, by } = toBackingPx(e.clientX, e.clientY);
@@ -194,6 +203,23 @@ export function start(container: HTMLElement, seed: number): () => void {
   canvas.addEventListener('pointerdown', onPickDown);
   window.addEventListener('pointerup', onPickUp);
   window.addEventListener('keydown', onPickKey);
+
+  // Location tree (top-left): clicking a body node pins it in the inspector,
+  // resolving the streamed entity by its unique catalogue name. Galaxy nodes
+  // recompute the galaxy under the camera; the Universe node is not selectable.
+  const navTree = createNavTree(container, {
+    onSelect(node: NavNode): void {
+      if (node.kind === 'galaxy') {
+        const g = galaxyAt(seed, camera.x, camera.y);
+        selection = g ? { galaxy: g, kind: 'galaxy' } : null;
+      }
+      else if (node.kind === 'star' || node.kind === 'planet') {
+        const id = findEntityByName(world, node.name);
+        if (id !== null)
+          selection = { id, kind: node.kind };
+      }
+    },
+  });
 
   // Dirty-frame tracking: at non-system tiers nothing animates, so when the
   // camera is still the view is identical frame to frame.  Skip the heavy
@@ -307,10 +333,10 @@ export function start(container: HTMLElement, seed: number): () => void {
       // (so it follows an orbiting planet) and refresh the data panel.
       if (selection) {
         if (selection.kind === 'galaxy') {
-          if (tier !== 'galaxy-field') {
-            selection = null;
-          }
-          else {
+          // A galaxy selection persists across tiers (it may be pinned from the
+          // location tree while zoomed in); only its on-canvas reticle is gated
+          // to the galaxy-field tier where galaxies are discrete sprites.
+          if (tier === 'galaxy-field') {
             const screen = worldToView(selection.galaxy.centerX - renderOriginX, selection.galaxy.centerY - renderOriginY, localCam);
             drawSelectReticle(ctx2d, screen.vx, screen.vy, selection.galaxy.radius * GALAXY_SPRITE_SCALE * camera.zoom);
           }
@@ -348,7 +374,17 @@ export function start(container: HTMLElement, seed: number): () => void {
     // frame so the time display and frame-time sparkline stay live.
     frameStats.setCounter('drawn', lastDrawnCount);
     inspector.update(world, selection);
-    drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS });
+    navTree.update(buildNavState(seed, cache, camera, tier, world, selection));
+    // Perf monitor: top-right, just left of the sim-time panel (so the tree
+    // owns the top-left). Knobs are CSS pixels; the overlay draws in backing
+    // pixels, hence the dpr scale.
+    const dpr = window.devicePixelRatio || 1;
+    // The sim-panel reserve and top margin are CSS pixels (scaled by dpr to
+    // track the DOM sim panel); the overlay's own width is intrinsic backing
+    // pixels (it renders dpr-independently), so it is subtracted unscaled —
+    // keeping the panel snug left of the sim panel at any device pixel ratio.
+    const statsX = canvas.width - (STATS_HUD_RIGHT_RESERVE_PX + STATS_HUD_GAP_PX) * dpr - STATS_HUD_WIDTH_PX;
+    drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS, x: statsX, y: STATS_HUD_TOP_PX * dpr });
     drawHint(ctx2d, canvas, tier);
     drawScaleBar(ctx2d, camera);
     drawCoords(ctx2d, camera, seed);
@@ -367,14 +403,15 @@ export function start(container: HTMLElement, seed: number): () => void {
     controller.dispose();
     timeControls.dispose();
     inspector.dispose();
+    navTree.dispose();
   };
 }
 
 /** The system nearest the camera within its sector, or null if the sector is empty. */
-function nearestStar(cache: SectorCache, camX: number, camY: number): { x: number; y: number } | null {
+function nearestStar(cache: SectorCache, camX: number, camY: number): SystemData | null {
   const sx = Math.floor(camX / SECTOR_SIZE);
   const sy = Math.floor(camY / SECTOR_SIZE);
-  let best: { x: number; y: number } | null = null;
+  let best: SystemData | null = null;
   let bestDist = Infinity;
   for (const sys of cache.get(sx, sy).systems) {
     const dx = sys.x - camX;
@@ -382,10 +419,36 @@ function nearestStar(cache: SectorCache, camX: number, camY: number): { x: numbe
     const d = dx * dx + dy * dy;
     if (d < bestDist) {
       bestDist = d;
-      best = { x: sys.x, y: sys.y };
+      best = sys;
     }
   }
   return best;
+}
+
+/** Assemble the location tree's state from the camera and current tier. */
+function buildNavState(seed: number, cache: SectorCache, camera: Camera, tier: Tier, world: EcsWorld, selection: Selection | null): NavState {
+  const galaxy = galaxyAt(seed, camera.x, camera.y);
+  let system: NavSystem | null = null;
+  if (tier === 'system') {
+    const focus = nearestStar(cache, camera.x, camera.y);
+    if (focus)
+      system = { name: focus.name, planets: focus.planets.map(p => ({ name: p.name })) };
+  }
+  return {
+    galaxy: galaxy ? { name: galaxy.name } : null,
+    selectedKey: selectionKey(world, selection),
+    system,
+    tier,
+  };
+}
+
+/** The tree-node `key` matching the current selection, for highlighting. */
+function selectionKey(world: EcsWorld, selection: Selection | null): string | null {
+  if (!selection)
+    return null;
+  if (selection.kind === 'galaxy')
+    return `galaxy:${selection.galaxy.name}`;
+  return world.getStore(NameDef).get(selection.id)?.name ?? null;
 }
 
 function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, tier: Tier): void {

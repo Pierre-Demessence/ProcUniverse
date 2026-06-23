@@ -10,9 +10,10 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 import { describe, expect, it } from 'vitest';
 
 import { BlackHoleDef } from './generation/galaxies';
+import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
-import { pickBodyAt, pickGalaxyAt } from './pick';
+import { findEntityByName, pickBodyAt, pickGalaxyAt } from './pick';
 
 const STAR: StarPhysical = {
   age: 4.6e9,
@@ -122,5 +123,24 @@ describe('pickGalaxyAt', () => {
     const galaxy = pickGalaxyAt(1337, fieldCam, 0, 0, vx, vy);
     expect(galaxy?.centerX).toBe(0);
     expect(galaxy?.centerY).toBe(0);
+  });
+});
+
+describe('findEntityByName', () => {
+  it('returns the entity carrying the given catalogue name', () => {
+    const world = new EcsWorld();
+    world.registerComponent(NameDef);
+    const a = world.createEntity();
+    world.getStore(NameDef).set(a, { name: 'G-4F2A9' });
+    const b = world.createEntity();
+    world.getStore(NameDef).set(b, { name: 'G-4F2A9 b' });
+    expect(findEntityByName(world, 'G-4F2A9')).toBe(a);
+    expect(findEntityByName(world, 'G-4F2A9 b')).toBe(b);
+  });
+
+  it('returns null when no entity carries the name', () => {
+    const world = new EcsWorld();
+    world.registerComponent(NameDef);
+    expect(findEntityByName(world, 'absent')).toBeNull();
   });
 });
