@@ -73,9 +73,9 @@ export const REBASE_SECTORS = 8;
 
 // ── On-screen scale bar (world unit = AU) ────────────────────
 // The HUD scale bar mirrors one reference-grid cell and labels its real length.
-// A cell below `SCALE_KM_BELOW_AU` is shown in kilometres, at or above
-// `SCALE_LY_ABOVE_AU` in light-years, otherwise in AU.
-export const SCALE_KM_BELOW_AU = 0.01;
+// A cell below `SCALE_KM_BELOW_AU` is shown in km (or Mkm when ≥ 1e6 km),
+// at or above `SCALE_LY_ABOVE_AU` in light-years, otherwise in AU.
+export const SCALE_KM_BELOW_AU = 1;
 export const SCALE_LY_ABOVE_AU = 10000;
 
 // ── Location tree & perf-monitor placement ───────────────────────────

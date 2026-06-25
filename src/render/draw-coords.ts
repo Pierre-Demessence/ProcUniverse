@@ -1,8 +1,8 @@
 import type { Camera } from '@pierre/ecs/modules/camera';
 
-import { SCALE_LY_ABOVE_AU } from '../config';
+import { SCALE_KM_BELOW_AU, SCALE_LY_ABOVE_AU } from '../config';
 import { galaxyAt, universeAge } from '../generation/galaxies';
-import { auToLy } from '../generation/units';
+import { auToKm, auToLy } from '../generation/units';
 
 const MARGIN_PX = 12;
 const LINE_PX = 14;
@@ -14,9 +14,14 @@ function threeSigFigs(value: number): string {
   return Number(value.toPrecision(3)).toLocaleString('en-US');
 }
 
-/** A signed world distance (AU) auto-scaled to AU / ly / kly / Mly by magnitude. */
+/** A signed world distance (AU) auto-scaled to km / Mkm / AU / ly / kly / Mly by magnitude. */
 export function formatCoord(au: number): string {
-  if (Math.abs(au) < SCALE_LY_ABOVE_AU)
+  const absAu = Math.abs(au);
+  if (absAu < SCALE_KM_BELOW_AU) {
+    const km = auToKm(au);
+    return Math.abs(km) >= 1e6 ? `${threeSigFigs(km / 1e6)} Mkm` : `${threeSigFigs(km)} km`;
+  }
+  if (absAu < SCALE_LY_ABOVE_AU)
     return `${threeSigFigs(au)} AU`;
   const ly = auToLy(au);
   const absLy = Math.abs(ly);

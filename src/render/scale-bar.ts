@@ -38,10 +38,12 @@ export function drawScaleBar(ctx2d: CanvasRenderingContext2D, cam: Camera): void
   ctx2d.restore();
 }
 
-/** A grid-cell length in AU as a friendly `value unit` string (km / AU / ly). */
+/** A grid-cell length in AU as a friendly `value unit` string (km / Mkm / AU / ly). */
 function formatScaleLength(au: number): string {
-  if (au < SCALE_KM_BELOW_AU)
-    return `${threeSigFigs(auToKm(au))} km`;
+  if (au < SCALE_KM_BELOW_AU) {
+    const km = auToKm(au);
+    return km >= 1e6 ? `${threeSigFigs(km / 1e6)} Mkm` : `${threeSigFigs(km)} km`;
+  }
   if (au < SCALE_LY_ABOVE_AU)
     return `${threeSigFigs(au)} AU`;
   return `${threeSigFigs(auToLy(au))} ly`;
