@@ -178,7 +178,10 @@ export function start(container: HTMLElement, save: Save): () => void {
 
   const { camera } = controller;
   let simSeconds = save.simSeconds;
-  let currentTier: Tier = 'system';
+  // Initialise to the restored view's tier (not a hardcoded 'system') so the
+  // first frame doesn't register a spurious tier change and cross-fade from a
+  // blank canvas when resuming zoomed out.
+  let currentTier: Tier = selectTier(camera, 'system');
 
   // Body selection (system tier only). A pointer gesture is treated as a pick
   // only when it barely moved — a real drag pans the view and never selects.
@@ -280,10 +283,12 @@ export function start(container: HTMLElement, save: Save): () => void {
     const selChanged = selection !== lastSelection;
     lastSelection = selection;
 
-    // At the system tier orbits animate so every frame is dirty; at other
-    // tiers a cross-fade, camera move, viewport change, or selection change
-    // dirties the view.
-    const dirty = tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0;
+    // A frame is dirty when there is no cached scene to blit (startup, or after
+    // a resize / DPR change cleared the canvas and invalidated it), the system
+    // tier animates, the tier cross-fades, or the camera, viewport, or selection
+    // changed. Without the cache-invalid check a still camera at a non-system
+    // tier would leave the just-cleared canvas blank until the next interaction.
+    const dirty = !sceneCacheValid || tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0;
 
     if (dirty) {
       const range = visibleSectors(camera);
@@ -325,8 +330,10 @@ export function start(container: HTMLElement, save: Save): () => void {
       if (tier === 'system')
         updateOrbits(world, simSeconds);
 
-      // Capture the previous (old-tier) frame to cross-fade out of on a tier change.
-      if (tierChanged) {
+      // Capture the previous frame to cross-fade out of on a tier change — but
+      // only when the cache is valid, i.e. the canvas still holds a good prior
+      // frame (not a blank startup canvas or one a resize just cleared).
+      if (tierChanged && sceneCacheValid) {
         fadeCtx.clearRect(0, 0, fadeCanvas.width, fadeCanvas.height);
         fadeCtx.drawImage(canvas, 0, 0);
         fadeMsLeft = TIER_FADE_MS;
