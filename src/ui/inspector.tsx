@@ -16,21 +16,22 @@ import type { BlackHolePhysical, GalaxyParams, GalaxyType } from '../generation/
 import type { PlanetPhysical, PlanetType, WaterState } from '../generation/planets';
 import type { StarPhysical } from '../generation/stars';
 import type { Selection } from '../pick';
+import type { TemperatureUnit } from '../settings';
 import type { OrbitElements } from '../sim/orbits';
-import type { TemperatureUnit } from './settings';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { useState } from 'preact/hooks';
 
+import { formatDistance } from '../distance';
 import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyAt, galaxyDiameterLy, galaxyRepresentativeActivity, gasFraction, hawkingTemperature, innermostStableOrbit, isActiveGalacticNucleus, meanStellarAge, photonSphere, shadowDiameter, starFormationRate, universeAge, velocityDispersion } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
 import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
-import { SECONDS_PER_YEAR } from '../generation/units';
+import { AU_PER_LY, SECONDS_PER_YEAR } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
+import { distanceUnit, temperatureUnit } from '../settings';
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
-import { temperatureUnit } from './settings';
 
 export interface Inspector {
   dispose: () => void;
@@ -248,6 +249,7 @@ function ClassRow({ star }: { star: StarPhysical }): VNode {
 
 function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode {
   const hz = habitableZone(star.luminosity);
+  const du = distanceUnit.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
@@ -267,8 +269,8 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
         <Row label="Lifetime" value={formatLifetime(star.lifetime)} tooltip="How long the star can shine before exhausting its core hydrogen." />
         <Row label="Age" value={formatLifetime(star.age)} tooltip="How long the star has existed so far." />
         <Row label="MS elapsed" value={`${Math.round((100 * star.age) / star.lifetime)}%`} tooltip="Fraction of its hydrogen-burning life the star has already used." />
-        <Row label="Habitable zone" value={`${sigFigs(hz.inner)}–${sigFigs(hz.outer)} AU`} tooltip="Distance range where a planet could have liquid surface water." />
-        <Row label="Frost line" value={formatQuantity(frostLine(star.luminosity), 'AU')} tooltip="Distance beyond which it's cold enough for ice — where giant planets tend to form." />
+        <Row label="Habitable zone" value={`${formatDistance(hz.inner, du)} – ${formatDistance(hz.outer, du)}`} tooltip="Distance range where a planet could have liquid surface water." />
+        <Row label="Frost line" value={formatDistance(frostLine(star.luminosity), du)} tooltip="Distance beyond which it's cold enough for ice — where giant planets tend to form." />
       </div>
     </div>
   );
@@ -277,6 +279,7 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
 function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
   const escape = escapeVelocity(planet.mass, planet.radius);
   const hasAtmosphere = retainsAtmosphere(escape, planet.insolation);
+  const du = distanceUnit.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
@@ -299,8 +302,8 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Atmosphere" value={atmosphereType(planet.type, hasAtmosphere, planet.equilibriumTemp)} tooltip="The kind of atmosphere the planet can likely keep, if any." />
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} tooltip="Whether it lies in the liquid-water zone, and what state its water is in." />
         <Row label="Earth index" value={sigFigs(earthSimilarityIndex(planet.radius, planet.density, escape, planet.equilibriumTemp))} tooltip="How Earth-like the planet is overall, from 0 to 1 (1 = just like Earth)." />
-        <Row label="Orbit a" value={formatQuantity(orbit.a, 'AU')} tooltip="Average distance from its star (the orbit's semi-major axis)." />
-        <Row label="Peri / Apo" value={`${sigFigs(periapsis(orbit))} / ${sigFigs(apoapsis(orbit))} AU`} tooltip="Closest and farthest distance from the star along the orbit." />
+        <Row label="Orbit a" value={formatDistance(orbit.a, du)} tooltip="Average distance from its star (the orbit's semi-major axis)." />
+        <Row label="Peri / Apo" value={`${formatDistance(periapsis(orbit), du)} / ${formatDistance(apoapsis(orbit), du)}`} tooltip="Closest and farthest distance from the star along the orbit." />
         <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} tooltip="How long the planet takes to circle its star once — its year." />
         <Row label="Orbital speed" value={formatQuantity(meanOrbitalSpeed(orbit), 'km/s')} tooltip="Average speed the planet moves along its orbit." />
         <Row label="Eccentricity" value={sigFigs(orbit.e)} tooltip="How stretched the orbit is: 0 is a circle, nearer 1 is more elongated." />
@@ -311,6 +314,7 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
 }
 
 function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; name: string }): VNode {
+  const du = distanceUnit.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
@@ -318,10 +322,10 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
       <div style={BODY_CSS}>
         <Row label="Mass" value={formatSolarMasses(blackHole.mass)} tooltip="Total mass of the black hole, in multiples of the Sun's mass." />
         <Row label="Spin a*" value={sigFigs(blackHole.spin)} tooltip="How fast it spins, from 0 (still) to 1 (the maximum possible)." />
-        <Row label="Schwarzschild r" value={formatQuantity(blackHole.schwarzschildRadius, 'AU')} tooltip="Radius of the event horizon — the point of no return." />
-        <Row label="Photon sphere" value={formatQuantity(photonSphere(blackHole.schwarzschildRadius), 'AU')} tooltip="Distance where gravity can bend light into a circular orbit." />
-        <Row label="ISCO" value={formatQuantity(innermostStableOrbit(blackHole.schwarzschildRadius, blackHole.spin), 'AU')} tooltip="Closest orbit matter can hold before spiralling in — the disc's inner edge." />
-        <Row label="Shadow Ø" value={formatQuantity(shadowDiameter(blackHole.schwarzschildRadius), 'AU')} tooltip="Apparent width of the black hole's dark silhouette." />
+        <Row label="Schwarzschild r" value={formatDistance(blackHole.schwarzschildRadius, du)} tooltip="Radius of the event horizon — the point of no return." />
+        <Row label="Photon sphere" value={formatDistance(photonSphere(blackHole.schwarzschildRadius), du)} tooltip="Distance where gravity can bend light into a circular orbit." />
+        <Row label="ISCO" value={formatDistance(innermostStableOrbit(blackHole.schwarzschildRadius, blackHole.spin), du)} tooltip="Closest orbit matter can hold before spiralling in — the disc's inner edge." />
+        <Row label="Shadow Ø" value={formatDistance(shadowDiameter(blackHole.schwarzschildRadius), du)} tooltip="Apparent width of the black hole's dark silhouette." />
         <Row label="Eddington L" value={`${formatCount(eddingtonLuminosity(blackHole.mass))} L☉`} tooltip="Brightness limit above which radiation blows infalling matter away." />
         <Row label="Accretion" value={`${blackHole.eddingtonRatio.toExponential(1)} L_Edd${isActiveGalacticNucleus(blackHole.eddingtonRatio) ? ' (AGN)' : ''}`} tooltip="How fast it's feeding, versus that limit; 'AGN' marks an active, bright one." />
         <Row label="Hawking T" value={`${hawkingTemperature(blackHole.mass).toExponential(1)} K`} tooltip="The faint temperature it radiates through quantum effects." />
@@ -348,6 +352,7 @@ function UniversePanel({ seed }: { seed: number }): VNode {
 
 function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
   const swatch = populationColorCss(galaxyRepresentativeActivity(galaxy));
+  const du = distanceUnit.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{galaxy.name}</div>
@@ -365,7 +370,7 @@ function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
         <span>{`GALAXY · ${formatGalaxyType(galaxy.type, galaxy.dwarf).toUpperCase()}`}</span>
       </div>
       <div style={BODY_CSS}>
-        <Row label="Diameter" value={`${sigFigs(galaxyDiameterLy(galaxy))} ly`} tooltip="How wide the galaxy is, in light-years." />
+        <Row label="Diameter" value={formatDistance(galaxyDiameterLy(galaxy) * AU_PER_LY, du)} tooltip="How wide the galaxy is from edge to edge." />
         <Row label="Stars" value={`~${formatCount(estimatedStarCount(galaxy))}`} tooltip="Rough estimate of how many stars the galaxy holds." />
         <Row label="SFR" value={`${sigFigs(starFormationRate(galaxy))} M☉/yr`} tooltip="Star-formation rate — Suns' worth of new stars formed per year." />
         <Row label="Mean age" value={`${meanStellarAge(galaxy)} Gyr`} tooltip="Average age of the galaxy's stars." />

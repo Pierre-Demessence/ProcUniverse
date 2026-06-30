@@ -49,3 +49,16 @@ live. Built in phases; this plan covers the whole feature, with Phase 1 detailed
 - [x] `main.ts`: mount + dispose the options menu.
 - [x] Tests: move the temperature-unit test to `settings.test.ts`; add °F cases.
 - [x] Static pipeline green + peer review.
+
+## Phase 2 subtasks (global distance unit)
+
+- [x] `src/distance.ts`: `DistanceUnit`, `formatDistance` (adaptive + km/AU/ly +
+  scientific-notation fallback), `auToUnit` / `unitToAu`.
+- [x] Move settings to `src/settings.ts` (app-level, read by render + UI); add
+  `distanceUnit` signal + `setDistanceUnit`.
+- [x] `options.tsx`: a Distance segmented control (factored out a `Segmented`).
+- [x] `inspector.tsx`: every distance row (HZ, frost line, orbit a, peri/apo, BH
+  radii, galaxy diameter) renders through `formatDistance`.
+- [x] `scale-bar.ts`: round the cell in the chosen unit; label via `formatDistance`.
+- [x] `draw-coords.ts`: `formatCoord` delegates to `formatDistance`.
+- [x] Tests (`distance.test.ts`, `settings.test.ts`) + pipeline green + peer review.

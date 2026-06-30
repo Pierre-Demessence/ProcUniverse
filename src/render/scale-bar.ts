@@ -1,7 +1,7 @@
 import type { Camera } from '@pierre/ecs/modules/camera';
 
-import { SCALE_KM_BELOW_AU, SCALE_LY_ABOVE_AU } from '../config';
-import { auToKm, auToLy } from '../generation/units';
+import { auToUnit, formatDistance, unitToAu } from '../distance';
+import { distanceUnit } from '../settings';
 import { niceStep, TARGET_PX } from './grid';
 
 const MARGIN_PX = 12;
@@ -10,12 +10,17 @@ const COLOR = 'rgba(170, 200, 245, 0.8)';
 
 /**
  * Draw a map-style scale bar in the bottom-left, exactly one reference-grid cell
- * wide and labelled with that cell's real length. Reuses the grid's `niceStep`
- * so the bar and the visible grid always agree; the unit auto-selects km / AU /
- * ly by magnitude. Screen-space, in canvas backing pixels (like the hint).
+ * wide and labelled with that cell's real length in the chosen distance unit.
+ * Adaptive auto-selects km / AU / ly by magnitude; a fixed unit rounds the cell
+ * to a nice value in that unit so the label reads cleanly. Reuses the grid's
+ * `niceStep` so the bar and the visible grid agree. Screen-space backing pixels.
  */
 export function drawScaleBar(ctx2d: CanvasRenderingContext2D, cam: Camera): void {
-  const cellAu = niceStep(TARGET_PX / cam.zoom);
+  const unit = distanceUnit.value;
+  const targetAu = TARGET_PX / cam.zoom;
+  // Round the cell to a nice length: in the chosen unit when fixed (so the label
+  // is a clean number like "200 km"), or in AU when adaptive.
+  const cellAu = unit === 'adaptive' ? niceStep(targetAu) : unitToAu(niceStep(auToUnit(targetAu, unit)), unit);
   const barPx = cellAu * cam.zoom;
   const x0 = MARGIN_PX;
   const y = cam.viewportH - 30;
@@ -34,22 +39,6 @@ export function drawScaleBar(ctx2d: CanvasRenderingContext2D, cam: Camera): void
   ctx2d.font = '12px ui-monospace, monospace';
   ctx2d.textAlign = 'left';
   ctx2d.textBaseline = 'bottom';
-  ctx2d.fillText(formatScaleLength(cellAu), x0, y - TICK_PX - 2);
+  ctx2d.fillText(formatDistance(cellAu, unit), x0, y - TICK_PX - 2);
   ctx2d.restore();
-}
-
-/** A grid-cell length in AU as a friendly `value unit` string (km / Mkm / AU / ly). */
-function formatScaleLength(au: number): string {
-  if (au < SCALE_KM_BELOW_AU) {
-    const km = auToKm(au);
-    return km >= 1e6 ? `${threeSigFigs(km / 1e6)} Mkm` : `${threeSigFigs(km)} km`;
-  }
-  if (au < SCALE_LY_ABOVE_AU)
-    return `${threeSigFigs(au)} AU`;
-  return `${threeSigFigs(auToLy(au))} ly`;
-}
-
-/** Three significant figures with thousands separators, trailing zeros dropped. */
-function threeSigFigs(x: number): string {
-  return Number(x.toPrecision(3)).toLocaleString('en-US');
 }

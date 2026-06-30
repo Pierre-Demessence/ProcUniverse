@@ -7,12 +7,13 @@
 import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
-import type { TemperatureUnit } from './settings';
+import type { DistanceUnit } from '../distance';
+import type { TemperatureUnit } from '../settings';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { resetSettings, setTemperatureUnit, temperatureUnit } from './settings';
+import { distanceUnit, resetSettings, setDistanceUnit, setTemperatureUnit, temperatureUnit } from '../settings';
 
 export interface OptionsMenu {
   dispose: () => void;
@@ -20,6 +21,9 @@ export interface OptionsMenu {
 
 const TEMPERATURE_UNITS: readonly TemperatureUnit[] = ['K', 'C', 'F'];
 const TEMPERATURE_LABELS: Record<TemperatureUnit, string> = { C: '°C', F: '°F', K: 'K' };
+
+const DISTANCE_UNITS: readonly DistanceUnit[] = ['adaptive', 'km', 'au', 'ly'];
+const DISTANCE_LABELS: Record<DistanceUnit, string> = { adaptive: 'Auto', au: 'AU', km: 'km', ly: 'ly' };
 
 const WRAP_CSS = [
   'position:absolute',
@@ -89,6 +93,39 @@ function segmentCss(active: boolean): string {
   ].join(';');
 }
 
+/** A labelled options row: caption on the left, control on the right. */
+function SettingRow({ children, label }: { children: VNode; label: string }): VNode {
+  return (
+    <div style={SETTING_CSS}>
+      <span style={LABEL_CSS}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** A segmented control: one highlighted button per option. */
+function Segmented<T extends string>({ labels, onSelect, options, value }: {
+  labels: Record<T, string>;
+  onSelect: (value: T) => void;
+  options: readonly T[];
+  value: T;
+}): VNode {
+  return (
+    <div style={SEGMENT_CSS}>
+      {options.map(option => (
+        <button
+          key={option}
+          type="button"
+          style={segmentCss(option === value)}
+          onClick={() => onSelect(option)}
+        >
+          {labels[option]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function OptionsPanel({ open }: { open: Signal<boolean> }): VNode {
   return (
     <div style={WRAP_CSS}>
@@ -98,21 +135,12 @@ function OptionsPanel({ open }: { open: Signal<boolean> }): VNode {
       {open.value && (
         <div style={PANEL_CSS}>
           <div style={CAPTION_CSS}>OPTIONS</div>
-          <div style={SETTING_CSS}>
-            <span style={LABEL_CSS}>Temperature</span>
-            <div style={SEGMENT_CSS}>
-              {TEMPERATURE_UNITS.map(unit => (
-                <button
-                  key={unit}
-                  type="button"
-                  style={segmentCss(unit === temperatureUnit.value)}
-                  onClick={() => setTemperatureUnit(unit)}
-                >
-                  {TEMPERATURE_LABELS[unit]}
-                </button>
-              ))}
-            </div>
-          </div>
+          <SettingRow label="Temperature">
+            <Segmented options={TEMPERATURE_UNITS} value={temperatureUnit.value} labels={TEMPERATURE_LABELS} onSelect={setTemperatureUnit} />
+          </SettingRow>
+          <SettingRow label="Distance">
+            <Segmented options={DISTANCE_UNITS} value={distanceUnit.value} labels={DISTANCE_LABELS} onSelect={setDistanceUnit} />
+          </SettingRow>
           <button type="button" style={RESET_CSS} onClick={resetSettings}>
             Reset to defaults
           </button>
