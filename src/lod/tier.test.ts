@@ -1,7 +1,7 @@
 import { makeCamera } from '@pierre/ecs/modules/camera';
 import { describe, expect, it } from 'vitest';
 
-import { GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU } from '../config';
+import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, UNIVERSE_SECTORS } from '../config';
 import { SECTOR_SIZE } from '../scale';
 import { selectTier } from './tier';
 
@@ -17,11 +17,13 @@ describe('selectTier', () => {
   const STAR_AT = SYSTEM_TIER_MAX_AU / SECTOR_SIZE;
 
   it('selects each tier by zoom (sectors across)', () => {
+    // Sample a value comfortably inside each tier's band, derived from the
+    // boundary constants so the test tracks any rescale of the spatial model.
     expect(selectTier(camAcross(STAR_AT * 0.4), 'system')).toBe('system');
-    expect(selectTier(camAcross(5), 'system')).toBe('star');
-    expect(selectTier(camAcross(1000), 'system')).toBe('galaxy');
-    expect(selectTier(camAcross(20000), 'system')).toBe('galaxy-field');
-    expect(selectTier(camAcross(200000), 'system')).toBe('universe');
+    expect(selectTier(camAcross(Math.sqrt(STAR_AT * GALAXY_TIER_SECTORS)), 'system')).toBe('star');
+    expect(selectTier(camAcross(Math.sqrt(GALAXY_TIER_SECTORS * GALAXY_FIELD_SECTORS)), 'system')).toBe('galaxy');
+    expect(selectTier(camAcross(Math.sqrt(GALAXY_FIELD_SECTORS * UNIVERSE_SECTORS)), 'system')).toBe('galaxy-field');
+    expect(selectTier(camAcross(UNIVERSE_SECTORS * 2), 'system')).toBe('universe');
   });
 
   it('holds the previous tier within the hysteresis dead-band at a boundary', () => {

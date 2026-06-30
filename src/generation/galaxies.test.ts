@@ -2,7 +2,7 @@ import type { GalaxyParams } from './galaxies';
 
 import { describe, expect, it } from 'vitest';
 
-import { BLACK_HOLE_MASS_MAX, BLACK_HOLE_MASS_MIN, GALAXY_CELL_LY } from '../config';
+import { BLACK_HOLE_MASS_MAX, BLACK_HOLE_MASS_MIN, GALAXY_CELL_LY, GALAXY_SCALE_LENGTH_LY } from '../config';
 import { SECTOR_SIZE } from '../scale';
 import {
   blackHoleMassFromSize,
@@ -198,8 +198,12 @@ describe('galaxyAt / galaxyDensityAt / galaxyCenteredIn', () => {
 describe('galaxy-field helpers', () => {
   it('reports a positive diameter and a star estimate that grows with size', () => {
     expect(galaxyDiameterLy(spiral)).toBeGreaterThan(0);
-    const big = { ...spiral, scaleLength: spiral.scaleLength * 2 };
-    expect(estimatedStarCount(big)).toBeGreaterThan(estimatedStarCount(spiral));
+    // A realistically-sized galaxy (scale length in light-years), since the star
+    // estimate is per-sector and a toy-sized disc rounds to zero at this scale.
+    const real = { ...spiral, scaleLength: GALAXY_SCALE_LENGTH_LY * AU_PER_LY };
+    const big = { ...real, scaleLength: real.scaleLength * 2 };
+    expect(estimatedStarCount(real)).toBeGreaterThan(0);
+    expect(estimatedStarCount(big)).toBeGreaterThan(estimatedStarCount(real));
   });
 
   it('colours spirals younger (bluer) than spheroidals', () => {
@@ -265,10 +269,15 @@ describe('galaxy derived quantities', () => {
 
 describe('galaxy population stats', () => {
   it('gives spirals a higher SFR and gas fraction, and a younger mean age, than ellipticals', () => {
-    expect(starFormationRate(spiral)).toBeGreaterThan(starFormationRate(elliptical));
+    // Realistically-sized galaxies so the per-sector star estimate (and the SFR
+    // that scales from it) is non-zero at the interstellar sector scale.
+    const realScale = GALAXY_SCALE_LENGTH_LY * AU_PER_LY;
+    const realSpiral = { ...spiral, scaleLength: realScale };
+    const realElliptical = { ...elliptical, scaleLength: realScale };
+    expect(starFormationRate(realSpiral)).toBeGreaterThan(starFormationRate(realElliptical));
     expect(gasFraction(spiral)).toBeGreaterThan(gasFraction(elliptical));
     expect(meanStellarAge(spiral)).toBeLessThan(meanStellarAge(elliptical));
-    expect(galaxyStellarMass(spiral)).toBeGreaterThan(0);
+    expect(galaxyStellarMass(realSpiral)).toBeGreaterThan(0);
   });
 });
 

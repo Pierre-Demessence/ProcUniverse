@@ -88,13 +88,13 @@ the 632 AU sector. The remaining genuinely-unrealistic sector property is the
 **interstellar spacing** (`LY_PER_SECTOR = 0.01` ⇒ stars ~632 AU apart vs. the
 real ~light-years), tracked as a separate item below.
 
-## Phase 3b — Interstellar spacing (data) — DEFERRED (separate item)
+## Phase 3b — Interstellar spacing (data) — DONE (uncommitted), see [realistic-scale.md](realistic-scale.md)
 
-`LY_PER_SECTOR = 0.01` packs stars ~632 AU apart; the nearest real star is 4.2 ly
-≈ 268,000 AU — the field is ~400–500× too dense. That was a deliberate "closer
-stars = easier travel" choice, so making it realistic (raise `LY_PER_SECTOR`
-toward ~1+ ly) changes traversal/feel and is its own decision. Not bundled with
-Phase 3.
+`LY_PER_SECTOR = 0.01` packed stars ~632 AU apart; the nearest real star is 4.2 ly
+≈ 268,000 AU. Pierre chose **full realism** (real spacing + Milky-Way-sized
+galaxies), with navigation made usable later by rendering tricks (warp-to-target).
+The cross-cutting rescale (galaxy model + LOD tiers + zoom range) is implemented
+and documented in its own plan: [realistic-scale.md](realistic-scale.md).
 
 ## Phase 4 — Apparent size (rendering) — NOT STARTED
 

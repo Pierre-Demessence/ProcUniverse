@@ -7,27 +7,28 @@
  */
 
 // ── Stellar field density & galaxy shape ────────────────────────────────────
-// A sector spans `LY_PER_SECTOR` light-years (lower it to pack stars closer —
-// easier interstellar travel). Stars are placed by a seeded galaxy **density
+// A sector spans `LY_PER_SECTOR` light-years — set to a realistic ~1 ly so stars
+// sit ~0.1 ly (dense cores) to a few ly (disc) apart. Stars are placed by a seeded galaxy **density
 // field** rather than a lattice: per sector, `STAR_DENSITY_PEAK` candidate
 // positions are drawn and each is kept with probability equal to the normalised
-// density there (1 at the core, 0 past the rim). The galaxy is a finite disc of
-// radius `GALAXY_RADIUS_LY` with an exponential falloff `GALAXY_SCALE_LENGTH_LY`;
+// density there (1 at the core, 0 past the rim) — ~10¹¹ stars in a full galaxy. The galaxy is a finite disc of
+// radius `GALAXY_RADIUS_LY` (Milky-Way-sized) with an exponential falloff `GALAXY_SCALE_LENGTH_LY`;
 // spiral / barred-spiral galaxies add `GALAXY_ARMS_MIN`–`GALAXY_ARMS_MAX`
 // logarithmic arms of pitch `GALAXY_ARM_PITCH_DEG` and contrast
 // `GALAXY_ARM_STRENGTH`; the morphology mix (spiral / barred / elliptical /
 // lenticular) is drawn by realistic field fractions in `galaxies.ts`.
-export const LY_PER_SECTOR = 0.01;
+export const LY_PER_SECTOR = 1;
 export const STAR_DENSITY_PEAK = 100;
-export const GALAXY_RADIUS_LY = 2.5;
-export const GALAXY_SCALE_LENGTH_LY = 0.5;
+export const GALAXY_RADIUS_LY = 50000;
+export const GALAXY_SCALE_LENGTH_LY = 10000;
 export const GALAXY_ARMS_MIN = 2;
 export const GALAXY_ARMS_MAX = 4;
 export const GALAXY_ARM_PITCH_DEG = 18;
 export const GALAXY_ARM_STRENGTH = 0.7;
 
 // ── Universe: galaxy field, black holes, stellar populations ─────────────
-// The universe tiles into galaxy cells of `GALAXY_CELL_LY`; each cell holds one
+// The universe tiles into galaxy cells of `GALAXY_CELL_LY` (~2 Mly, so galaxies
+// sit roughly Andromeda-distance apart); each cell holds one
 // galaxy with probability `GALAXY_OCCUPANCY`, its centre jittered within the
 // cell, and `GALAXY_DWARF_CHANCE` of them are smaller dwarfs. Each galaxy hosts
 // a central black hole whose mass spans `BLACK_HOLE_MASS_MIN`–`MAX` (M☉, scaled
@@ -35,7 +36,7 @@ export const GALAXY_ARM_STRENGTH = 0.7;
 // size. `POP_BIAS` sets how strongly galactic position tilts stellar
 // populations — star-forming arms toward hot blue stars, old cores / ellipticals
 // toward cool red ones.
-export const GALAXY_CELL_LY = 80;
+export const GALAXY_CELL_LY = 2000000;
 export const GALAXY_OCCUPANCY = 0.55;
 export const GALAXY_DWARF_CHANCE = 0.45;
 export const BLACK_HOLE_MASS_MIN = 1e6;
@@ -55,14 +56,14 @@ export const MORPH_DENSITY_BIAS = 0.25;
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
-// (planet inspection down to a galaxy-scale field). Rapid consecutive notches
+// (planet inspection out to the whole cosmic web). Rapid consecutive notches
 // accelerate: the factor ramps from `ZOOM_STEP` to `ZOOM_STEP_MAX` over
 // `ZOOM_STREAK_MAX` notches (chained while the gap stays under
-// `ZOOM_STREAK_WINDOW_MS`), so the ~10¹² range is a quick flick rather than ~240
-// notches; a pause or direction change resets to the gentle step. `SYSTEM_VIEW_AU`
+// `ZOOM_STREAK_WINDOW_MS`), so the ~10¹⁶ range is a quick flick rather than
+// hundreds of notches; a pause or direction change resets to the gentle step. `SYSTEM_VIEW_AU`
 // is the world height framed at startup; `REBASE_SECTORS` is how far the camera
 // may drift (in sectors) before the floating origin re-snaps when zoomed out.
-export const MIN_ZOOM = 1e-8;
+export const MIN_ZOOM = 1e-12;
 export const MAX_ZOOM = 1e4;
 export const ZOOM_STEP = 1.12;
 export const ZOOM_STEP_MAX = 2.5;
@@ -109,8 +110,8 @@ export const CLICK_SLOP_PX = 5;
 // dead-band that stops boundary thrash; `TIER_FADE_MS` is the tier cross-fade.
 export const SYSTEM_TIER_MAX_AU = 300;
 export const GALAXY_TIER_SECTORS = 16;
-export const GALAXY_FIELD_SECTORS = 8000;
-export const UNIVERSE_SECTORS = 80000;
+export const GALAXY_FIELD_SECTORS = 300000;
+export const UNIVERSE_SECTORS = 100000000;
 export const TIER_HYSTERESIS = 1.25;
 export const TIER_FADE_MS = 220;
 
