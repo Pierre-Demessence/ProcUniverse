@@ -15,7 +15,7 @@
   - Mass: show in kg in addition to solar/earth masses
   - Radius: show in km in addition to solar/earth radii
   - Other properties audit for common conversions
-- [ ] Persist unit choice upon reload
+- [x] Persist unit choice upon reload
   - Store selected unit preference in localStorage
   - Restore on app start
 
@@ -39,7 +39,7 @@
 
 ## View Persistence & Navigation
 
-- [ ] Persist current view upon reload
+- [x] Persist current view upon reload
   - Store camera position, zoom level in localStorage
   - Restore view state on app start
   - Add "return to origin" button for manual reset

@@ -2,18 +2,20 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import type { SystemData } from './generation/universe';
 import type { Tier } from './lod/tier';
+import type { Save } from './persistence/save';
 import type { Selection } from './pick';
 import type { NavNode, NavState, NavSystem } from './ui/nav-tree';
 
 import { EcsWorld } from '@pierre/ecs';
 import { worldToView } from '@pierre/ecs/modules/camera';
+import { clamp } from '@pierre/ecs/modules/math';
 import { Canvas2DRenderer, RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { drawStatsOverlay, FrameStats } from '@pierre/ecs/modules/stats';
 import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
-import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
+import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
 import { BlackHoleDef, galaxyAt } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
@@ -21,6 +23,7 @@ import { StarPhysicalDef } from './generation/stars';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
+import { writeSave } from './persistence/save';
 import { findEntityByName, pickBodyAt, pickGalaxyAt } from './pick';
 import { drawCoords } from './render/draw-coords';
 import { drawScaleBar } from './render/scale-bar';
@@ -30,6 +33,7 @@ import { SECTOR_SIZE } from './scale';
 import { OrbitElementsDef, updateOrbits } from './sim/orbits';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
+import { createResetViewButton } from './ui/reset-view';
 import { createTimeControls } from './ui/time-controls';
 
 const TARGET_MS = 1000 / 60;
@@ -41,8 +45,9 @@ const HINT = 'Drag to pan  ·  Scroll to zoom';
  * system tier; immediate-mode star dots and galaxy-density glows when zoomed
  * out), the camera, and the rAF render loop.
  */
-export function start(container: HTMLElement, seed: number): () => void {
+export function start(container: HTMLElement, save: Save): () => void {
   container.innerHTML = '';
+  const { seed } = save;
 
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'display:block; width:100%; height:100%; touch-action:none; cursor:grab;';
@@ -85,7 +90,7 @@ export function start(container: HTMLElement, seed: number): () => void {
   sizeCanvas();
 
   const controller = createCameraController(canvas);
-  const timeControls = createTimeControls(container);
+  const timeControls = createTimeControls(container, save.speedIndex);
   const inspector = createInspector(container);
 
   const world = new EcsWorld();
@@ -118,18 +123,34 @@ export function start(container: HTMLElement, seed: number): () => void {
   };
   syncViewport();
 
-  // Frame the home galaxy's centre at startup so its central black hole is in
-  // view; fall back to the first system (or the sector centre) if absent.
+  // The origin view frames the home galaxy's centre (its central black hole);
+  // fall back to the first system or the sector centre if absent. Captured as a
+  // reusable framing so startup and the "return to origin" button agree.
   const homeGalaxy = galaxyAt(seed, 0, 0);
   const originSector = cache.get(0, 0);
-  const focus = homeGalaxy
+  const homeFocus = homeGalaxy
     ? { x: homeGalaxy.centerX, y: homeGalaxy.centerY }
     : originSector.systems.length > 0
       ? originSector.systems[0]
       : { x: SECTOR_SIZE / 2, y: SECTOR_SIZE / 2 };
-  controller.camera.x = focus.x;
-  controller.camera.y = focus.y;
-  controller.camera.zoom = canvas.height / SYSTEM_VIEW_AU;
+  const frameOrigin = (): void => {
+    controller.camera.x = homeFocus.x;
+    controller.camera.y = homeFocus.y;
+    controller.camera.zoom = canvas.height / SYSTEM_VIEW_AU;
+  };
+
+  // Resume the saved view from a previous visit, or frame the origin on a first
+  // visit. A persisted zoom is clamped to the camera range in case the config
+  // bounds changed between sessions.
+  const savedView = save.view;
+  if (savedView) {
+    controller.camera.x = savedView.x;
+    controller.camera.y = savedView.y;
+    controller.camera.zoom = clamp(savedView.zoom, MIN_ZOOM, MAX_ZOOM);
+  }
+  else {
+    frameOrigin();
+  }
 
   // Floating render origin: everything is drawn relative to this so the renderer
   // works on small, precise coordinates however far the camera travels. Snapped
@@ -156,7 +177,7 @@ export function start(container: HTMLElement, seed: number): () => void {
   watchDpr();
 
   const { camera } = controller;
-  let simSeconds = 0;
+  let simSeconds = save.simSeconds;
   let currentTier: Tier = 'system';
 
   // Body selection (system tier only). A pointer gesture is treated as a pick
@@ -223,6 +244,10 @@ export function start(container: HTMLElement, seed: number): () => void {
       }
     },
   });
+
+  // Bottom-centre control to snap the camera back to the origin framing after
+  // panning far across the universe.
+  const resetViewButton = createResetViewButton(container, { onReset: frameOrigin });
 
   // Dirty-frame tracking: at non-system tiers nothing animates, so when the
   // camera is still the view is identical frame to frame.  Skip the heavy
@@ -396,6 +421,9 @@ export function start(container: HTMLElement, seed: number): () => void {
   renderSource.start();
 
   return (): void => {
+    // Persist the final session state (camera, clock, speed) so the next visit
+    // resumes here; this teardown is wired to `beforeunload`.
+    writeSave({ ...save, simSeconds, speedIndex: timeControls.speedIndex, view: { x: camera.x, y: camera.y, zoom: camera.zoom } });
     renderSource.stop();
     unsubscribe();
     resizeObserver.disconnect();
@@ -407,6 +435,7 @@ export function start(container: HTMLElement, seed: number): () => void {
     timeControls.dispose();
     inspector.dispose();
     navTree.dispose();
+    resetViewButton.dispose();
   };
 }
 

@@ -25,6 +25,7 @@ const SECONDS_PER_YEAR = 31557600; // Julian year
 
 export interface TimeControls {
   readonly element: HTMLElement;
+  readonly speedIndex: number;
   readonly timeScale: number;
   dispose: () => void;
   update: (simSeconds: number) => void;
@@ -127,8 +128,8 @@ function TimePanel({ date, rate, speedIndex }: TimePanelProps): VNode {
  * exposes the live `timeScale`, an `update(simSeconds)` to refresh the date
  * readout each frame, and `dispose()` to detach.
  */
-export function createTimeControls(container: HTMLElement): TimeControls {
-  const speedIndex = signal(DEFAULT_SPEED_INDEX);
+export function createTimeControls(container: HTMLElement, initialSpeedIndex = DEFAULT_SPEED_INDEX): TimeControls {
+  const speedIndex = signal(initialSpeedIndex);
   const simSeconds = signal(0);
   const date = computed(() => formatSimDate(simSeconds.value));
   const rate = computed(() => formatRate(sliderToScale(speedIndex.value)));
@@ -142,6 +143,9 @@ export function createTimeControls(container: HTMLElement): TimeControls {
     dispose(): void {
       render(null, mount);
       mount.remove();
+    },
+    get speedIndex(): number {
+      return speedIndex.value;
     },
     get timeScale(): number {
       return sliderToScale(speedIndex.value);

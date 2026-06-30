@@ -15,6 +15,7 @@ import type { VNode } from 'preact';
 import type { BlackHolePhysical, GalaxyParams, GalaxyType } from '../generation/galaxies';
 import type { PlanetPhysical, PlanetType, WaterState } from '../generation/planets';
 import type { StarPhysical } from '../generation/stars';
+import type { TemperatureUnit } from '../persistence/preferences';
 import type { Selection } from '../pick';
 import type { OrbitElements } from '../sim/orbits';
 
@@ -26,6 +27,7 @@ import { NameDef } from '../generation/naming';
 import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
+import { loadTemperatureUnit, saveTemperatureUnit } from '../persistence/preferences';
 import { populationColorCss } from '../render/galaxy-sprites';
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
 
@@ -33,9 +35,6 @@ export interface Inspector {
   dispose: () => void;
   update: (world: EcsWorld, selection: Selection | null) => void;
 }
-
-/** Display unit for temperatures: absolute kelvin or degrees Celsius. */
-export type TemperatureUnit = 'C' | 'K';
 
 // Kelvin offset of the Celsius zero point (0 °C = 273.15 K).
 const CELSIUS_OFFSET = 273.15;
@@ -50,11 +49,12 @@ const SECONDS_PER_DAY = 86400;
  * signal so reading it inside a component subscribes that component, re-rendering
  * just the temperature rows when the unit flips — independent of the selection.
  */
-export const temperatureUnit = signal<TemperatureUnit>('K');
+export const temperatureUnit = signal<TemperatureUnit>(loadTemperatureUnit() ?? 'K');
 
-/** Flip the inspector's temperature unit between kelvin and Celsius. */
+/** Flip the inspector's temperature unit between kelvin and Celsius, persisting the choice. */
 export function toggleTemperatureUnit(): void {
   temperatureUnit.value = temperatureUnit.value === 'K' ? 'C' : 'K';
+  saveTemperatureUnit(temperatureUnit.value);
 }
 
 /** Three significant figures with thousands separators, trailing zeros dropped. */
