@@ -117,12 +117,17 @@ export const TIER_FADE_MS = 220;
 // ── Orbital architecture ──────────────────────────────────────────────
 // Planet count per system, the inner-edge orbit and the geometric ratio
 // (Titius–Bode-like) between successive orbits, and the max eccentricity
-// (squared-biased toward circular). Distances in AU.
+// (squared-biased toward circular). Distances in AU. The inner edge sits near a
+// hot close-in orbit (real systems are full of planets inside Mercury's 0.39 AU)
+// and the count/ratio let some systems reach Neptune-like distances while most
+// stay compact. Two further realism steps are deferred (see
+// docs/plans/system-scale-realism.md): wider spacing beyond the frost line, and
+// scaling the orbital bounds with the star instead of fixed AU.
 export const PLANET_MIN = 1;
-export const PLANET_MAX = 5;
-export const ORBIT_INNER_AU = 0.25;
+export const PLANET_MAX = 8;
+export const ORBIT_INNER_AU = 0.04;
 export const ORBIT_RATIO_MIN = 1.4;
-export const ORBIT_RATIO_MAX = 2;
+export const ORBIT_RATIO_MAX = 2.2;
 export const ECC_MAX = 0.4;
 
 // ── Visual disc sizing (non-physical, AU) ─────────────────────────────

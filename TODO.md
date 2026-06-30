@@ -4,7 +4,7 @@
 
 - [ ] Add moons
   - Generate moons around planets
-  - Render moons in both star system and galaxy views
+  - Render moons star system view
   - Include moon properties in inspector
 
 ## Scale & Units Display
