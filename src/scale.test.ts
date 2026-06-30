@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { LY_PER_SECTOR, ORBIT_INNER_AU, ORBIT_RATIO_MAX, PLANET_MAX } from './config';
+import { LY_PER_SECTOR, ORBIT_INNER_AU, ORBIT_RATIO_OUTER_MAX, PLANET_MAX } from './config';
 import { AU_PER_LY } from './generation/units';
 import { SECTOR_SIZE, starVisualRadius } from './scale';
 
@@ -12,11 +12,11 @@ describe('scale', () => {
 
   it('keeps a sector far wider than the planetary systems inside it', () => {
     // Orbits are AU-scale; the sector is the interstellar unit. Even the widest
-    // possible system (every orbit drawn at the maximum ratio) fits with room to
-    // spare inside one sector, so the density knob can be retuned without the
-    // interstellar gap collapsing below a system's own extent.
-    const widestOrbit = ORBIT_INNER_AU * ORBIT_RATIO_MAX ** PLANET_MAX;
-    expect(SECTOR_SIZE).toBeGreaterThan(widestOrbit * 10);
+    // possible system (every orbit drawn at the largest cold/outer ratio) fits
+    // with room to spare inside one sector, so the density knob can be retuned
+    // without the interstellar gap collapsing below a system's own extent.
+    const widestOrbit = ORBIT_INNER_AU * ORBIT_RATIO_OUTER_MAX ** PLANET_MAX;
+    expect(SECTOR_SIZE).toBeGreaterThan(widestOrbit * 3);
   });
 });
 

@@ -45,7 +45,35 @@ re-rolls), which is expected.
 Resulting reach: innermost planet 0.06–0.09 AU; outermost ~0.06 AU (sparse) to
 ~22 AU (max luck), most systems still compact.
 
-## Phase 2 — Apparent size (rendering) — NOT STARTED
+## Phase 2 — Frost-line-aware spacing (data) — DONE (uncommitted)
+
+Real systems aren't uniformly geometric: a compact inner region, then a gap and
+widely-spaced outer giants beyond the frost line. Apply a wider ratio to cold
+orbits so distant planets appear far more often (and dim stars, with close-in
+frost lines, get cold giants without needing a huge planet count).
+
+- [x] Add `ORBIT_RATIO_OUTER_MIN` (1.6) / `ORBIT_RATIO_OUTER_MAX` (2.5) knobs.
+- [x] In `generateSectorData`, compute `frost = frostLine(L)` once per system; each
+      gap takes one draw mapped to the outer range when `a >= frost`, else the inner
+      range. One draw either way → deterministic stream unchanged; inner-only
+      systems are byte-identical to Phase 1, only systems with cold planets shift.
+- [x] Update `scale.test` worst-case guard to the true widest ratio
+      (`ORBIT_INNER_AU · ORBIT_RATIO_OUTER_MAX ** PLANET_MAX` ≈ 61 AU) with a ×3
+      sector margin (632 AU sector ⇒ 183 AU < 632, comfortable).
+- [x] Regression test: across a 3×3 sector grid, cold planets (a ≥ frost) exist and
+      the widest orbit exceeds 10 AU.
+- [x] Build + tests (171) + lint green.
+
+## Phase 3 — Star-scaled orbital bounds (data) — DEFERRED (next data item)
+
+The remaining data realism gap (research §5.1). Orbits are placed in fixed AU
+regardless of the star; realistically the inner edge (dust sublimation, ∝ √L) and
+the whole disk scale with stellar mass/luminosity, so planets track the habitable
+zone / frost line instead of being all-frozen around dim stars and all-roasted
+around bright ones. Bigger change with wide ripple effects (periods, temperatures,
+naming), so it is its own phase — do after Pierre confirms Phases 1–2 in browser.
+
+## Phase 4 — Apparent size (rendering) — NOT STARTED
 
 - Move the apparent-size decision out of the data layer: the data carries only the
   true physical radius; the renderer computes drawn size from `(trueRadius, zoom)`.
@@ -56,25 +84,9 @@ Resulting reach: innermost planet 0.06–0.09 AU; outermost ~0.06 AU (sparse) to
   scale (huge star, tiny planet against its orbit). No render-space distance warp
   (a radial distance compression is a fisheye — already tried and scrapped).
 
-## Phase 3 — Moons — NOT STARTED
+## Phase 5 — Moons — NOT STARTED
 
 Moons are the same model one level deeper (a body that becomes relevant only at a
 much tighter zoom, with its own sub-framing). Generate around planets, render with
-the Phase-2 floors/morph, expose in the inspector. Deferred until Phase 1–2 settle
-the scale model.
-
-## Deferred realism options (noted, not scheduled)
-
-These improve realism further but the current behaviour isn't strictly wrong, so
-they are parked here for later (research §5.1 already calls for both):
-
-- **Frost-line-aware spacing.** Real systems aren't uniformly geometric — they have
-  a compact inner region and widely-spaced outer giants beyond the frost line. The
-  generator already computes `beyond = a >= frostLine(L)`; applying a wider ratio
-  (e.g. 1.6–2.6) beyond the frost line would produce realistic inner-cluster +
-  outer-giant architectures and far more reliably place distant planets.
-- **Star-scaled orbital bounds.** Orbits are placed in fixed AU regardless of the
-  star; realistically the inner edge (dust sublimation, ∝ √L) and the whole disk
-  scale with stellar mass/luminosity, so planets track the habitable zone / frost
-  line instead of being all-frozen around dim stars and all-roasted around bright
-  ones. Bigger change with wide ripple effects (periods, temperatures, naming).
+the Phase-4 floors/morph, expose in the inspector. Deferred until the scale model
+settles.

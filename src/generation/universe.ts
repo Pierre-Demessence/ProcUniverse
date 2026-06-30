@@ -9,6 +9,8 @@ import {
   ORBIT_INNER_AU,
   ORBIT_RATIO_MAX,
   ORBIT_RATIO_MIN,
+  ORBIT_RATIO_OUTER_MAX,
+  ORBIT_RATIO_OUTER_MIN,
   PLANET_MAX,
   PLANET_MIN,
   STAR_DENSITY_PEAK,
@@ -17,7 +19,7 @@ import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadiu
 import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt, universeAge } from './galaxies';
 import { hashSector, hashSystem } from './hash';
 import { namePlanet, nameStar } from './naming';
-import { samplePlanet } from './planets';
+import { frostLine, samplePlanet } from './planets';
 import { sampleStar } from './stars';
 
 const TAU = Math.PI * 2;
@@ -109,9 +111,17 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
     const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, srng);
 
     const planets: PlanetData[] = [];
+    const frost = frostLine(star.luminosity);
     let a = ORBIT_INNER_AU;
     for (let j = 0; j < planetCount; j++) {
-      a *= lerp(ORBIT_RATIO_MIN, ORBIT_RATIO_MAX, srng());
+      // Beyond the frost line, orbits are spaced more widely — that is where
+      // giants form and real systems separate (the asteroid-belt gap, then the
+      // outer giants). Always one draw, so the deterministic stream is unchanged;
+      // only the multiplier's range shifts with the orbit's position.
+      const spacing = srng();
+      a *= a >= frost
+        ? lerp(ORBIT_RATIO_OUTER_MIN, ORBIT_RATIO_OUTER_MAX, spacing)
+        : lerp(ORBIT_RATIO_MIN, ORBIT_RATIO_MAX, spacing);
       // Draw into locals so eslint's object-key sorting cannot reorder the
       // rng() side effects and shift the deterministic stream.
       const color = choose(PLANET_COLORS, srng);

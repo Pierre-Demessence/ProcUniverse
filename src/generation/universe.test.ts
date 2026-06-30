@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { SECTOR_SIZE } from '../scale';
+import { frostLine } from './planets';
 import { generateSectorData } from './universe';
 
 describe('generateSectorData', () => {
@@ -66,5 +67,27 @@ describe('generateSectorData', () => {
     const xs = systems.map(s => s.x);
     expect(Math.min(...xs)).toBeLessThan(SECTOR_SIZE * 0.25);
     expect(Math.max(...xs)).toBeGreaterThan(SECTOR_SIZE * 0.75);
+  });
+
+  it('populates the cold region beyond the frost line and reaches far out', () => {
+    // Sample a grid of sectors so the population spans many stars: the wider
+    // outer-ratio spacing must actually trigger (cold planets beyond the frost
+    // line exist) and let some systems reach well past the inner-only ~8 AU cap.
+    let coldPlanets = 0;
+    let widest = 0;
+    for (let sx = 0; sx < 3; sx++) {
+      for (let sy = 0; sy < 3; sy++) {
+        for (const sys of generateSectorData(1337, sx, sy).systems) {
+          const frost = frostLine(sys.star.luminosity);
+          for (const p of sys.planets) {
+            if (p.a >= frost)
+              coldPlanets++;
+            widest = Math.max(widest, p.a);
+          }
+        }
+      }
+    }
+    expect(coldPlanets).toBeGreaterThan(0);
+    expect(widest).toBeGreaterThan(10);
   });
 });
