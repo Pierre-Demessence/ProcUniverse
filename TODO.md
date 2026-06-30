@@ -11,7 +11,7 @@
 
 - [x] Add kilometers as a unit for distance scale under 1 AU
   - Show "millions of km" when viewing very zoomed in (under 1 AU)
-- [ ] Add more unit conversions to the properties in the inspector
+- [x] Add more unit conversions to the properties in the inspector
   - Mass: show in kg in addition to solar/earth masses
   - Radius: show in km in addition to solar/earth radii
   - Other properties audit for common conversions
@@ -52,7 +52,7 @@
 
 ## Inspector & UX Improvements
 
-- [ ] Add more explanations (tooltips) to inspector properties
+- [x] Add more explanations (tooltips) to inspector properties
   - Identify properties that are unclear
   - Add helpful context for each property
   - Ensure clarity for non-astronomical users
