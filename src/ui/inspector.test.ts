@@ -10,8 +10,6 @@ import {
   formatSeed,
   formatTemperature,
   sigFigs,
-  temperatureUnit,
-  toggleTemperatureUnit,
 } from './inspector';
 
 describe('sigFigs', () => {
@@ -44,15 +42,11 @@ describe('formatTemperature', () => {
     expect(formatTemperature(279.6, 'C')).toBe('6 °C');
     expect(formatTemperature(50, 'C')).toBe('-223 °C');
   });
-});
 
-describe('toggleTemperatureUnit', () => {
-  it('flips the shared unit signal between K and C', () => {
-    expect(temperatureUnit.value).toBe('K');
-    toggleTemperatureUnit();
-    expect(temperatureUnit.value).toBe('C');
-    toggleTemperatureUnit();
-    expect(temperatureUnit.value).toBe('K');
+  it('converts to whole degrees Fahrenheit when asked', () => {
+    expect(formatTemperature(273.15, 'F')).toBe('32 °F');
+    expect(formatTemperature(373.15, 'F')).toBe('212 °F');
+    expect(formatTemperature(5772, 'F')).toBe('9,930 °F');
   });
 });
 

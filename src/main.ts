@@ -33,6 +33,7 @@ import { SECTOR_SIZE } from './scale';
 import { OrbitElementsDef, updateOrbits } from './sim/orbits';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
+import { createOptionsMenu } from './ui/options';
 import { createResetViewButton } from './ui/reset-view';
 import { createTimeControls } from './ui/time-controls';
 
@@ -252,6 +253,9 @@ export function start(container: HTMLElement, save: Save): () => void {
   // panning far across the universe.
   const resetViewButton = createResetViewButton(container, { onReset: frameOrigin });
 
+  // Top-centre options menu for display preferences (units, etc.).
+  const optionsMenu = createOptionsMenu(container);
+
   // Dirty-frame tracking: at non-system tiers nothing animates, so when the
   // camera is still the view is identical frame to frame.  Skip the heavy
   // render pass and just measure FPS.
@@ -443,6 +447,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     inspector.dispose();
     navTree.dispose();
     resetViewButton.dispose();
+    optionsMenu.dispose();
   };
 }
 

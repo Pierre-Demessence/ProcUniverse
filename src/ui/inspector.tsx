@@ -15,9 +15,9 @@ import type { VNode } from 'preact';
 import type { BlackHolePhysical, GalaxyParams, GalaxyType } from '../generation/galaxies';
 import type { PlanetPhysical, PlanetType, WaterState } from '../generation/planets';
 import type { StarPhysical } from '../generation/stars';
-import type { TemperatureUnit } from '../persistence/preferences';
 import type { Selection } from '../pick';
 import type { OrbitElements } from '../sim/orbits';
+import type { TemperatureUnit } from './settings';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
@@ -28,9 +28,9 @@ import { NameDef } from '../generation/naming';
 import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
-import { loadTemperatureUnit, saveTemperatureUnit } from '../persistence/preferences';
 import { populationColorCss } from '../render/galaxy-sprites';
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
+import { temperatureUnit } from './settings';
 
 export interface Inspector {
   dispose: () => void;
@@ -44,19 +44,6 @@ const CELSIUS_OFFSET = 273.15;
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
 const SECONDS_PER_DAY = 86400;
-
-/**
- * The temperature unit the inspector renders, toggled live from the panel. A
- * signal so reading it inside a component subscribes that component, re-rendering
- * just the temperature rows when the unit flips — independent of the selection.
- */
-export const temperatureUnit = signal<TemperatureUnit>(loadTemperatureUnit() ?? 'K');
-
-/** Flip the inspector's temperature unit between kelvin and Celsius, persisting the choice. */
-export function toggleTemperatureUnit(): void {
-  temperatureUnit.value = temperatureUnit.value === 'K' ? 'C' : 'K';
-  saveTemperatureUnit(temperatureUnit.value);
-}
 
 /** Three significant figures with thousands separators, trailing zeros dropped. */
 export function sigFigs(value: number, digits = 3): string {
@@ -75,6 +62,8 @@ export function formatQuantity(value: number, unit: string): string {
 export function formatTemperature(kelvin: number, unit: TemperatureUnit = 'K'): string {
   if (unit === 'C')
     return `${Math.round(kelvin - CELSIUS_OFFSET).toLocaleString('en-US')} °C`;
+  if (unit === 'F')
+    return `${Math.round((kelvin - CELSIUS_OFFSET) * 9 / 5 + 32).toLocaleString('en-US')} °F`;
   return `${Math.round(kelvin).toLocaleString('en-US')} K`;
 }
 
@@ -217,18 +206,13 @@ function Row({ label, tooltip, value }: { label: string; tooltip: string; value:
 }
 
 /**
- * A temperature row whose value reads the live `temperatureUnit` signal and
- * toggles it on click, so K ⇄ °C switches every temperature in the panel at once.
+ * A temperature row whose value reads the live `temperatureUnit` signal, so it
+ * re-renders in the chosen unit whenever the options menu changes it.
  */
 function TemperatureRow({ kelvin, label, tooltip }: { kelvin: number; label: string; tooltip: string }): VNode {
   const hover = useHover();
   return (
-    <div
-      style={`${ROW_CSS}; position:relative; cursor:pointer`}
-      onClick={toggleTemperatureUnit}
-      onMouseEnter={hover.onMouseEnter}
-      onMouseLeave={hover.onMouseLeave}
-    >
+    <div style={`${ROW_CSS}; position:relative; cursor:help`} onMouseEnter={hover.onMouseEnter} onMouseLeave={hover.onMouseLeave}>
       <span style={LABEL_CSS}>{label}</span>
       <span style={VALUE_CSS}>{formatTemperature(kelvin, temperatureUnit.value)}</span>
       {hover.hovered && <span style={TOOLTIP_CSS}>{tooltip}</span>}
@@ -276,7 +260,7 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
         <Row label="Density" value={formatQuantity(meanDensity(star.mass, star.radius), 'g/cm³')} tooltip="Average mass packed into each cubic centimetre of the star." />
         <Row label="Gravity (log g)" value={sigFigs(surfaceGravityLog(star.mass, star.radius))} tooltip="Surface gravity on a logarithmic scale; the Sun is about 4.44." />
         <Row label="Escape vel." value={formatQuantity(starEscapeVelocity(star.mass, star.radius), 'km/s')} tooltip="Speed needed to escape the star's gravity from its surface." />
-        <TemperatureRow label="Temperature" kelvin={star.temperature} tooltip="The star's surface temperature. Click to switch between K and °C." />
+        <TemperatureRow label="Temperature" kelvin={star.temperature} tooltip="The star's surface temperature." />
         <Row label="Peak λ" value={formatQuantity(peakWavelength(star.temperature), 'nm')} tooltip="The wavelength of light the star glows most strongly at." />
         <Row label="Bolo. mag" value={sigFigs(bolometricMagnitude(star.luminosity))} tooltip="Overall brightness on the magnitude scale — smaller numbers are brighter." />
         <Row label="Metallicity" value={`${sigFigs(star.metallicity)} dex`} tooltip="Richness in elements heavier than hydrogen and helium; 0 ≈ the Sun." />
@@ -309,8 +293,8 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Oblateness" value={`${sigFigs(oblateness(planet.rotationPeriod, planet.mass, planet.radius) * 100)}%`} tooltip="How much spinning squashes the planet at its equator (Earth ≈ 0.3%)." />
         <Row label="Axial tilt" value={`${Math.round(planet.obliquity)}°`} tooltip="Tilt of the spin axis, which gives a planet its seasons." />
         <Row label="Moons" value={`${planet.moonCount}${planet.hasRings ? ' · rings' : ''}`} tooltip="How many moons orbit the planet, and whether it has rings." />
-        <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} tooltip="Temperature from starlight alone, before greenhouse warming. Click for K/°C." />
-        <TemperatureRow label="Surface" kelvin={surfaceTemperature(planet.equilibriumTemp, planet.type, hasAtmosphere)} tooltip="Estimated surface temperature including greenhouse warming. Click for K/°C." />
+        <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} tooltip="Temperature from starlight alone, before any greenhouse warming." />
+        <TemperatureRow label="Surface" kelvin={surfaceTemperature(planet.equilibriumTemp, planet.type, hasAtmosphere)} tooltip="Estimated surface temperature including greenhouse warming." />
         <Row label="Insolation" value={formatQuantity(planet.insolation, 'S⊕')} tooltip="How much starlight the planet receives, relative to Earth." />
         <Row label="Atmosphere" value={atmosphereType(planet.type, hasAtmosphere, planet.equilibriumTemp)} tooltip="The kind of atmosphere the planet can likely keep, if any." />
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} tooltip="Whether it lies in the liquid-water zone, and what state its water is in." />
