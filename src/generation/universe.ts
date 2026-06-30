@@ -5,8 +5,11 @@ import { lerp } from '@pierre/ecs/modules/math';
 import { makeSeededRng, randomInt } from '@pierre/ecs/modules/rng';
 
 import {
+  DISK_OUTER_AU,
+  DISK_OUTER_MAX_AU,
   ECC_MAX,
   ORBIT_INNER_AU,
+  ORBIT_INNER_MIN_AU,
   ORBIT_RATIO_MAX,
   ORBIT_RATIO_MIN,
   ORBIT_RATIO_OUTER_MAX,
@@ -112,7 +115,15 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
 
     const planets: PlanetData[] = [];
     const frost = frostLine(star.luminosity);
-    let a = ORBIT_INNER_AU;
+    // The planet-forming disk scales with the star: its inner edge tracks the
+    // dust-sublimation radius (∝ √L, floored so a faint star never places a
+    // planet inside itself) and its outer edge the disk's reach (capped at a
+    // realistic extent). A luminous star's planets thus start farther out and
+    // reach its distant habitable zone / frost line; a dim star's hug it.
+    const rootLuminosity = Math.sqrt(star.luminosity);
+    const innerEdge = Math.max(ORBIT_INNER_AU * rootLuminosity, ORBIT_INNER_MIN_AU);
+    const diskOuter = Math.min(DISK_OUTER_AU * rootLuminosity, DISK_OUTER_MAX_AU);
+    let a = innerEdge;
     for (let j = 0; j < planetCount; j++) {
       // Beyond the frost line, orbits are spaced more widely — that is where
       // giants form and real systems separate (the asteroid-belt gap, then the
@@ -122,6 +133,9 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       a *= a >= frost
         ? lerp(ORBIT_RATIO_OUTER_MIN, ORBIT_RATIO_OUTER_MAX, spacing)
         : lerp(ORBIT_RATIO_MIN, ORBIT_RATIO_MAX, spacing);
+      // Stop at the disk's outer edge — a smaller disk simply holds fewer planets.
+      if (a > diskOuter)
+        break;
       // Draw into locals so eslint's object-key sorting cannot reorder the
       // rng() side effects and shift the deterministic stream.
       const color = choose(PLANET_COLORS, srng);

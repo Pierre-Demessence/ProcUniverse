@@ -64,14 +64,37 @@ frost lines, get cold giants without needing a huge planet count).
       the widest orbit exceeds 10 AU.
 - [x] Build + tests (171) + lint green.
 
-## Phase 3 — Star-scaled orbital bounds (data) — DEFERRED (next data item)
+## Phase 3 — Star-scaled orbital bounds (data) — DONE (uncommitted)
 
-The remaining data realism gap (research §5.1). Orbits are placed in fixed AU
-regardless of the star; realistically the inner edge (dust sublimation, ∝ √L) and
-the whole disk scale with stellar mass/luminosity, so planets track the habitable
-zone / frost line instead of being all-frozen around dim stars and all-roasted
-around bright ones. Bigger change with wide ripple effects (periods, temperatures,
-naming), so it is its own phase — do after Pierre confirms Phases 1–2 in browser.
+Orbits were placed in fixed AU regardless of the star, so bright stars' planets
+could never reach their distant habitable zone / frost line (all roasted) while
+dim stars' planets sat too far out. Scale the planet-forming disk with the star.
+
+- [x] Add knobs: `ORBIT_INNER_MIN_AU` (0.01, inner floor), `DISK_OUTER_AU` (50,
+      Sun disk edge), `DISK_OUTER_MAX_AU` (150, saturation cap).
+- [x] Inner edge = `max(ORBIT_INNER_AU·√L, ORBIT_INNER_MIN_AU)` (dust-sublimation
+      radius ∝ √L; floor so faint stars don't place a planet inside themselves).
+- [x] Outer disk edge = `min(DISK_OUTER_AU·√L, DISK_OUTER_MAX_AU)`; stop placing
+      planets past it (a smaller disk holds fewer). Keeps Phase 2 frost-aware
+      spacing. No new draws (truncation only ends a system's own loop early).
+- [x] Update `scale.test` guard to the disk cap (`SECTOR_SIZE > DISK_OUTER_MAX_AU·3`
+      ⇒ 450 AU < 632 AU sector). Luminosity range [6e-4, 1.2e6] L☉ ⇒ max inner edge
+      ~44 AU ⇒ first planet always < 150 AU, so the cap bounds every system.
+- [x] Build + tests (171) + lint green. Determinism + cold-region + ordering tests
+      still pass. Shifts the universe again (every star's inner edge changes).
+
+No sector resize was needed: the realistic disk saturates at 150 AU, well inside
+the 632 AU sector. The remaining genuinely-unrealistic sector property is the
+**interstellar spacing** (`LY_PER_SECTOR = 0.01` ⇒ stars ~632 AU apart vs. the
+real ~light-years), tracked as a separate item below.
+
+## Phase 3b — Interstellar spacing (data) — DEFERRED (separate item)
+
+`LY_PER_SECTOR = 0.01` packs stars ~632 AU apart; the nearest real star is 4.2 ly
+≈ 268,000 AU — the field is ~400–500× too dense. That was a deliberate "closer
+stars = easier travel" choice, so making it realistic (raise `LY_PER_SECTOR`
+toward ~1+ ly) changes traversal/feel and is its own decision. Not bundled with
+Phase 3.
 
 ## Phase 4 — Apparent size (rendering) — NOT STARTED
 

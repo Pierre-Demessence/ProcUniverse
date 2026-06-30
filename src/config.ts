@@ -115,23 +115,27 @@ export const TIER_HYSTERESIS = 1.25;
 export const TIER_FADE_MS = 220;
 
 // ── Orbital architecture ──────────────────────────────────────────────
-// Planet count per system, the inner-edge orbit and the geometric ratio
-// (Titius–Bode-like) between successive orbits, and the max eccentricity
-// (squared-biased toward circular). Distances in AU. The inner edge sits near a
-// hot close-in orbit (real systems are full of planets inside Mercury's 0.39 AU).
-// Orbits inside the frost line use the tight inner ratio; colder orbits beyond it
-// use the wider OUTER ratio, where giants form and real systems spread apart (the
-// asteroid-belt gap, then the outer giants) — so some systems reach Neptune-like
-// distances while most stay compact. One further realism step is deferred (see
-// docs/plans/system-scale-realism.md): scaling the orbital bounds with the star
-// instead of fixed AU.
+// Planet count per system, then a planet-forming disk that scales with the host
+// star. Its inner edge tracks the dust-sublimation radius (∝ √L, anchored at
+// ORBIT_INNER_AU for the Sun, floored at ORBIT_INNER_MIN_AU so faint stars never
+// place a planet inside themselves); successive orbits step out by a geometric
+// ratio (Titius–Bode-like), tight inside the frost line and wider in the cold
+// outer region where giants form. The disk's outer edge also scales (∝ √L from
+// DISK_OUTER_AU) but saturates at DISK_OUTER_MAX_AU — a realistic maximum extent
+// that also keeps every system well inside a sector — and planets stop there (a
+// smaller disk simply holds fewer). So a luminous star's planets start farther
+// out and reach its distant habitable zone / frost line, while a dim star's hug
+// it. Eccentricity is squared-biased toward circular. Distances in AU.
 export const PLANET_MIN = 1;
 export const PLANET_MAX = 8;
 export const ORBIT_INNER_AU = 0.04;
+export const ORBIT_INNER_MIN_AU = 0.01;
 export const ORBIT_RATIO_MIN = 1.4;
 export const ORBIT_RATIO_MAX = 2.2;
 export const ORBIT_RATIO_OUTER_MIN = 1.6;
 export const ORBIT_RATIO_OUTER_MAX = 2.5;
+export const DISK_OUTER_AU = 50;
+export const DISK_OUTER_MAX_AU = 150;
 export const ECC_MAX = 0.4;
 
 // ── Visual disc sizing (non-physical, AU) ─────────────────────────────
