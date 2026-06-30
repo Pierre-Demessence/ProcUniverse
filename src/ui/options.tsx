@@ -8,12 +8,12 @@ import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
 import type { DistanceUnit } from '../distance';
-import type { TemperatureUnit, ValueMode } from '../settings';
+import type { DetailLevel, NumberNotation, TemperatureUnit, ValueMode } from '../settings';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { distanceUnit, resetSettings, setDistanceUnit, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from '../settings';
+import { detailLevel, distanceUnit, numberNotation, resetSettings, setDetailLevel, setDistanceUnit, setNumberNotation, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from '../settings';
 
 export interface OptionsMenu {
   dispose: () => void;
@@ -27,6 +27,12 @@ const DISTANCE_LABELS: Record<DistanceUnit, string> = { adaptive: 'Auto', au: 'A
 
 const VALUE_MODES: readonly ValueMode[] = ['relative', 'absolute'];
 const VALUE_LABELS: Record<ValueMode, string> = { absolute: 'SI', relative: 'Sun/Earth' };
+
+const DETAIL_LEVELS: readonly DetailLevel[] = ['basic', 'advanced'];
+const DETAIL_LABELS: Record<DetailLevel, string> = { advanced: 'Advanced', basic: 'Basic' };
+
+const NUMBER_NOTATIONS: readonly NumberNotation[] = ['auto', 'scientific'];
+const NUMBER_LABELS: Record<NumberNotation, string> = { auto: 'Auto', scientific: 'Sci' };
 
 const WRAP_CSS = [
   'position:absolute',
@@ -146,6 +152,12 @@ function OptionsPanel({ open }: { open: Signal<boolean> }): VNode {
           </SettingRow>
           <SettingRow label="Values">
             <Segmented options={VALUE_MODES} value={valueMode.value} labels={VALUE_LABELS} onSelect={setValueMode} />
+          </SettingRow>
+          <SettingRow label="Detail">
+            <Segmented options={DETAIL_LEVELS} value={detailLevel.value} labels={DETAIL_LABELS} onSelect={setDetailLevel} />
+          </SettingRow>
+          <SettingRow label="Numbers">
+            <Segmented options={NUMBER_NOTATIONS} value={numberNotation.value} labels={NUMBER_LABELS} onSelect={setNumberNotation} />
           </SettingRow>
           <button type="button" style={RESET_CSS} onClick={resetSettings}>
             Reset to defaults

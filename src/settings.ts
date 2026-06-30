@@ -19,9 +19,17 @@ export type TemperatureUnit = 'C' | 'F' | 'K';
 /** Whether "vs Sun/Earth" quantities show relative (☉/⊕) or absolute (SI) units. */
 export type ValueMode = 'absolute' | 'relative';
 
+/** How much detail the inspector shows: a friendly subset, or every property. */
+export type DetailLevel = 'advanced' | 'basic';
+
+/** How numbers render: friendly (grouped, sci only at the extremes) or always scientific. */
+export type NumberNotation = 'auto' | 'scientific';
+
 const DEFAULT_TEMPERATURE_UNIT: TemperatureUnit = 'K';
 const DEFAULT_DISTANCE_UNIT: DistanceUnit = 'adaptive';
 const DEFAULT_VALUE_MODE: ValueMode = 'relative';
+const DEFAULT_DETAIL_LEVEL: DetailLevel = 'advanced';
+const DEFAULT_NUMBER_NOTATION: NumberNotation = 'auto';
 
 function asTemperatureUnit(value: unknown): TemperatureUnit | null {
   return value === 'C' || value === 'F' || value === 'K' ? value : null;
@@ -35,6 +43,14 @@ function asValueMode(value: unknown): ValueMode | null {
   return value === 'absolute' || value === 'relative' ? value : null;
 }
 
+function asDetailLevel(value: unknown): DetailLevel | null {
+  return value === 'advanced' || value === 'basic' ? value : null;
+}
+
+function asNumberNotation(value: unknown): NumberNotation | null {
+  return value === 'auto' || value === 'scientific' ? value : null;
+}
+
 const stored = loadPreferences();
 
 /** The temperature unit every panel renders, seeded from storage. */
@@ -45,6 +61,12 @@ export const distanceUnit = signal<DistanceUnit>(asDistanceUnit(stored.distanceU
 
 /** Whether the inspector shows quantities relative to the Sun/Earth or in absolute SI units. */
 export const valueMode = signal<ValueMode>(asValueMode(stored.valueMode) ?? DEFAULT_VALUE_MODE);
+
+/** How many inspector rows to show: a friendly subset (basic) or every property (advanced). */
+export const detailLevel = signal<DetailLevel>(asDetailLevel(stored.detailLevel) ?? DEFAULT_DETAIL_LEVEL);
+
+/** How numbers render across the inspector and HUD: friendly or always scientific. */
+export const numberNotation = signal<NumberNotation>(asNumberNotation(stored.numberNotation) ?? DEFAULT_NUMBER_NOTATION);
 
 /** Choose the temperature unit and persist it. */
 export function setTemperatureUnit(unit: TemperatureUnit): void {
@@ -64,10 +86,24 @@ export function setValueMode(mode: ValueMode): void {
   savePreference('valueMode', mode);
 }
 
+/** Choose the inspector detail level and persist it. */
+export function setDetailLevel(level: DetailLevel): void {
+  detailLevel.value = level;
+  savePreference('detailLevel', level);
+}
+
+/** Choose the number notation and persist it. */
+export function setNumberNotation(notation: NumberNotation): void {
+  numberNotation.value = notation;
+  savePreference('numberNotation', notation);
+}
+
 /** Restore every setting to its default and clear the stored preferences. */
 export function resetSettings(): void {
   temperatureUnit.value = DEFAULT_TEMPERATURE_UNIT;
   distanceUnit.value = DEFAULT_DISTANCE_UNIT;
   valueMode.value = DEFAULT_VALUE_MODE;
+  detailLevel.value = DEFAULT_DETAIL_LEVEL;
+  numberNotation.value = DEFAULT_NUMBER_NOTATION;
   clearPreferences();
 }

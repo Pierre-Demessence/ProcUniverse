@@ -10,6 +10,7 @@
 
 import { SCALE_KM_BELOW_AU, SCALE_LY_ABOVE_AU } from './config';
 import { auToKm, auToLy, kmToAu, lyToAu } from './generation/units';
+import { numberNotation } from './settings';
 
 export type DistanceUnit = 'adaptive' | 'au' | 'km' | 'ly';
 
@@ -24,6 +25,8 @@ const SCI_LOW = 1e-3;
 
 /** Three significant figures with thousands separators, trailing zeros dropped. */
 function threeSigFigs(value: number): string {
+  if (numberNotation.value === 'scientific' && value !== 0 && Number.isFinite(value))
+    return value.toExponential(2).replace('e+', 'e');
   return Number(value.toPrecision(3)).toLocaleString('en-US');
 }
 

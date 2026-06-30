@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { distanceUnit, resetSettings, setDistanceUnit, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from './settings';
+import { detailLevel, distanceUnit, numberNotation, resetSettings, setDetailLevel, setDistanceUnit, setNumberNotation, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from './settings';
 
 afterEach(() => {
   resetSettings();
@@ -43,14 +43,40 @@ describe('value mode setting', () => {
   });
 });
 
+describe('detail level setting', () => {
+  it('defaults to advanced', () => {
+    expect(detailLevel.value).toBe('advanced');
+  });
+
+  it('updates the shared signal when set', () => {
+    setDetailLevel('basic');
+    expect(detailLevel.value).toBe('basic');
+  });
+});
+
+describe('number notation setting', () => {
+  it('defaults to auto', () => {
+    expect(numberNotation.value).toBe('auto');
+  });
+
+  it('updates the shared signal when set', () => {
+    setNumberNotation('scientific');
+    expect(numberNotation.value).toBe('scientific');
+  });
+});
+
 describe('resetSettings', () => {
   it('restores every setting to its default', () => {
     setTemperatureUnit('F');
     setDistanceUnit('ly');
     setValueMode('absolute');
+    setDetailLevel('basic');
+    setNumberNotation('scientific');
     resetSettings();
     expect(temperatureUnit.value).toBe('K');
     expect(distanceUnit.value).toBe('adaptive');
     expect(valueMode.value).toBe('relative');
+    expect(detailLevel.value).toBe('advanced');
+    expect(numberNotation.value).toBe('auto');
   });
 });

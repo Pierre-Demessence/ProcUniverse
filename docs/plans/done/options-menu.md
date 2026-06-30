@@ -74,3 +74,14 @@ live. Built in phases; this plan covers the whole feature, with Phase 1 detailed
 - [x] `inspector.tsx`: `formatMeasure` / `formatSolarMass`; mass → kg, luminosity
   → W, radius → km, gravity → m/s², insolation → W/m², SMBH mass → kg.
 - [x] `settings.test.ts`: value-mode cases + pipeline green + peer review.
+
+## Phase 4 subtasks (Basic/Advanced detail + number notation)
+
+- [x] `settings.ts`: `DetailLevel` (advanced default), `NumberNotation` (auto
+  default), signals, setters; reset includes them.
+- [x] `options.tsx`: "Detail" (Basic/Advanced) and "Numbers" (Auto/Sci) controls.
+- [x] Number notation: `sigFigs` (inspector) and `threeSigFigs` (distance) switch
+  to compact scientific notation when `numberNotation` is `scientific`.
+- [x] `inspector.tsx`: `Row` / `TemperatureRow` gain a `basic` flag and hide at the
+  basic level; ~24 essential rows marked `basic` across all panels.
+- [x] Tests (`settings.test.ts`, `distance.test.ts`) + pipeline green + peer review.

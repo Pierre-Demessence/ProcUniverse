@@ -30,7 +30,7 @@ import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { AU_PER_LY, EARTH_GRAVITY_MS2, L_SUN, M_EARTH_KG, M_SUN_KG, R_EARTH_KM, R_SUN_KM, SECONDS_PER_YEAR, SOLAR_CONSTANT_W_M2 } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
-import { distanceUnit, temperatureUnit, valueMode } from '../settings';
+import { detailLevel, distanceUnit, numberNotation, temperatureUnit, valueMode } from '../settings';
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
 
 export interface Inspector {
@@ -48,6 +48,8 @@ const SECONDS_PER_DAY = 86400;
 
 /** Three significant figures with thousands separators, trailing zeros dropped. */
 export function sigFigs(value: number, digits = 3): string {
+  if (numberNotation.value === 'scientific' && value !== 0 && Number.isFinite(value))
+    return value.toExponential(2).replace('e+', 'e');
   // `maximumSignificantDigits` (not `toPrecision`) so a tiny value like an
   // M-dwarf's ~7e-4 L☉ keeps its figures instead of hitting the default
   // 3-fraction-digit cap and collapsing to "0.001".
@@ -212,9 +214,14 @@ function useHover(): { hovered: boolean; onMouseEnter: () => void; onMouseLeave:
   return { hovered, onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) };
 }
 
-/** A label/value row that reveals a one-sentence help popover on hover. */
-function Row({ label, tooltip, value }: { label: string; tooltip: string; value: string }): VNode {
+/**
+ * A label/value row that reveals a one-sentence help popover on hover. Rows
+ * marked `basic` stay visible at the basic detail level; the rest hide there.
+ */
+function Row({ basic, label, tooltip, value }: { basic?: boolean; label: string; tooltip: string; value: string }): VNode | null {
   const hover = useHover();
+  if (detailLevel.value === 'basic' && !basic)
+    return null;
   return (
     <div style={`${ROW_CSS}; position:relative; cursor:help`} onMouseEnter={hover.onMouseEnter} onMouseLeave={hover.onMouseLeave}>
       <span style={LABEL_CSS}>{label}</span>
@@ -228,8 +235,10 @@ function Row({ label, tooltip, value }: { label: string; tooltip: string; value:
  * A temperature row whose value reads the live `temperatureUnit` signal, so it
  * re-renders in the chosen unit whenever the options menu changes it.
  */
-function TemperatureRow({ kelvin, label, tooltip }: { kelvin: number; label: string; tooltip: string }): VNode {
+function TemperatureRow({ basic, kelvin, label, tooltip }: { basic?: boolean; kelvin: number; label: string; tooltip: string }): VNode | null {
   const hover = useHover();
+  if (detailLevel.value === 'basic' && !basic)
+    return null;
   return (
     <div style={`${ROW_CSS}; position:relative; cursor:help`} onMouseEnter={hover.onMouseEnter} onMouseLeave={hover.onMouseLeave}>
       <span style={LABEL_CSS}>{label}</span>
@@ -275,20 +284,20 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
       <div style={CAPTION_CSS}>{`STAR · CLASS ${star.spectralClass}`}</div>
       <div style={BODY_CSS}>
         <ClassRow star={star} />
-        <Row label="Mass" value={formatMeasure(star.mass, 'M☉', M_SUN_KG, 'kg', vm)} tooltip="How much matter the star contains, in multiples of the Sun's mass." />
-        <Row label="Luminosity" value={formatMeasure(star.luminosity, 'L☉', L_SUN, 'W', vm)} tooltip="Total light the star radiates, relative to the Sun." />
-        <Row label="Radius" value={formatMeasure(star.radius, 'R☉', R_SUN_KM, 'km', vm)} tooltip="The star's size, in multiples of the Sun's radius." />
+        <Row label="Mass" value={formatMeasure(star.mass, 'M☉', M_SUN_KG, 'kg', vm)} tooltip="How much matter the star contains, in multiples of the Sun's mass." basic />
+        <Row label="Luminosity" value={formatMeasure(star.luminosity, 'L☉', L_SUN, 'W', vm)} tooltip="Total light the star radiates, relative to the Sun." basic />
+        <Row label="Radius" value={formatMeasure(star.radius, 'R☉', R_SUN_KM, 'km', vm)} tooltip="The star's size, in multiples of the Sun's radius." basic />
         <Row label="Density" value={formatQuantity(meanDensity(star.mass, star.radius), 'g/cm³')} tooltip="Average mass packed into each cubic centimetre of the star." />
         <Row label="Gravity (log g)" value={sigFigs(surfaceGravityLog(star.mass, star.radius))} tooltip="Surface gravity on a logarithmic scale; the Sun is about 4.44." />
         <Row label="Escape vel." value={formatQuantity(starEscapeVelocity(star.mass, star.radius), 'km/s')} tooltip="Speed needed to escape the star's gravity from its surface." />
-        <TemperatureRow label="Temperature" kelvin={star.temperature} tooltip="The star's surface temperature." />
+        <TemperatureRow label="Temperature" kelvin={star.temperature} tooltip="The star's surface temperature." basic />
         <Row label="Peak λ" value={formatQuantity(peakWavelength(star.temperature), 'nm')} tooltip="The wavelength of light the star glows most strongly at." />
         <Row label="Bolo. mag" value={sigFigs(bolometricMagnitude(star.luminosity))} tooltip="Overall brightness on the magnitude scale — smaller numbers are brighter." />
         <Row label="Metallicity" value={`${sigFigs(star.metallicity)} dex`} tooltip="Richness in elements heavier than hydrogen and helium; 0 ≈ the Sun." />
         <Row label="Lifetime" value={formatLifetime(star.lifetime)} tooltip="How long the star can shine before exhausting its core hydrogen." />
-        <Row label="Age" value={formatLifetime(star.age)} tooltip="How long the star has existed so far." />
+        <Row label="Age" value={formatLifetime(star.age)} tooltip="How long the star has existed so far." basic />
         <Row label="MS elapsed" value={`${Math.round((100 * star.age) / star.lifetime)}%`} tooltip="Fraction of its hydrogen-burning life the star has already used." />
-        <Row label="Habitable zone" value={`${formatDistance(hz.inner, du)} – ${formatDistance(hz.outer, du)}`} tooltip="Distance range where a planet could have liquid surface water." />
+        <Row label="Habitable zone" value={`${formatDistance(hz.inner, du)} – ${formatDistance(hz.outer, du)}`} tooltip="Distance range where a planet could have liquid surface water." basic />
         <Row label="Frost line" value={formatDistance(frostLine(star.luminosity), du)} tooltip="Distance beyond which it's cold enough for ice — where giant planets tend to form." />
       </div>
     </div>
@@ -305,26 +314,26 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
       <div style={NAME_CSS}>{name}</div>
       <div style={CAPTION_CSS}>{`PLANET · ${formatPlanetType(planet.type).toUpperCase()}`}</div>
       <div style={BODY_CSS}>
-        <Row label="Mass" value={formatMeasure(planet.mass, 'M⊕', M_EARTH_KG, 'kg', vm)} tooltip="How much matter the planet contains, in multiples of Earth's mass." />
-        <Row label="Radius" value={formatMeasure(planet.radius, 'R⊕', R_EARTH_KM, 'km', vm)} tooltip="The planet's size, in multiples of Earth's radius." />
+        <Row label="Mass" value={formatMeasure(planet.mass, 'M⊕', M_EARTH_KG, 'kg', vm)} tooltip="How much matter the planet contains, in multiples of Earth's mass." basic />
+        <Row label="Radius" value={formatMeasure(planet.radius, 'R⊕', R_EARTH_KM, 'km', vm)} tooltip="The planet's size, in multiples of Earth's radius." basic />
         <Row label="Density" value={formatQuantity(planet.density, 'g/cm³')} tooltip="Average mass per cubic centimetre, hinting at rock, ice, or gas." />
-        <Row label="Gravity" value={formatMeasure(surfaceGravity(planet.mass, planet.radius), 'g⊕', EARTH_GRAVITY_MS2, 'm/s²', vm)} tooltip="Surface gravity in multiples of Earth's; 1 means you'd weigh the same." />
+        <Row label="Gravity" value={formatMeasure(surfaceGravity(planet.mass, planet.radius), 'g⊕', EARTH_GRAVITY_MS2, 'm/s²', vm)} tooltip="Surface gravity in multiples of Earth's; 1 means you'd weigh the same." basic />
         <Row label="Escape vel." value={formatQuantity(escape, 'km/s')} tooltip="Speed needed to escape the planet's gravity from its surface." />
-        <Row label="Composition" value={compositionClass(planet.type, planet.density)} tooltip="What the planet is mostly made of, inferred from its density." />
+        <Row label="Composition" value={compositionClass(planet.type, planet.density)} tooltip="What the planet is mostly made of, inferred from its density." basic />
         <Row label="Core press." value={`~${formatQuantity(centralPressure(planet.mass, planet.radius), 'GPa')}`} tooltip="Estimated pressure at the planet's centre, in gigapascals." />
         <Row label="Rotation" value={`${formatPeriod((planet.rotationPeriod * 3600) / SECONDS_PER_YEAR)}${planet.tidallyLocked ? ' · locked' : ''}`} tooltip="Length of one spin (its day); 'locked' means one face always faces the star." />
         <Row label="Oblateness" value={`${sigFigs(oblateness(planet.rotationPeriod, planet.mass, planet.radius) * 100)}%`} tooltip="How much spinning squashes the planet at its equator (Earth ≈ 0.3%)." />
         <Row label="Axial tilt" value={`${Math.round(planet.obliquity)}°`} tooltip="Tilt of the spin axis, which gives a planet its seasons." />
-        <Row label="Moons" value={`${planet.moonCount}${planet.hasRings ? ' · rings' : ''}`} tooltip="How many moons orbit the planet, and whether it has rings." />
+        <Row label="Moons" value={`${planet.moonCount}${planet.hasRings ? ' · rings' : ''}`} tooltip="How many moons orbit the planet, and whether it has rings." basic />
         <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} tooltip="Temperature from starlight alone, before any greenhouse warming." />
-        <TemperatureRow label="Surface" kelvin={surfaceTemperature(planet.equilibriumTemp, planet.type, hasAtmosphere)} tooltip="Estimated surface temperature including greenhouse warming." />
+        <TemperatureRow label="Surface" kelvin={surfaceTemperature(planet.equilibriumTemp, planet.type, hasAtmosphere)} tooltip="Estimated surface temperature including greenhouse warming." basic />
         <Row label="Insolation" value={formatMeasure(planet.insolation, 'S⊕', SOLAR_CONSTANT_W_M2, 'W/m²', vm)} tooltip="How much starlight the planet receives, relative to Earth." />
-        <Row label="Atmosphere" value={atmosphereType(planet.type, hasAtmosphere, planet.equilibriumTemp)} tooltip="The kind of atmosphere the planet can likely keep, if any." />
-        <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} tooltip="Whether it lies in the liquid-water zone, and what state its water is in." />
+        <Row label="Atmosphere" value={atmosphereType(planet.type, hasAtmosphere, planet.equilibriumTemp)} tooltip="The kind of atmosphere the planet can likely keep, if any." basic />
+        <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} tooltip="Whether it lies in the liquid-water zone, and what state its water is in." basic />
         <Row label="Earth index" value={sigFigs(earthSimilarityIndex(planet.radius, planet.density, escape, planet.equilibriumTemp))} tooltip="How Earth-like the planet is overall, from 0 to 1 (1 = just like Earth)." />
-        <Row label="Orbit a" value={formatDistance(orbit.a, du)} tooltip="Average distance from its star (the orbit's semi-major axis)." />
+        <Row label="Orbit a" value={formatDistance(orbit.a, du)} tooltip="Average distance from its star (the orbit's semi-major axis)." basic />
         <Row label="Peri / Apo" value={`${formatDistance(periapsis(orbit), du)} / ${formatDistance(apoapsis(orbit), du)}`} tooltip="Closest and farthest distance from the star along the orbit." />
-        <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} tooltip="How long the planet takes to circle its star once — its year." />
+        <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} tooltip="How long the planet takes to circle its star once — its year." basic />
         <Row label="Orbital speed" value={formatQuantity(meanOrbitalSpeed(orbit), 'km/s')} tooltip="Average speed the planet moves along its orbit." />
         <Row label="Eccentricity" value={sigFigs(orbit.e)} tooltip="How stretched the orbit is: 0 is a circle, nearer 1 is more elongated." />
         <Row label="Flux swing" value={`${sigFigs(insolationSwing(orbit))}×`} tooltip="How much the starlight varies between the planet's closest and farthest points." />
@@ -341,9 +350,9 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
       <div style={NAME_CSS}>{name}</div>
       <div style={CAPTION_CSS}>BLACK HOLE · SUPERMASSIVE</div>
       <div style={BODY_CSS}>
-        <Row label="Mass" value={formatSolarMass(blackHole.mass, vm)} tooltip="Total mass of the black hole, in multiples of the Sun's mass." />
+        <Row label="Mass" value={formatSolarMass(blackHole.mass, vm)} tooltip="Total mass of the black hole, in multiples of the Sun's mass." basic />
         <Row label="Spin a*" value={sigFigs(blackHole.spin)} tooltip="How fast it spins, from 0 (still) to 1 (the maximum possible)." />
-        <Row label="Schwarzschild r" value={formatDistance(blackHole.schwarzschildRadius, du)} tooltip="Radius of the event horizon — the point of no return." />
+        <Row label="Schwarzschild r" value={formatDistance(blackHole.schwarzschildRadius, du)} tooltip="Radius of the event horizon — the point of no return." basic />
         <Row label="Photon sphere" value={formatDistance(photonSphere(blackHole.schwarzschildRadius), du)} tooltip="Distance where gravity can bend light into a circular orbit." />
         <Row label="ISCO" value={formatDistance(innermostStableOrbit(blackHole.schwarzschildRadius, blackHole.spin), du)} tooltip="Closest orbit matter can hold before spiralling in — the disc's inner edge." />
         <Row label="Shadow Ø" value={formatDistance(shadowDiameter(blackHole.schwarzschildRadius), du)} tooltip="Apparent width of the black hole's dark silhouette." />
@@ -363,9 +372,9 @@ function UniversePanel({ seed }: { seed: number }): VNode {
       <div style={NAME_CSS}>Universe</div>
       <div style={CAPTION_CSS}>UNIVERSE</div>
       <div style={BODY_CSS}>
-        <Row label="Seed" value={formatSeed(seed)} tooltip="The number this whole universe is generated from; the same seed rebuilds it." />
-        <Row label="Age" value={formatLifetime(universeAge(seed))} tooltip="How long ago this universe began." />
-        <Row label="Home galaxy" value={home ? home.name : '\u2014'} tooltip="The galaxy at the origin, where you started out." />
+        <Row label="Seed" value={formatSeed(seed)} tooltip="The number this whole universe is generated from; the same seed rebuilds it." basic />
+        <Row label="Age" value={formatLifetime(universeAge(seed))} tooltip="How long ago this universe began." basic />
+        <Row label="Home galaxy" value={home ? home.name : '\u2014'} tooltip="The galaxy at the origin, where you started out." basic />
       </div>
     </div>
   );
@@ -392,14 +401,14 @@ function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
         <span>{`GALAXY · ${formatGalaxyType(galaxy.type, galaxy.dwarf).toUpperCase()}`}</span>
       </div>
       <div style={BODY_CSS}>
-        <Row label="Diameter" value={formatDistance(galaxyDiameterLy(galaxy) * AU_PER_LY, du)} tooltip="How wide the galaxy is from edge to edge." />
-        <Row label="Stars" value={`~${formatCount(estimatedStarCount(galaxy))}`} tooltip="Rough estimate of how many stars the galaxy holds." />
+        <Row label="Diameter" value={formatDistance(galaxyDiameterLy(galaxy) * AU_PER_LY, du)} tooltip="How wide the galaxy is from edge to edge." basic />
+        <Row label="Stars" value={`~${formatCount(estimatedStarCount(galaxy))}`} tooltip="Rough estimate of how many stars the galaxy holds." basic />
         <Row label="SFR" value={`${sigFigs(starFormationRate(galaxy))} M☉/yr`} tooltip="Star-formation rate — Suns' worth of new stars formed per year." />
         <Row label="Mean age" value={`${meanStellarAge(galaxy)} Gyr`} tooltip="Average age of the galaxy's stars." />
         <Row label="Gas fraction" value={`${Math.round(gasFraction(galaxy) * 100)}%`} tooltip="Share of the galaxy's mass still in gas available to form stars." />
         <Row label="Dispersion σ" value={formatQuantity(velocityDispersion(galaxy.blackHoleMass), 'km/s')} tooltip="Spread of star speeds — a gauge of the galaxy's mass." />
         <Row label="Environment" value={environmentClass(galaxy.cosmicDensity)} tooltip="How crowded its surroundings are, from empty void to dense cluster." />
-        <Row label="Black hole" value={formatSolarMass(galaxy.blackHoleMass, vm)} tooltip="Mass of the supermassive black hole at the galaxy's core." />
+        <Row label="Black hole" value={formatSolarMass(galaxy.blackHoleMass, vm)} tooltip="Mass of the supermassive black hole at the galaxy's core." basic />
       </div>
     </div>
   );
