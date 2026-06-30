@@ -8,12 +8,12 @@ import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
 import type { DistanceUnit } from '../distance';
-import type { TemperatureUnit } from '../settings';
+import type { TemperatureUnit, ValueMode } from '../settings';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { distanceUnit, resetSettings, setDistanceUnit, setTemperatureUnit, temperatureUnit } from '../settings';
+import { distanceUnit, resetSettings, setDistanceUnit, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from '../settings';
 
 export interface OptionsMenu {
   dispose: () => void;
@@ -24,6 +24,9 @@ const TEMPERATURE_LABELS: Record<TemperatureUnit, string> = { C: '°C', F: '°F'
 
 const DISTANCE_UNITS: readonly DistanceUnit[] = ['adaptive', 'km', 'au', 'ly'];
 const DISTANCE_LABELS: Record<DistanceUnit, string> = { adaptive: 'Auto', au: 'AU', km: 'km', ly: 'ly' };
+
+const VALUE_MODES: readonly ValueMode[] = ['relative', 'absolute'];
+const VALUE_LABELS: Record<ValueMode, string> = { absolute: 'SI', relative: 'Sun/Earth' };
 
 const WRAP_CSS = [
   'position:absolute',
@@ -140,6 +143,9 @@ function OptionsPanel({ open }: { open: Signal<boolean> }): VNode {
           </SettingRow>
           <SettingRow label="Distance">
             <Segmented options={DISTANCE_UNITS} value={distanceUnit.value} labels={DISTANCE_LABELS} onSelect={setDistanceUnit} />
+          </SettingRow>
+          <SettingRow label="Values">
+            <Segmented options={VALUE_MODES} value={valueMode.value} labels={VALUE_LABELS} onSelect={setValueMode} />
           </SettingRow>
           <button type="button" style={RESET_CSS} onClick={resetSettings}>
             Reset to defaults

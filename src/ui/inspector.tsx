@@ -16,21 +16,21 @@ import type { BlackHolePhysical, GalaxyParams, GalaxyType } from '../generation/
 import type { PlanetPhysical, PlanetType, WaterState } from '../generation/planets';
 import type { StarPhysical } from '../generation/stars';
 import type { Selection } from '../pick';
-import type { TemperatureUnit } from '../settings';
+import type { TemperatureUnit, ValueMode } from '../settings';
 import type { OrbitElements } from '../sim/orbits';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { useState } from 'preact/hooks';
 
-import { formatDistance } from '../distance';
+import { compactNumber, formatDistance } from '../distance';
 import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyAt, galaxyDiameterLy, galaxyRepresentativeActivity, gasFraction, hawkingTemperature, innermostStableOrbit, isActiveGalacticNucleus, meanStellarAge, photonSphere, shadowDiameter, starFormationRate, universeAge, velocityDispersion } from '../generation/galaxies';
 import { NameDef } from '../generation/naming';
 import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
-import { AU_PER_LY, SECONDS_PER_YEAR } from '../generation/units';
+import { AU_PER_LY, EARTH_GRAVITY_MS2, L_SUN, M_EARTH_KG, M_SUN_KG, R_EARTH_KM, R_SUN_KM, SECONDS_PER_YEAR, SOLAR_CONSTANT_W_M2 } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
-import { distanceUnit, temperatureUnit } from '../settings';
+import { distanceUnit, temperatureUnit, valueMode } from '../settings';
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
 
 export interface Inspector {
@@ -104,6 +104,24 @@ export function formatSolarMasses(massSolar: number): string {
   if (massSolar >= 1e6)
     return `${sigFigs(massSolar / 1e6)} million M☉`;
   return formatQuantity(massSolar, 'M☉');
+}
+
+/**
+ * A quantity normally shown relative to the Sun/Earth, switched to its absolute
+ * SI unit when the value mode is `absolute`. `perAbsolute` is the absolute amount
+ * in one relative unit (e.g. kilograms per solar mass).
+ */
+function formatMeasure(value: number, relativeUnit: string, perAbsolute: number, absoluteUnit: string, mode: ValueMode): string {
+  if (mode === 'absolute')
+    return `${compactNumber(value * perAbsolute)} ${absoluteUnit}`;
+  return formatQuantity(value, relativeUnit);
+}
+
+/** A supermassive mass in solar masses, or kilograms when the value mode is absolute. */
+function formatSolarMass(massSolar: number, mode: ValueMode): string {
+  if (mode === 'absolute')
+    return `${compactNumber(massSolar * M_SUN_KG)} kg`;
+  return formatSolarMasses(massSolar);
 }
 
 /** A large count in the largest fitting unit (billion / million / thousand). */
@@ -250,15 +268,16 @@ function ClassRow({ star }: { star: StarPhysical }): VNode {
 function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode {
   const hz = habitableZone(star.luminosity);
   const du = distanceUnit.value;
+  const vm = valueMode.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
       <div style={CAPTION_CSS}>{`STAR · CLASS ${star.spectralClass}`}</div>
       <div style={BODY_CSS}>
         <ClassRow star={star} />
-        <Row label="Mass" value={formatQuantity(star.mass, 'M☉')} tooltip="How much matter the star contains, in multiples of the Sun's mass." />
-        <Row label="Luminosity" value={formatQuantity(star.luminosity, 'L☉')} tooltip="Total light the star radiates, relative to the Sun." />
-        <Row label="Radius" value={formatQuantity(star.radius, 'R☉')} tooltip="The star's size, in multiples of the Sun's radius." />
+        <Row label="Mass" value={formatMeasure(star.mass, 'M☉', M_SUN_KG, 'kg', vm)} tooltip="How much matter the star contains, in multiples of the Sun's mass." />
+        <Row label="Luminosity" value={formatMeasure(star.luminosity, 'L☉', L_SUN, 'W', vm)} tooltip="Total light the star radiates, relative to the Sun." />
+        <Row label="Radius" value={formatMeasure(star.radius, 'R☉', R_SUN_KM, 'km', vm)} tooltip="The star's size, in multiples of the Sun's radius." />
         <Row label="Density" value={formatQuantity(meanDensity(star.mass, star.radius), 'g/cm³')} tooltip="Average mass packed into each cubic centimetre of the star." />
         <Row label="Gravity (log g)" value={sigFigs(surfaceGravityLog(star.mass, star.radius))} tooltip="Surface gravity on a logarithmic scale; the Sun is about 4.44." />
         <Row label="Escape vel." value={formatQuantity(starEscapeVelocity(star.mass, star.radius), 'km/s')} tooltip="Speed needed to escape the star's gravity from its surface." />
@@ -280,15 +299,16 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
   const escape = escapeVelocity(planet.mass, planet.radius);
   const hasAtmosphere = retainsAtmosphere(escape, planet.insolation);
   const du = distanceUnit.value;
+  const vm = valueMode.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
       <div style={CAPTION_CSS}>{`PLANET · ${formatPlanetType(planet.type).toUpperCase()}`}</div>
       <div style={BODY_CSS}>
-        <Row label="Mass" value={formatQuantity(planet.mass, 'M⊕')} tooltip="How much matter the planet contains, in multiples of Earth's mass." />
-        <Row label="Radius" value={formatQuantity(planet.radius, 'R⊕')} tooltip="The planet's size, in multiples of Earth's radius." />
+        <Row label="Mass" value={formatMeasure(planet.mass, 'M⊕', M_EARTH_KG, 'kg', vm)} tooltip="How much matter the planet contains, in multiples of Earth's mass." />
+        <Row label="Radius" value={formatMeasure(planet.radius, 'R⊕', R_EARTH_KM, 'km', vm)} tooltip="The planet's size, in multiples of Earth's radius." />
         <Row label="Density" value={formatQuantity(planet.density, 'g/cm³')} tooltip="Average mass per cubic centimetre, hinting at rock, ice, or gas." />
-        <Row label="Gravity" value={formatQuantity(surfaceGravity(planet.mass, planet.radius), 'g⊕')} tooltip="Surface gravity in multiples of Earth's; 1 means you'd weigh the same." />
+        <Row label="Gravity" value={formatMeasure(surfaceGravity(planet.mass, planet.radius), 'g⊕', EARTH_GRAVITY_MS2, 'm/s²', vm)} tooltip="Surface gravity in multiples of Earth's; 1 means you'd weigh the same." />
         <Row label="Escape vel." value={formatQuantity(escape, 'km/s')} tooltip="Speed needed to escape the planet's gravity from its surface." />
         <Row label="Composition" value={compositionClass(planet.type, planet.density)} tooltip="What the planet is mostly made of, inferred from its density." />
         <Row label="Core press." value={`~${formatQuantity(centralPressure(planet.mass, planet.radius), 'GPa')}`} tooltip="Estimated pressure at the planet's centre, in gigapascals." />
@@ -298,7 +318,7 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Moons" value={`${planet.moonCount}${planet.hasRings ? ' · rings' : ''}`} tooltip="How many moons orbit the planet, and whether it has rings." />
         <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} tooltip="Temperature from starlight alone, before any greenhouse warming." />
         <TemperatureRow label="Surface" kelvin={surfaceTemperature(planet.equilibriumTemp, planet.type, hasAtmosphere)} tooltip="Estimated surface temperature including greenhouse warming." />
-        <Row label="Insolation" value={formatQuantity(planet.insolation, 'S⊕')} tooltip="How much starlight the planet receives, relative to Earth." />
+        <Row label="Insolation" value={formatMeasure(planet.insolation, 'S⊕', SOLAR_CONSTANT_W_M2, 'W/m²', vm)} tooltip="How much starlight the planet receives, relative to Earth." />
         <Row label="Atmosphere" value={atmosphereType(planet.type, hasAtmosphere, planet.equilibriumTemp)} tooltip="The kind of atmosphere the planet can likely keep, if any." />
         <Row label="Habitable" value={formatHabitability(planet.inHabitableZone, planet.waterState)} tooltip="Whether it lies in the liquid-water zone, and what state its water is in." />
         <Row label="Earth index" value={sigFigs(earthSimilarityIndex(planet.radius, planet.density, escape, planet.equilibriumTemp))} tooltip="How Earth-like the planet is overall, from 0 to 1 (1 = just like Earth)." />
@@ -315,12 +335,13 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
 
 function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; name: string }): VNode {
   const du = distanceUnit.value;
+  const vm = valueMode.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{name}</div>
       <div style={CAPTION_CSS}>BLACK HOLE · SUPERMASSIVE</div>
       <div style={BODY_CSS}>
-        <Row label="Mass" value={formatSolarMasses(blackHole.mass)} tooltip="Total mass of the black hole, in multiples of the Sun's mass." />
+        <Row label="Mass" value={formatSolarMass(blackHole.mass, vm)} tooltip="Total mass of the black hole, in multiples of the Sun's mass." />
         <Row label="Spin a*" value={sigFigs(blackHole.spin)} tooltip="How fast it spins, from 0 (still) to 1 (the maximum possible)." />
         <Row label="Schwarzschild r" value={formatDistance(blackHole.schwarzschildRadius, du)} tooltip="Radius of the event horizon — the point of no return." />
         <Row label="Photon sphere" value={formatDistance(photonSphere(blackHole.schwarzschildRadius), du)} tooltip="Distance where gravity can bend light into a circular orbit." />
@@ -353,6 +374,7 @@ function UniversePanel({ seed }: { seed: number }): VNode {
 function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
   const swatch = populationColorCss(galaxyRepresentativeActivity(galaxy));
   const du = distanceUnit.value;
+  const vm = valueMode.value;
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>{galaxy.name}</div>
@@ -377,7 +399,7 @@ function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
         <Row label="Gas fraction" value={`${Math.round(gasFraction(galaxy) * 100)}%`} tooltip="Share of the galaxy's mass still in gas available to form stars." />
         <Row label="Dispersion σ" value={formatQuantity(velocityDispersion(galaxy.blackHoleMass), 'km/s')} tooltip="Spread of star speeds — a gauge of the galaxy's mass." />
         <Row label="Environment" value={environmentClass(galaxy.cosmicDensity)} tooltip="How crowded its surroundings are, from empty void to dense cluster." />
-        <Row label="Black hole" value={formatSolarMasses(galaxy.blackHoleMass)} tooltip="Mass of the supermassive black hole at the galaxy's core." />
+        <Row label="Black hole" value={formatSolarMass(galaxy.blackHoleMass, vm)} tooltip="Mass of the supermassive black hole at the galaxy's core." />
       </div>
     </div>
   );

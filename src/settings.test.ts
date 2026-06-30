@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { distanceUnit, resetSettings, setDistanceUnit, setTemperatureUnit, temperatureUnit } from './settings';
+import { distanceUnit, resetSettings, setDistanceUnit, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from './settings';
 
 afterEach(() => {
   resetSettings();
@@ -32,12 +32,25 @@ describe('distance unit setting', () => {
   });
 });
 
+describe('value mode setting', () => {
+  it('defaults to relative', () => {
+    expect(valueMode.value).toBe('relative');
+  });
+
+  it('updates the shared signal when set', () => {
+    setValueMode('absolute');
+    expect(valueMode.value).toBe('absolute');
+  });
+});
+
 describe('resetSettings', () => {
   it('restores every setting to its default', () => {
     setTemperatureUnit('F');
     setDistanceUnit('ly');
+    setValueMode('absolute');
     resetSettings();
     expect(temperatureUnit.value).toBe('K');
     expect(distanceUnit.value).toBe('adaptive');
+    expect(valueMode.value).toBe('relative');
   });
 });

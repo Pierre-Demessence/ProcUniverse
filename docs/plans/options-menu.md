@@ -62,3 +62,15 @@ live. Built in phases; this plan covers the whole feature, with Phase 1 detailed
 - [x] `scale-bar.ts`: round the cell in the chosen unit; label via `formatDistance`.
 - [x] `draw-coords.ts`: `formatCoord` delegates to `formatDistance`.
 - [x] Tests (`distance.test.ts`, `settings.test.ts`) + pipeline green + peer review.
+
+## Phase 3 subtasks (relative vs absolute / SI)
+
+- [x] `units.ts`: SI constants (`M_SUN_KG`, `M_EARTH_KG`, `R_SUN_KM`, `R_EARTH_KM`,
+  `EARTH_GRAVITY_MS2`, `SOLAR_CONSTANT_W_M2`; reuse `L_SUN`).
+- [x] `distance.ts`: export `compactNumber` (3 sig figs + sci-notation).
+- [x] `settings.ts`: `ValueMode` (`relative` | `absolute`), `valueMode` signal,
+  `setValueMode`; reset includes it.
+- [x] `options.tsx`: a "Values" segmented control (Sun/Earth | SI).
+- [x] `inspector.tsx`: `formatMeasure` / `formatSolarMass`; mass → kg, luminosity
+  → W, radius → km, gravity → m/s², insolation → W/m², SMBH mass → kg.
+- [x] `settings.test.ts`: value-mode cases + pipeline green + peer review.

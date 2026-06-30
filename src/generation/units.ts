@@ -33,6 +33,24 @@ export const SECONDS_PER_YEAR = 31557600;
  */
 export const SCHWARZSCHILD_AU_PER_SOLAR_MASS = 1.9742e-8;
 
+/** Mass of the Sun, in kilograms. */
+export const M_SUN_KG = 1.98892e30;
+
+/** Mass of the Earth, in kilograms. */
+export const M_EARTH_KG = 5.9722e24;
+
+/** Radius of the Sun, in kilometres. */
+export const R_SUN_KM = 695700;
+
+/** Mean radius of the Earth, in kilometres. */
+export const R_EARTH_KM = 6371;
+
+/** Standard gravitational acceleration at Earth's surface, in m/s². */
+export const EARTH_GRAVITY_MS2 = 9.80665;
+
+/** The solar constant: sunlight at Earth's distance, in W/m². */
+export const SOLAR_CONSTANT_W_M2 = 1361;
+
 /** Convert astronomical units to kilometres. */
 export function auToKm(au: number): number {
   return au * KM_PER_AU;

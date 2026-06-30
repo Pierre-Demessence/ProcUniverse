@@ -28,7 +28,7 @@ function threeSigFigs(value: number): string {
 }
 
 /** Three sig figs, switching to compact scientific notation (`1.50e8`) at the extremes. */
-function formatNumber(value: number): string {
+export function compactNumber(value: number): string {
   const abs = Math.abs(value);
   if (value !== 0 && (abs >= SCI_HIGH || abs < SCI_LOW))
     return value.toExponential(2).replace('e+', 'e');
@@ -75,5 +75,5 @@ function formatAdaptive(au: number): string {
 export function formatDistance(au: number, unit: DistanceUnit): string {
   if (unit === 'adaptive')
     return formatAdaptive(au);
-  return `${formatNumber(auToUnit(au, unit))} ${UNIT_LABELS[unit]}`;
+  return `${compactNumber(auToUnit(au, unit))} ${UNIT_LABELS[unit]}`;
 }
