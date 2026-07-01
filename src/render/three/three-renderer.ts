@@ -25,7 +25,7 @@ import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 import { AdditiveBlending, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, Mesh, MeshBasicMaterial, Object3D, OrthographicCamera, PlaneGeometry, Scene, WebGPURenderer } from 'three/webgpu';
 
-import { forEachGalaxyFieldGlow } from './glow-fields';
+import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 
 /** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
 const BACKGROUND = 0x05060D;
@@ -254,6 +254,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.renderer.render(this.scene, this.camera);
   }
 
+  /** GALAXY tier: aggregate galaxy-density glow (one draw call). Mirrors `drawGalaxy`. */
+  renderGalaxy(ctx: ThreeGlowContext): number {
+    return this.renderGlowTier(ctx, forEachGalaxyGlow);
+  }
+
   /**
    * GALAXY-FIELD tier: draw each galaxy as an additive glow sprite in one draw
    * call. Mirrors the sprite pass of `drawGalaxyField` (the NGC labels stay on
@@ -346,6 +351,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       mesh.instanceColor.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
     return i;
+  }
+
+  /** UNIVERSE tier: aggregate cosmic-web glow (one draw call). Mirrors `drawUniverse`. */
+  renderUniverse(ctx: ThreeGlowContext): number {
+    return this.renderGlowTier(ctx, forEachUniverseGlow);
   }
 
   /** Match the backing store to the 2D canvas so both share one coordinate space. */

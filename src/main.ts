@@ -506,6 +506,14 @@ export function start(container: HTMLElement, save: Save): () => void {
         result = threeRenderer.renderGalaxyField({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
         renderedByThree = true;
       }
+      else if (threeActive && tier === 'galaxy' && threeRenderer) {
+        result = threeRenderer.renderGalaxy({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
+        renderedByThree = true;
+      }
+      else if (threeActive && tier === 'universe' && threeRenderer) {
+        result = threeRenderer.renderUniverse({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
+        renderedByThree = true;
+      }
 
       // Cross-fade: blend the captured old-tier frame over the new one.
       if (fadeMsLeft > 0) {

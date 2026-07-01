@@ -65,6 +65,13 @@ export function renderFrame(deps: FrameDeps): number {
     return -1;
   }
 
+  // Galaxy and universe tiers in Three mode: the aggregate glow is drawn by
+  // Three; there are no labels at these tiers, so keep the 2D canvas clear.
+  if (threeMode && (tier === 'galaxy' || tier === 'universe')) {
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    return -1;
+  }
+
   // Galaxy-field tier in Three mode: the galaxy glow sprites are drawn by Three;
   // keep only the NGC labels on the transparent 2D overlay so they stay crisp.
   if (threeMode && tier === 'galaxy-field') {
