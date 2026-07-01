@@ -124,9 +124,11 @@ and documented in its own plan: [realistic-scale.md](realistic-scale.md).
       the earlier trap of tuning a data knob (`LY_PER_SECTOR`) thinking it was
       render.
 
-## Phase 5 — Moons — NOT STARTED
+## Phase 5 — Moons — PLANNED, see [moons.md](moons.md)
 
 Moons are the same model one level deeper (a body that becomes relevant only at a
-much tighter zoom, with its own sub-framing). Generate around planets, render with
-the Phase-4 floors/morph, expose in the inspector. Deferred until the scale model
-settles.
+much tighter zoom). They build directly on the Phase-4 morph (a moon is a body
+with the smallest floor tier). The plan — including a **moon-count realism review**
+(the current generator under-counts and lets giants roll zero moons) and the moon
+body generation / rendering / inspector / nav-tree work — is in
+[moons.md](moons.md).

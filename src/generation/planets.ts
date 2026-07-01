@@ -177,14 +177,25 @@ function sampleRotationPeriod(rng: RandomFn, type: PlanetType): number {
   return 10 ** lerp(Math.log10(8), Math.log10(2000), rng());
 }
 
+// Major-moon counts by planet type: a per-type floor (a real giant is never
+// moonless) plus a geometric-tailed spread, calibrated to the solar system's
+// *major* moons — rocky worlds usually none (Earth 1, Mars 2, Mercury/Venus 0),
+// ice giants a few (Uranus 5, Neptune ~2), gas giants many (Jupiter/Saturn ~8).
+// `MOON_MEAN` is the tail exponential's mean; flooring it lowers the realised
+// average (gas giant ~6, ice giant ~4, super-Earth ~1, rocky ~0.5). Capped at
+// `MOON_MAX` — the dozens of tiny irregular satellites are modelled separately.
+const MOON_MIN: Record<PlanetType, number> = { 'gas-giant': 2, 'ice-giant': 1, 'rocky': 0, 'super-earth': 0 };
+const MOON_MEAN: Record<PlanetType, number> = { 'gas-giant': 4.5, 'ice-giant': 3.5, 'rocky': 0.9, 'super-earth': 1.4 };
+const MOON_MAX = 15;
+
 /**
- * Sample a moon count from one draw: a geometric-tailed approximation to a
- * Poisson whose mean rises with planet type (giants hold many; rocky worlds few).
+ * Sample a planet's major-moon count from one draw: a per-type floor plus a
+ * geometric-tailed spread, so giants always host several moons while rocky worlds
+ * are usually bare. Still one `rng()` draw, so revising it shifts only the count.
  */
 function sampleMoonCount(rng: RandomFn, type: PlanetType): number {
-  const mean = type === 'gas-giant' || type === 'ice-giant' ? 3 : type === 'super-earth' ? 0.5 : 0.3;
   const u = clamp(rng(), 0, 1 - 1e-9);
-  return Math.min(Math.floor(-mean * Math.log(1 - u)), 20);
+  return Math.min(MOON_MIN[type] + Math.floor(-MOON_MEAN[type] * Math.log(1 - u)), MOON_MAX);
 }
 
 /**

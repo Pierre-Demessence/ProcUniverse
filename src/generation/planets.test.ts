@@ -154,6 +154,26 @@ describe('samplePlanet', () => {
     expect(rockyN).toBeGreaterThan(0);
     expect(giantMoons / giantN).toBeGreaterThan(rockyMoons / rockyN);
   });
+
+  it('never leaves a giant moonless and averages a realistic major-moon count', () => {
+    const rng = makeSeededRng(7);
+    let giantMin = Number.POSITIVE_INFINITY;
+    let giantMoons = 0;
+    let giantN = 0;
+    for (let i = 0; i < 3000; i++) {
+      const giant = samplePlanet(rng, 1, 8, 1, 4.6e9);
+      if (giant.type === 'gas-giant' || giant.type === 'ice-giant') {
+        giantMin = Math.min(giantMin, giant.moonCount);
+        giantMoons += giant.moonCount;
+        giantN++;
+      }
+    }
+    expect(giantN).toBeGreaterThan(0);
+    expect(giantMin).toBeGreaterThanOrEqual(1); // every real giant hosts moons
+    const mean = giantMoons / giantN;
+    expect(mean).toBeGreaterThan(2);
+    expect(mean).toBeLessThan(10);
+  });
 });
 
 describe('surfaceGravity', () => {
