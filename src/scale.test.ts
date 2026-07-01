@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DISK_OUTER_MAX_AU, LY_PER_SECTOR } from './config';
+import { DISK_OUTER_MAX_AU, LY_PER_SECTOR } from './config/data';
 import { AU_PER_LY } from './generation/units';
 import { SECTOR_SIZE, starVisualRadius } from './scale';
 

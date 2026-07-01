@@ -3,7 +3,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { makeCamera, viewToWorld } from '@pierre/ecs/modules/camera';
 import { clamp } from '@pierre/ecs/modules/math';
 
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config';
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
 
 export interface CameraController {
   readonly camera: Camera;

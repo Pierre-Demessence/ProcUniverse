@@ -10,7 +10,7 @@
  * that should outlive a seed reset live in `preferences.ts`.
  */
 
-import { DEFAULT_SPEED_INDEX, SPEED_STEPS } from '../config';
+import { DEFAULT_SPEED_INDEX, SPEED_STEPS } from '../config/render';
 
 const SAVE_KEY = 'procuniverse:save';
 const SAVE_VERSION = 1;

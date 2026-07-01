@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SPEED_STEPS } from '../config';
+import { SPEED_STEPS } from '../config/render';
 import { formatRate, formatSimDate, sliderToScale } from './time-controls';
 
 describe('formatSimDate', () => {

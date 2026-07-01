@@ -16,7 +16,7 @@ import type { VNode } from 'preact';
 import { computed, signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { DEFAULT_SPEED_INDEX, SIM_EPOCH_MS, SPEED_STEPS } from '../config';
+import { DEFAULT_SPEED_INDEX, SIM_EPOCH_MS, SPEED_STEPS } from '../config/render';
 
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;

@@ -15,7 +15,7 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
-import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config';
+import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config/render';
 import { BlackHoleDef, galaxyAt } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';

@@ -115,7 +115,10 @@ and documented in its own plan: [realistic-scale.md](realistic-scale.md).
       `physicalRadius × zoom` exceeds the floor — so flying up to a body shows its
       real scale (huge star, tiny planet against its orbit). No render-space
       distance warp (a radial distance compression is a fisheye — already scrapped).
-- [ ] Split `config.ts` into explicit data vs render configs (deferred, agreed).
+- [x] Split `config.ts` into explicit `config/data.ts` (universe-generation knobs)
+      and `config/render.ts` (presentation/feel); repoint all 19 imports. Prevents
+      the earlier trap of tuning a data knob (`LY_PER_SECTOR`) thinking it was
+      render.
 
 ## Phase 5 — Moons — NOT STARTED
 

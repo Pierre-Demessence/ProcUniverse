@@ -3,7 +3,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 import { clamp, lerp } from '@pierre/ecs/modules/math';
 
-import { GALAXY_CELL_LY } from '../config';
+import { GALAXY_CELL_LY } from '../config/data';
 import { cosmicDensity } from '../generation/galaxies';
 import { AU_PER_LY } from '../generation/units';
 import { populationGlow } from './galaxy-sprites';

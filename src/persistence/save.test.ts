@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_SPEED_INDEX } from '../config';
+import { DEFAULT_SPEED_INDEX } from '../config/render';
 import { parseSave } from './save';
 
 describe('parseSave', () => {

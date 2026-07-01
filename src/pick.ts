@@ -8,7 +8,7 @@ import { cameraViewRect, viewToWorld } from '@pierre/ecs/modules/camera';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
-import { GALAXY_SPRITE_SCALE, PICK_PX } from './config';
+import { GALAXY_SPRITE_SCALE, PICK_PX } from './config/render';
 import { BlackHoleDef, galaxiesInRect } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';

@@ -4,7 +4,7 @@ import type { RandomFn } from '@pierre/ecs/modules/rng';
 import { simpleComponent } from '@pierre/ecs/component-store';
 import { clamp } from '@pierre/ecs/modules/math';
 
-import { POP_BIAS } from '../config';
+import { POP_BIAS } from '../config/data';
 import { blackbodyColor } from './blackbody';
 import { T_SUN } from './units';
 

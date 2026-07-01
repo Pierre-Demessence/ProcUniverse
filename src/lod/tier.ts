@@ -2,7 +2,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
-import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_SECTORS } from '../config';
+import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_SECTORS } from '../config/render';
 import { SECTOR_SIZE } from '../scale';
 
 /**

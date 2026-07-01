@@ -2,7 +2,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 
-import { GALAXY_SPRITE_SCALE } from '../config';
+import { GALAXY_SPRITE_SCALE } from '../config/render';
 import { galaxiesInRect, galaxyRepresentativeActivity } from '../generation/galaxies';
 import { populationGlow } from './galaxy-sprites';
 

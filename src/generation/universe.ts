@@ -17,7 +17,7 @@ import {
   PLANET_MAX,
   PLANET_MIN,
   STAR_DENSITY_PEAK,
-} from '../config';
+} from '../config/data';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
 import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt, universeAge } from './galaxies';
 import { hashSector, hashSystem } from './hash';

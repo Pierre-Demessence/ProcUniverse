@@ -18,7 +18,7 @@ import type { Tier } from '../lod/tier';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { NAV_TREE_INDENT_PX } from '../config';
+import { NAV_TREE_INDENT_PX } from '../config/render';
 
 /** The kind of body a tree node represents. */
 export type NavNodeKind = 'galaxy' | 'planet' | 'star' | 'universe';

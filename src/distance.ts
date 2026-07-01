@@ -8,7 +8,7 @@
  * unit); the user's choice lives in `settings.ts`.
  */
 
-import { SCALE_KM_BELOW_AU, SCALE_LY_ABOVE_AU } from './config';
+import { SCALE_KM_BELOW_AU, SCALE_LY_ABOVE_AU } from './config/render';
 import { auToKm, auToLy, kmToAu, lyToAu } from './generation/units';
 import { numberNotation } from './settings';
 

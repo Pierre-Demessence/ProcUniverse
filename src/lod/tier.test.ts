@@ -1,7 +1,7 @@
 import { makeCamera } from '@pierre/ecs/modules/camera';
 import { describe, expect, it } from 'vitest';
 
-import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, UNIVERSE_SECTORS } from '../config';
+import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, SYSTEM_TIER_MAX_AU, UNIVERSE_SECTORS } from '../config/render';
 import { SECTOR_SIZE } from '../scale';
 import { selectTier } from './tier';
 

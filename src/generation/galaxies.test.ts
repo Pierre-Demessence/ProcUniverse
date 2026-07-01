@@ -2,7 +2,7 @@ import type { GalaxyParams } from './galaxies';
 
 import { describe, expect, it } from 'vitest';
 
-import { BLACK_HOLE_MASS_MAX, BLACK_HOLE_MASS_MIN, GALAXY_CELL_LY, GALAXY_SCALE_LENGTH_LY } from '../config';
+import { BLACK_HOLE_MASS_MAX, BLACK_HOLE_MASS_MIN, GALAXY_CELL_LY, GALAXY_SCALE_LENGTH_LY } from '../config/data';
 import { SECTOR_SIZE } from '../scale';
 import {
   blackHoleMassFromSize,

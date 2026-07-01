@@ -1,4 +1,4 @@
-import { LY_PER_SECTOR } from './config';
+import { LY_PER_SECTOR } from './config/data';
 import { AU_PER_LY, kmToAu, R_EARTH_KM, R_SUN_KM, SCHWARZSCHILD_AU_PER_SOLAR_MASS } from './generation/units';
 
 /**

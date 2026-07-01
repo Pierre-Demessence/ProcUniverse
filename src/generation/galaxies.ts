@@ -20,7 +20,7 @@ import {
   GALAXY_SCALE_LENGTH_LY,
   MORPH_DENSITY_BIAS,
   STAR_DENSITY_PEAK,
-} from '../config';
+} from '../config/data';
 import { SECTOR_SIZE } from '../scale';
 import { hashGalaxy } from './hash';
 import { nameGalaxy } from './naming';
