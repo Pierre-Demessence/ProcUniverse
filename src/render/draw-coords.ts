@@ -2,7 +2,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { formatDistance } from '../distance';
 import { galaxyAt, universeAge } from '../generation/galaxies';
-import { distanceUnit } from '../settings';
+import { distanceUnit, namingStyle } from '../settings';
 
 const MARGIN_PX = 12;
 const LINE_PX = 14;
@@ -31,7 +31,7 @@ export function drawCoords(ctx2d: CanvasRenderingContext2D, cam: Camera, seed: n
   const epoch = `Universe age ${threeSigFigs(universeAge(seed) / 1e9)} Gyr`;
   const absolute = `X ${formatCoord(cam.x)}   Y ${formatCoord(cam.y)}`;
   const context = galaxy
-    ? `\u0394 ${formatCoord(cam.x - galaxy.centerX)}, ${formatCoord(cam.y - galaxy.centerY)} in ${galaxy.name}`
+    ? `\u0394 ${formatCoord(cam.x - galaxy.centerX)}, ${formatCoord(cam.y - galaxy.centerY)} in ${namingStyle.value === 'human' ? galaxy.humanName : galaxy.name}`
     : 'intergalactic space';
 
   ctx2d.save();

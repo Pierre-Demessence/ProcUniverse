@@ -48,6 +48,7 @@ const spiral: GalaxyParams = {
   cosmicDensity: 0.5,
   dwarf: false,
   ellipticity: 1,
+  humanName: 'Testo',
   orientation: 0,
   phase: 0,
   pitch: (18 * Math.PI) / 180,

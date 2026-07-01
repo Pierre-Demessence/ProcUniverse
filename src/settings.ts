@@ -8,10 +8,13 @@
  */
 
 import type { DistanceUnit } from './distance';
+import type { NamingStyle } from './generation/naming';
 
 import { signal } from '@preact/signals';
 
 import { clearPreferences, loadPreferences, savePreference } from './persistence/preferences';
+
+export type { NamingStyle } from './generation/naming';
 
 /** Display unit for temperatures: kelvin, degrees Celsius, or degrees Fahrenheit. */
 export type TemperatureUnit = 'C' | 'F' | 'K';
@@ -34,6 +37,7 @@ const DEFAULT_VALUE_MODE: ValueMode = 'relative';
 const DEFAULT_DETAIL_LEVEL: DetailLevel = 'advanced';
 const DEFAULT_NUMBER_NOTATION: NumberNotation = 'auto';
 const DEFAULT_BODY_SCALE: BodyScale = 'usable';
+const DEFAULT_NAMING_STYLE: NamingStyle = 'human';
 
 function asTemperatureUnit(value: unknown): TemperatureUnit | null {
   return value === 'C' || value === 'F' || value === 'K' ? value : null;
@@ -59,6 +63,10 @@ function asBodyScale(value: unknown): BodyScale | null {
   return value === 'true' || value === 'usable' ? value : null;
 }
 
+function asNamingStyle(value: unknown): NamingStyle | null {
+  return value === 'human' || value === 'scientific' ? value : null;
+}
+
 const stored = loadPreferences();
 
 /** The temperature unit every panel renders, seeded from storage. */
@@ -78,6 +86,9 @@ export const numberNotation = signal<NumberNotation>(asNumberNotation(stored.num
 
 /** Whether bodies draw at true physical scale or floored to stay visible when zoomed out. */
 export const bodyScale = signal<BodyScale>(asBodyScale(stored.bodyScale) ?? DEFAULT_BODY_SCALE);
+
+/** Whether names are human-readable words or scientific catalogue designations. */
+export const namingStyle = signal<NamingStyle>(asNamingStyle(stored.namingStyle) ?? DEFAULT_NAMING_STYLE);
 
 /** Choose the temperature unit and persist it. */
 export function setTemperatureUnit(unit: TemperatureUnit): void {
@@ -115,6 +126,12 @@ export function setBodyScale(scale: BodyScale): void {
   savePreference('bodyScale', scale);
 }
 
+/** Choose human or scientific naming and persist it. */
+export function setNamingStyle(style: NamingStyle): void {
+  namingStyle.value = style;
+  savePreference('namingStyle', style);
+}
+
 /** Restore every setting to its default and clear the stored preferences. */
 export function resetSettings(): void {
   temperatureUnit.value = DEFAULT_TEMPERATURE_UNIT;
@@ -123,5 +140,6 @@ export function resetSettings(): void {
   detailLevel.value = DEFAULT_DETAIL_LEVEL;
   numberNotation.value = DEFAULT_NUMBER_NOTATION;
   bodyScale.value = DEFAULT_BODY_SCALE;
+  namingStyle.value = DEFAULT_NAMING_STYLE;
   clearPreferences();
 }

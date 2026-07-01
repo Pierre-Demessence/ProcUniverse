@@ -1,8 +1,12 @@
 /**
- * Deterministic body identity. A star's catalogue designation and its planets'
- * letters are pure functions of where the body sits in the universe hierarchy
- * (world seed → sector → cell → orbital order) plus the star's physical class,
- * so they need no persistence: regenerating a sector reproduces the same names.
+ * Deterministic body identity. Every body gets TWO names derived from the same
+ * hash: a *scientific* catalogue designation (the stable identity key) and a
+ * human* readable name generated from syllables. Both are pure functions of
+ * where the body sits in the universe hierarchy, so they need no persistence:
+ * regenerating a sector reproduces the same pair.
+ *
+ * A user-toggleable `NamingStyle` setting picks which one is displayed; the
+ * `displayName` helper encapsulates the choice so consumers don't branch.
  */
 
 import type { ComponentDef } from '@pierre/ecs/component-store';
@@ -11,56 +15,143 @@ import type { SpectralClass } from './stars';
 
 import { simpleComponent } from '@pierre/ecs/component-store';
 
-/** A body's display name, attached to its entity for the HUD and labels. */
+import { generateWord } from './syllables';
+
+// ── Component ───────────────────────────────────────────────────────────────
+
+/** A body's two display names, attached to its entity for the HUD and labels. */
 export interface BodyName {
-  name: string;
+  /** Human-readable name for the 'human' naming style. */
+  human: string;
+  /** Stable unique key — always the scientific catalogue designation. */
+  scientific: string;
 }
 
 export const NameDef: ComponentDef<BodyName> = simpleComponent<BodyName>('name', {
-  name: 'string',
+  human: 'string',
+  scientific: 'string',
 });
 
-// A catalogue number is a fixed-width base-36 designation; five digits give
-// ~60M distinct ids, plenty for the systems on screen at once (name collisions
-// are cosmetic, never identity keys).
+// ── Display helper ──────────────────────────────────────────────────────────
+
+/** Which naming scheme is currently displayed. */
+export type NamingStyle = 'human' | 'scientific';
+
+/**
+ * Resolve a body's display name under the active naming style.
+ * `name` may be undefined (e.g. during entity teardown); returns 'Unknown'.
+ */
+export function displayName(name: BodyName | undefined, style: NamingStyle): string {
+  if (!name)
+    return 'Unknown';
+  return style === 'human' ? name.human : name.scientific;
+}
+
+// ── Generated-name container ────────────────────────────────────────────────
+
+/** A pair of names produced by one of the `name*` functions below. */
+export interface GeneratedName {
+  human: string;
+  scientific: string;
+}
+
+// ── Catalogue number (scientific style only) ────────────────────────────────
+
 const CATALOG_DIGITS = 5;
 const CATALOG_SPACE = 36 ** CATALOG_DIGITS;
 
-// Exoplanet convention: the star is component 'A', so orbiting planets take
-// lowercase letters from 'b' outward by orbital order ('b' = 98 in ASCII).
-const FIRST_PLANET_CHAR = 98;
-
-/** Render a system hash as a zero-padded, uppercase base-36 catalogue number. */
+/** Render a hash as a zero-padded, uppercase base-36 catalogue number. */
 export function catalogNumber(hash: number): string {
   return (hash % CATALOG_SPACE).toString(36).toUpperCase().padStart(CATALOG_DIGITS, '0');
 }
 
-/**
- * A star's catalogue designation: its spectral class, then a catalogue number
- * derived from the system hash — e.g. `G-4F2A9`. The class prefix ties the name
- * to the star's physical type; the hash ties it to its place in the universe.
- */
-export function nameStar(spectralClass: SpectralClass, systemHash: number): string {
-  return `${spectralClass}-${catalogNumber(systemHash)}`;
+// ── Galaxies ────────────────────────────────────────────────────────────────
+
+/** A galaxy's names: scientific `NGC-XXXXX`, human from 2–3 syllables. */
+export function nameGalaxy(galaxyHash: number): GeneratedName {
+  return {
+    human: generateWord(galaxyHash, 2, 3),
+    scientific: `NGC-${catalogNumber(galaxyHash)}`,
+  };
 }
 
-/** A galaxy's catalogue designation from its cell hash, e.g. `NGC-4F2A9`. */
-export function nameGalaxy(galaxyHash: number): string {
-  return `NGC-${catalogNumber(galaxyHash)}`;
+// ── Stars ───────────────────────────────────────────────────────────────────
+
+/**
+ * A star's names: scientific `G-4F2A9` (spectral class + catalogue number),
+ * human from 2–3 syllables of the system hash.
+ */
+export function nameStar(spectralClass: SpectralClass, systemHash: number): GeneratedName {
+  return {
+    human: generateWord(systemHash, 2, 3),
+    scientific: `${spectralClass}-${catalogNumber(systemHash)}`,
+  };
 }
+
+// ── Planets ─────────────────────────────────────────────────────────────────
+
+const FIRST_PLANET_CHAR = 98;
 
 /** The orbital letter for the `index`-th planet (innermost = 0 → 'b'). */
 export function planetSuffix(index: number): string {
   return String.fromCharCode(FIRST_PLANET_CHAR + index);
 }
 
-/** A planet's name: its star's designation plus the orbital letter, e.g. `G-4F2A9 b`. */
-export function namePlanet(starName: string, index: number): string {
-  return `${starName} ${planetSuffix(index)}`;
+// Earth Similarity Index threshold: above this a planet is "Earth-like" and
+// gets a proper name instead of an orbital letter in human mode.
+const EARTHLIKE_ESI_THRESHOLD = 0.85;
+
+// Curated proper names for Earth-like worlds — short, evocative, readable.
+const EARTHLIKE_NAMES = [
+  'Gaia',
+  'Terra',
+  'Eden',
+  'Avalon',
+  'Arcadia',
+  'Elysium',
+  'Haven',
+  'Cradle',
+  'Pacha',
+  'Midgard',
+  'Aaru',
+  'Dilmun',
+  'Asphodel',
+  'Ama',
+  'Pangaea',
+  'Nova',
+  'Aurora',
+  'Verdant',
+  'Oceana',
+  'Empyrea',
+] as const;
+
+/** Pick an Earth-like proper name deterministically from a planet hash. */
+function earthlikeName(planetHash: number): string {
+  return EARTHLIKE_NAMES[planetHash % EARTHLIKE_NAMES.length];
 }
 
-// Roman-numeral amounts (descending), the satellite convention: a moon is named
-// after its planet plus its orbital order in Roman numerals (Jupiter I = Io).
+/**
+ * A planet's names. The scientific name is always `<star.scientific> <letter>`.
+ * The human name is usually `<star.human> <letter>`, but when `esi ≥ 0.85` the
+ * orbital letter is *replaced* by a proper name from the Earth-like list.
+ */
+export function namePlanet(
+  star: GeneratedName,
+  index: number,
+  planetHash: number,
+  esi?: number,
+): GeneratedName {
+  const suffix = planetSuffix(index);
+  return {
+    scientific: `${star.scientific} ${suffix}`,
+    human: esi !== undefined && esi >= EARTHLIKE_ESI_THRESHOLD
+      ? earthlikeName(planetHash)
+      : `${star.human} ${suffix}`,
+  };
+}
+
+// ── Moons ───────────────────────────────────────────────────────────────────
+
 const ROMAN_NUMERALS = [
   [1000, 'M'],
   [900, 'CM'],
@@ -90,7 +181,14 @@ export function romanNumeral(value: number): string {
   return out;
 }
 
-/** A moon's name: its planet's name plus its orbital order in Roman numerals (0 → `I`). */
-export function nameMoon(planetName: string, index: number): string {
-  return `${planetName} ${romanNumeral(index + 1)}`;
+/**
+ * A moon's names: both build on the planet's names plus the 1-based orbital
+ * order in Roman numerals (index 0 → `I`).
+ */
+export function nameMoon(planet: GeneratedName, index: number): GeneratedName {
+  const numeral = romanNumeral(index + 1);
+  return {
+    human: `${planet.human} ${numeral}`,
+    scientific: `${planet.scientific} ${numeral}`,
+  };
 }

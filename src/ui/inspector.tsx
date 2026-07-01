@@ -28,12 +28,12 @@ import { useState } from 'preact/hooks';
 import { compactNumber, formatDistance } from '../distance';
 import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyAt, galaxyDiameterLy, galaxyRepresentativeActivity, gasFraction, hawkingTemperature, innermostStableOrbit, isActiveGalacticNucleus, meanStellarAge, photonSphere, shadowDiameter, starFormationRate, universeAge, velocityDispersion } from '../generation/galaxies';
 import { MoonPhysicalDef } from '../generation/moons';
-import { NameDef } from '../generation/naming';
+import { displayName, NameDef } from '../generation/naming';
 import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
 import { AU_PER_LY, EARTH_GRAVITY_MS2, L_SUN, M_EARTH_KG, M_SUN_KG, R_EARTH_KM, R_SUN_KM, SECONDS_PER_YEAR, SOLAR_CONSTANT_W_M2 } from '../generation/units';
 import { populationColorCss } from '../render/galaxy-sprites';
-import { detailLevel, distanceUnit, numberNotation, temperatureUnit, valueMode } from '../settings';
+import { detailLevel, distanceUnit, namingStyle, numberNotation, temperatureUnit, valueMode } from '../settings';
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
 
 export interface Inspector {
@@ -397,7 +397,7 @@ function UniversePanel({ seed }: { seed: number }): VNode {
       <div style={BODY_CSS}>
         <Row label="Seed" value={formatSeed(seed)} tooltip="The number this whole universe is generated from; the same seed rebuilds it." basic />
         <Row label="Age" value={formatLifetime(universeAge(seed))} tooltip="How long ago this universe began." basic />
-        <Row label="Home galaxy" value={home ? home.name : '\u2014'} tooltip="The galaxy at the origin, where you started out." basic />
+        <Row label="Home galaxy" value={home ? (namingStyle.value === 'human' ? home.humanName : home.name) : '\u2014'} tooltip="The galaxy at the origin, where you started out." basic />
       </div>
     </div>
   );
@@ -409,7 +409,7 @@ function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
   const vm = valueMode.value;
   return (
     <div style={PANEL_CSS}>
-      <div style={NAME_CSS}>{galaxy.name}</div>
+      <div style={NAME_CSS}>{namingStyle.value === 'human' ? galaxy.humanName : galaxy.name}</div>
       <div style={`${CAPTION_CSS}; display:flex; align-items:center; gap:6px`}>
         <span
           style={{
@@ -474,27 +474,27 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
   if (sel.kind === 'star') {
     const star = world.getStore(StarPhysicalDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
-    return star ? <StarPanel name={identity?.name ?? ''} star={star} /> : null;
+    return star ? <StarPanel name={displayName(identity, namingStyle.value)} star={star} /> : null;
   }
 
   if (sel.kind === 'black-hole') {
     const blackHole = world.getStore(BlackHoleDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
-    return blackHole ? <BlackHolePanel blackHole={blackHole} name={identity?.name ?? ''} /> : null;
+    return blackHole ? <BlackHolePanel blackHole={blackHole} name={displayName(identity, namingStyle.value)} /> : null;
   }
 
   if (sel.kind === 'moon') {
     const moon = world.getStore(MoonPhysicalDef).get(sel.id);
     const orbit = world.getStore(OrbitElementsDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
-    const host = orbit ? world.getStore(NameDef).get(orbit.parent)?.name ?? '\u2014' : '\u2014';
-    return moon && orbit ? <MoonPanel host={host} moon={moon} name={identity?.name ?? ''} orbit={orbit} /> : null;
+    const host = displayName(orbit ? world.getStore(NameDef).get(orbit.parent) : undefined, namingStyle.value) || '\u2014';
+    return moon && orbit ? <MoonPanel host={host} moon={moon} name={displayName(identity, namingStyle.value)} orbit={orbit} /> : null;
   }
 
   const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
   const orbit = world.getStore(OrbitElementsDef).get(sel.id);
   const identity = world.getStore(NameDef).get(sel.id);
-  return planet && orbit ? <PlanetPanel moons={countMoons(world, sel.id)} name={identity?.name ?? ''} orbit={orbit} planet={planet} /> : null;
+  return planet && orbit ? <PlanetPanel moons={countMoons(world, sel.id)} name={displayName(identity, namingStyle.value)} orbit={orbit} planet={planet} /> : null;
 }
 
 /**

@@ -478,10 +478,10 @@ function buildNavState(seed: number, cache: SectorCache, camera: Camera, tier: T
   if (tier === 'system') {
     const focus = nearestStar(cache, camera.x, camera.y);
     if (focus)
-      system = { name: focus.name, planets: focus.planets.map(p => ({ name: p.name, moons: p.moons.map(m => ({ name: m.name })) })) };
+      system = { name: focus.name.scientific, humanName: focus.name.human, planets: focus.planets.map(p => ({ name: p.name.scientific, humanName: p.name.human, moons: p.moons.map(m => ({ name: m.name.scientific, humanName: m.name.human })) })) };
   }
   return {
-    galaxy: galaxy ? { name: galaxy.name } : null,
+    galaxy: galaxy ? { name: galaxy.name, humanName: galaxy.humanName } : null,
     selectedKey: selectionKey(world, selection),
     system,
     tier,
@@ -496,7 +496,7 @@ function selectionKey(world: EcsWorld, selection: Selection | null): string | nu
     return 'universe';
   if (selection.kind === 'galaxy')
     return `galaxy:${selection.galaxy.name}`;
-  return world.getStore(NameDef).get(selection.id)?.name ?? null;
+  return world.getStore(NameDef).get(selection.id)?.scientific ?? null;
 }
 
 function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, tier: Tier): void {

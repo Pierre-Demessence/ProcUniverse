@@ -19,6 +19,7 @@ import { signal } from '@preact/signals';
 import { render } from 'preact';
 
 import { NAV_TREE_INDENT_PX } from '../config/render';
+import { namingStyle } from '../settings';
 
 /** The kind of body a tree node represents. */
 export type NavNodeKind = 'galaxy' | 'moon' | 'planet' | 'star' | 'universe';
@@ -38,12 +39,18 @@ export interface NavNode {
 }
 
 export interface NavGalaxy {
+  /** Scientific catalogue designation (stable key). */
   name: string;
+  /** Human-readable name for the 'human' naming style. */
+  humanName: string;
 }
 
 export interface NavSystem {
+  /** Scientific catalogue designation (stable key). */
   name: string;
-  planets: { name: string; moons: { name: string }[] }[];
+  /** Human-readable name for the 'human' naming style. */
+  humanName: string;
+  planets: { humanName: string; moons: { humanName: string; name: string }[]; name: string }[];
 }
 
 /** The current location, assembled from the camera + tier each frame. */
@@ -82,13 +89,14 @@ export function navNodes(state: NavState): NavNode[] {
   ];
 
   const showGalaxy = state.tier !== 'universe' && state.galaxy !== null;
+  const style = namingStyle.value;
   if (showGalaxy && state.galaxy) {
     nodes.push({
       name: state.galaxy.name,
       depth: 1,
       key: `galaxy:${state.galaxy.name}`,
       kind: 'galaxy',
-      label: state.galaxy.name,
+      label: style === 'human' ? state.galaxy.humanName : state.galaxy.name,
       selectable: true,
     });
   }
@@ -100,7 +108,7 @@ export function navNodes(state: NavState): NavNode[] {
       depth: systemDepth,
       key: state.system.name,
       kind: 'star',
-      label: state.system.name,
+      label: style === 'human' ? state.system.humanName : state.system.name,
       selectable: true,
     });
     for (const planet of state.system.planets) {
@@ -109,7 +117,7 @@ export function navNodes(state: NavState): NavNode[] {
         depth: systemDepth + 1,
         key: planet.name,
         kind: 'planet',
-        label: planet.name,
+        label: style === 'human' ? planet.humanName : planet.name,
         selectable: true,
       });
       // Moons appear directly under their planet at the system tier, so every
@@ -120,7 +128,7 @@ export function navNodes(state: NavState): NavNode[] {
           depth: systemDepth + 2,
           key: moon.name,
           kind: 'moon',
-          label: moon.name,
+          label: style === 'human' ? moon.humanName : moon.name,
           selectable: true,
         });
       }

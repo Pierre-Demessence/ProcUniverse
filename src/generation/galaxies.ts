@@ -71,6 +71,7 @@ export const BlackHoleDef: ComponentDef<BlackHolePhysical> = simpleComponent<Bla
  * density and activity functions are evaluated relative to it.
  */
 export interface GalaxyParams {
+  /** Scientific catalogue designation (stable key), e.g. `NGC-4F2A9`. */
   name: string;
   arms: number;
   armStrength: number;
@@ -82,6 +83,8 @@ export interface GalaxyParams {
   cosmicDensity: number;
   dwarf: boolean;
   ellipticity: number;
+  /** Human-readable name for the 'human' naming style, e.g. `Korvannis`. */
+  humanName: string;
   orientation: number;
   phase: number;
   pitch: number;
@@ -247,8 +250,9 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number): GalaxyPar
   const blackHoleSpin = rng();
   const blackHoleEddingtonRatio = 10 ** lerp(-6, 0, rng() ** 3);
 
+  const { human: humanName, scientific: galaxyName } = nameGalaxy(hash);
   return {
-    name: nameGalaxy(hash),
+    name: galaxyName,
     arms,
     armStrength: GALAXY_ARM_STRENGTH,
     blackHoleEddingtonRatio,
@@ -259,6 +263,7 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number): GalaxyPar
     cosmicDensity: cosmic,
     dwarf,
     ellipticity,
+    humanName,
     orientation,
     phase,
     pitch: GALAXY_ARM_PITCH_DEG * DEG_TO_RAD,

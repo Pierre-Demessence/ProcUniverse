@@ -1,6 +1,8 @@
 import type { ComponentDef } from '@pierre/ecs/component-store';
 import type { RandomFn } from '@pierre/ecs/modules/rng';
 
+import type { GeneratedName } from './naming';
+
 import { simpleComponent } from '@pierre/ecs/component-store';
 import { clamp, lerp } from '@pierre/ecs/modules/math';
 import { randomInt } from '@pierre/ecs/modules/rng';
@@ -88,7 +90,7 @@ const MOON_SLOT_LIMIT = 64;
 
 /** A generated moon: its orbit around the planet (AU) and its physical state. */
 export interface MoonData {
-  name: string;
+  name: GeneratedName;
   a: number;
   argPeriapsis: number;
   color: string;
@@ -131,7 +133,7 @@ function moonOccupancy(massEarth: number, hillFraction: number, richness: number
  */
 export function generateMoons(
   rng: RandomFn,
-  planetName: string,
+  planet: GeneratedName,
   planetRadiusAu: number,
   planetSemiMajorAu: number,
   planetMassEarth: number,
@@ -155,7 +157,7 @@ export function generateMoons(
     const argPeriapsis = rng() * TAU;
     const meanAnomaly0 = rng() * TAU;
     const physical = sampleMoon(rng);
-    moons.push({ name: nameMoon(planetName, moons.length), a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
+    moons.push({ name: nameMoon(planet, moons.length), a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
   }
   return moons;
 }

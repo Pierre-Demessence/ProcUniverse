@@ -57,7 +57,7 @@ export function spawnSector(
       stroke: STAR_STROKE,
     });
     starPhysicals.set(starId, sys.star);
-    names.set(starId, { name: sys.name });
+    names.set(starId, { human: sys.name.human, scientific: sys.name.scientific });
     ids.push(starId);
 
     for (const planet of sys.planets) {
@@ -79,7 +79,7 @@ export function spawnSector(
         starMass: sys.star.mass,
       });
       planetPhysicals.set(id, planet.physical);
-      names.set(id, { name: planet.name });
+      names.set(id, { human: planet.name.human, scientific: planet.name.scientific });
       ids.push(id);
 
       // Moons orbit the planet (a moving focus): parent is the planet entity, and
@@ -101,7 +101,7 @@ export function spawnSector(
           starMass: planetMassSolar,
         });
         moonPhysicals.set(moonId, moon.physical);
-        names.set(moonId, { name: moon.name });
+        names.set(moonId, { human: moon.name.human, scientific: moon.name.scientific });
         ids.push(moonId);
       }
     }
@@ -120,7 +120,7 @@ export function spawnSector(
       stroke: BLACK_HOLE_RING,
     });
     blackHoles.set(id, { eddingtonRatio: bh.eddingtonRatio, mass: bh.mass, schwarzschildRadius: bh.schwarzschildRadius, spin: bh.spin });
-    names.set(id, { name: bh.name });
+    names.set(id, { human: bh.name.human, scientific: bh.name.scientific });
     ids.push(id);
   }
 

@@ -7,9 +7,10 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { BlackHoleDef } from '../generation/galaxies';
 import { MoonPhysicalDef } from '../generation/moons';
-import { NameDef } from '../generation/naming';
+import { displayName, NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
+import { namingStyle } from '../settings';
 import { OrbitElementsDef } from '../sim/orbits';
 
 const GAP_PX = 6;
@@ -57,7 +58,7 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, cam: Camera, wor
     }
     const renderable = renderables.get(id);
     const discPx = renderable?.kind === 'circle' ? renderable.radius * cam.zoom : 0;
-    ctx2d.fillText(identity.name, v.vx, v.vy + discPx + GAP_PX);
+    ctx2d.fillText(displayName(identity, namingStyle.value), v.vx, v.vy + discPx + GAP_PX);
   };
 
   ctx2d.font = STAR_FONT;

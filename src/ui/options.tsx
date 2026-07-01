@@ -8,12 +8,12 @@ import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
 import type { DistanceUnit } from '../distance';
-import type { BodyScale, DetailLevel, NumberNotation, TemperatureUnit, ValueMode } from '../settings';
+import type { BodyScale, DetailLevel, NamingStyle, NumberNotation, TemperatureUnit, ValueMode } from '../settings';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { bodyScale, detailLevel, distanceUnit, numberNotation, resetSettings, setBodyScale, setDetailLevel, setDistanceUnit, setNumberNotation, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from '../settings';
+import { bodyScale, detailLevel, distanceUnit, namingStyle, numberNotation, resetSettings, setBodyScale, setDetailLevel, setDistanceUnit, setNamingStyle, setNumberNotation, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from '../settings';
 
 export interface OptionsMenu {
   dispose: () => void;
@@ -36,6 +36,9 @@ const NUMBER_LABELS: Record<NumberNotation, string> = { auto: 'Auto', scientific
 
 const BODY_SCALES: readonly BodyScale[] = ['usable', 'true'];
 const BODY_SCALE_LABELS: Record<BodyScale, string> = { true: 'True', usable: 'Usable' };
+
+const NAMING_STYLES: readonly NamingStyle[] = ['human', 'scientific'];
+const NAMING_LABELS: Record<NamingStyle, string> = { human: 'Human', scientific: 'Scientific' };
 
 const WRAP_CSS = [
   'position:absolute',
@@ -147,6 +150,9 @@ function OptionsPanel({ open }: { open: Signal<boolean> }): VNode {
       {open.value && (
         <div style={PANEL_CSS}>
           <div style={CAPTION_CSS}>OPTIONS</div>
+          <SettingRow label="Names">
+            <Segmented options={NAMING_STYLES} value={namingStyle.value} labels={NAMING_LABELS} onSelect={setNamingStyle} />
+          </SettingRow>
           <SettingRow label="Body scale">
             <Segmented options={BODY_SCALES} value={bodyScale.value} labels={BODY_SCALE_LABELS} onSelect={setBodyScale} />
           </SettingRow>

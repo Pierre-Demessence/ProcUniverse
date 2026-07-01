@@ -4,6 +4,7 @@ import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 
 import { GALAXY_SPRITE_SCALE } from '../config/render';
 import { galaxiesInRect, galaxyRepresentativeActivity } from '../generation/galaxies';
+import { namingStyle } from '../settings';
 import { populationGlow } from './galaxy-sprites';
 
 // A galaxy's catalogue label is drawn once its sprite is at least this wide (px).
@@ -54,7 +55,7 @@ export function drawGalaxyField(
     if (radiusPx * 2 < LABEL_MIN_PX)
       continue;
     const v = worldToView(g.centerX - originX, g.centerY - originY, cam);
-    ctx2d.fillText(g.name, v.vx, v.vy + radiusPx + 3);
+    ctx2d.fillText(namingStyle.value === 'human' ? g.humanName : g.name, v.vx, v.vy + radiusPx + 3);
   }
   ctx2d.restore();
   return drawn;

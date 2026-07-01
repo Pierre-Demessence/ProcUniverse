@@ -1,3 +1,5 @@
+import type { GeneratedName } from './naming';
+
 import { makeSeededRng } from '@pierre/ecs/modules/rng';
 import { describe, expect, it } from 'vitest';
 
@@ -14,6 +16,7 @@ const GIANT_MASS_EARTH = 318;
 // An Earth-like world (1 R⊕) for the mass-dependence comparison.
 const EARTH_RADIUS_AU = 4.26e-5;
 const STAR_MASS_SOLAR = 1;
+const P_TEST: GeneratedName = { human: 'P b', scientific: 'P b' };
 
 function hillRadius(semiMajorAu: number, planetMassEarth: number, starMassSolar: number): number {
   return semiMajorAu * Math.cbrt((planetMassEarth * EARTH_MASS_SOLAR) / (3 * starMassSolar));
@@ -53,12 +56,12 @@ describe('sampleMoon', () => {
 
 describe('generateMoons', () => {
   it('is deterministic for a given rng seed', () => {
-    const args = ['P b', GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.8] as const;
+    const args = [P_TEST, GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.8] as const;
     expect(generateMoons(makeSeededRng(7), ...args)).toEqual(generateMoons(makeSeededRng(7), ...args));
   });
 
   it('places moons on strictly outward orbits within the regular Hill band, named in order', () => {
-    const moons = generateMoons(makeSeededRng(7), 'P b', GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.9);
+    const moons = generateMoons(makeSeededRng(7), P_TEST, GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.9);
     const bandOuter = hillRadius(GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR) * 0.15;
     expect(moons.length).toBeGreaterThan(0);
     for (let i = 0; i < moons.length; i++) {
@@ -67,7 +70,7 @@ describe('generateMoons', () => {
       expect(moon.a).toBeLessThanOrEqual(bandOuter);
       expect(moon.e).toBeGreaterThanOrEqual(0);
       expect(moon.e).toBeLessThanOrEqual(0.05);
-      expect(moon.name).toBe(nameMoon('P b', i));
+      expect(moon.name).toEqual(nameMoon(P_TEST, i));
       if (i > 0)
         expect(moon.a).toBeGreaterThan(moons[i - 1].a);
     }
@@ -76,15 +79,15 @@ describe('generateMoons', () => {
   it('holds no moons around a tiny close-in world (Hill sphere too small)', () => {
     // A close-in Earth-mass planet's Hill sphere barely clears its Roche limit,
     // so no orbital slot fits inside the regular band.
-    expect(generateMoons(makeSeededRng(3), 'P b', EARTH_RADIUS_AU, 0.05, 1, STAR_MASS_SOLAR, 0.9)).toEqual([]);
+    expect(generateMoons(makeSeededRng(3), P_TEST, EARTH_RADIUS_AU, 0.05, 1, STAR_MASS_SOLAR, 0.9)).toEqual([]);
   });
 
   it('gives a massive giant more moons than a small rocky world', () => {
     let giantTotal = 0;
     let rockyTotal = 0;
     for (let seed = 0; seed < 200; seed++) {
-      giantTotal += generateMoons(makeSeededRng(seed), 'P b', GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.6).length;
-      rockyTotal += generateMoons(makeSeededRng(seed), 'P b', EARTH_RADIUS_AU, 1, 1, STAR_MASS_SOLAR, 0.6).length;
+      giantTotal += generateMoons(makeSeededRng(seed), P_TEST, GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.6).length;
+      rockyTotal += generateMoons(makeSeededRng(seed), P_TEST, EARTH_RADIUS_AU, 1, 1, STAR_MASS_SOLAR, 0.6).length;
     }
     expect(giantTotal).toBeGreaterThan(rockyTotal);
   });
@@ -93,8 +96,8 @@ describe('generateMoons', () => {
     let richTotal = 0;
     let poorTotal = 0;
     for (let seed = 0; seed < 200; seed++) {
-      richTotal += generateMoons(makeSeededRng(seed), 'P b', GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 1).length;
-      poorTotal += generateMoons(makeSeededRng(seed), 'P b', GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0).length;
+      richTotal += generateMoons(makeSeededRng(seed), P_TEST, GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 1).length;
+      poorTotal += generateMoons(makeSeededRng(seed), P_TEST, GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0).length;
     }
     expect(richTotal).toBeGreaterThan(poorTotal);
   });
@@ -105,7 +108,7 @@ describe('generateMoons', () => {
     for (let seed = 0; seed < samples; seed++) {
       // Draw richness like real generation (samplePlanet's per-planet trait).
       const richness = makeSeededRng(seed + 9000)();
-      total += generateMoons(makeSeededRng(seed), 'P b', GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, richness).length;
+      total += generateMoons(makeSeededRng(seed), P_TEST, GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, richness).length;
     }
     const mean = total / samples;
     expect(mean).toBeGreaterThan(2);
@@ -121,7 +124,7 @@ describe('moon generation independence (determinism)', () => {
     // has moons — the property that keeps the star/planet layout stable.
     const systemRng = makeSeededRng(999);
     systemRng();
-    generateMoons(makeSeededRng(hashMoon(999, 0)), 'P b', GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.8);
+    generateMoons(makeSeededRng(hashMoon(999, 0)), P_TEST, GIANT_RADIUS_AU, GIANT_SEMI_MAJOR_AU, GIANT_MASS_EARTH, STAR_MASS_SOLAR, 0.8);
     const afterMoons = systemRng();
 
     const controlRng = makeSeededRng(999);

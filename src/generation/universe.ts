@@ -1,4 +1,5 @@
 import type { MoonData } from './moons';
+import type { GeneratedName } from './naming';
 import type { PlanetPhysical } from './planets';
 import type { StarPhysical } from './stars';
 
@@ -24,7 +25,7 @@ import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt, universeAge } from
 import { hashMoon, hashSector, hashSystem } from './hash';
 import { generateMoons } from './moons';
 import { namePlanet, nameStar } from './naming';
-import { frostLine, samplePlanet } from './planets';
+import { earthSimilarityIndex, escapeVelocity, frostLine, samplePlanet } from './planets';
 import { sampleStar } from './stars';
 
 const TAU = Math.PI * 2;
@@ -41,7 +42,7 @@ const PLANET_COLORS = [
 ];
 
 export interface PlanetData {
-  name: string;
+  name: GeneratedName;
   a: number;
   argPeriapsis: number;
   color: string;
@@ -53,7 +54,7 @@ export interface PlanetData {
 }
 
 export interface SystemData {
-  name: string;
+  name: GeneratedName;
   planets: PlanetData[];
   radius: number;
   star: StarPhysical;
@@ -62,7 +63,7 @@ export interface SystemData {
 }
 
 export interface BlackHoleData {
-  name: string;
+  name: GeneratedName;
   eddingtonRatio: number;
   mass: number;
   radius: number;
@@ -113,7 +114,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
     const srng = makeSeededRng(systemSeed);
     const star = sampleStar(srng, galaxyActivityAt(worldSeed, x, y), cosmicAge);
     const radius = starVisualRadius(star.radius);
-    const name = nameStar(star.spectralClass, systemSeed);
+    const systemName = nameStar(star.spectralClass, systemSeed);
     const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, srng);
 
     const planets: PlanetData[] = [];
@@ -146,17 +147,24 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const argPeriapsis = srng() * TAU;
       const meanAnomaly0 = srng() * TAU;
       const physical = samplePlanet(srng, star.luminosity, a, star.mass, star.age, star.metallicity);
-      const planetName = namePlanet(name, j);
+      const planetHash = hashMoon(systemSeed, j);
+      const esi = earthSimilarityIndex(
+        physical.radius,
+        physical.density,
+        escapeVelocity(physical.mass, physical.radius),
+        physical.equilibriumTemp,
+      );
+      const planetName = namePlanet(systemName, j, planetHash, esi);
       const radius = planetVisualRadius(physical.radius);
       // Moons come from an independent per-planet stream, so they never perturb
       // the star/planet draws; their count emerges from the planet's mass and
       // Hill sphere (see generateMoons), scaled by its moon-richness trait.
-      const moonRng = makeSeededRng(hashMoon(systemSeed, j));
+      const moonRng = makeSeededRng(planetHash);
       const moons = generateMoons(moonRng, planetName, radius, a, physical.mass, star.mass, physical.moonRichness);
       planets.push({ name: planetName, a, argPeriapsis, color, e, meanAnomaly0, moons, physical, radius });
     }
 
-    systems.push({ name, planets, radius, star, x, y });
+    systems.push({ name: systemName, planets, radius, star, x, y });
   }
 
   // A galaxy's central black hole lives in the one sector that holds its centre.
@@ -164,7 +172,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
   const galaxy = galaxyCenteredIn(worldSeed, originX, originY, originX + SECTOR_SIZE, originY + SECTOR_SIZE);
   if (galaxy) {
     blackHoles.push({
-      name: `${galaxy.name} SMBH`,
+      name: { human: `${galaxy.humanName} SMBH`, scientific: `${galaxy.name} SMBH` },
       eddingtonRatio: galaxy.blackHoleEddingtonRatio,
       mass: galaxy.blackHoleMass,
       radius: blackHoleVisualRadius(galaxy.blackHoleMass),

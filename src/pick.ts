@@ -90,7 +90,7 @@ export function pickBodyAt(world: EcsWorld, localCam: Camera, bx: number, by: nu
  */
 export function findEntityByName(world: EcsWorld, name: string): EntityId | null {
   for (const [id, n] of world.query(NameDef)) {
-    if (n.name === name)
+    if (n.scientific === name)
       return id;
   }
   return null;

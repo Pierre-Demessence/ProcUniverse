@@ -155,9 +155,9 @@ describe('findEntityByName', () => {
     const world = new EcsWorld();
     world.registerComponent(NameDef);
     const a = world.createEntity();
-    world.getStore(NameDef).set(a, { name: 'G-4F2A9' });
+    world.getStore(NameDef).set(a, { human: 'Talos', scientific: 'G-4F2A9' });
     const b = world.createEntity();
-    world.getStore(NameDef).set(b, { name: 'G-4F2A9 b' });
+    world.getStore(NameDef).set(b, { human: 'Talos b', scientific: 'G-4F2A9 b' });
     expect(findEntityByName(world, 'G-4F2A9')).toBe(a);
     expect(findEntityByName(world, 'G-4F2A9 b')).toBe(b);
   });
