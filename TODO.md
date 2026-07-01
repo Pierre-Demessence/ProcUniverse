@@ -2,7 +2,7 @@
 
 ## Universe Generation & Objects
 
-- [ ] Add moons
+- [x] Add moons
   - Generate moons around planets
   - Render moons star system view
   - Include moon properties in inspector
@@ -21,7 +21,7 @@
 
 ## Solar System Viewing & Scale Representation
 
-- [ ] Find a better way to preserve the scale when viewing a solar system
+- [x] Find a better way to preserve the scale when viewing a solar system
   - Current issue: planets sometimes drawn as same size as stars at real scale
   - Reflect on balance between realism and visibility
   - Consider alternative visualization strategies
@@ -32,7 +32,7 @@
 - [ ] In the star view, enable clicking on a planetary system to inspect it
   - Display system information: star properties, planet count, stats
   - Show clickable/selectable systems on star view
-- [ ] Auto-zoom to system from star view
+- [x] Auto-zoom to system from star view
   - Double-click on star to zoom to system
   - Add button on star inspector to zoom to system
   - Auto-zoom should center on star and frame entire orbit of outermost planet
