@@ -14,6 +14,7 @@ import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
 import type { BlackHolePhysical, GalaxyParams, GalaxyType } from '../generation/galaxies';
+import type { MoonPhysical } from '../generation/moons';
 import type { PlanetPhysical, PlanetType, WaterState } from '../generation/planets';
 import type { StarPhysical } from '../generation/stars';
 import type { Selection } from '../pick';
@@ -26,6 +27,7 @@ import { useState } from 'preact/hooks';
 
 import { compactNumber, formatDistance } from '../distance';
 import { BlackHoleDef, eddingtonLuminosity, environmentClass, estimatedStarCount, evaporationTime, galaxyAt, galaxyDiameterLy, galaxyRepresentativeActivity, gasFraction, hawkingTemperature, innermostStableOrbit, isActiveGalacticNucleus, meanStellarAge, photonSphere, shadowDiameter, starFormationRate, universeAge, velocityDispersion } from '../generation/galaxies';
+import { MoonPhysicalDef } from '../generation/moons';
 import { NameDef } from '../generation/naming';
 import { atmosphereType, centralPressure, compositionClass, earthSimilarityIndex, escapeVelocity, frostLine, habitableZone, oblateness, PlanetPhysicalDef, retainsAtmosphere, surfaceGravity, surfaceTemperature } from '../generation/planets';
 import { bolometricMagnitude, meanDensity, peakWavelength, escapeVelocity as starEscapeVelocity, StarPhysicalDef, surfaceGravityLog } from '../generation/stars';
@@ -343,6 +345,26 @@ function PlanetPanel({ name, moons, orbit, planet }: { name: string; moons: numb
   );
 }
 
+function MoonPanel({ name, host, moon, orbit }: { name: string; host: string; moon: MoonPhysical; orbit: OrbitElements }): VNode {
+  const du = distanceUnit.value;
+  const vm = valueMode.value;
+  return (
+    <div style={PANEL_CSS}>
+      <div style={NAME_CSS}>{name}</div>
+      <div style={CAPTION_CSS}>MOON</div>
+      <div style={BODY_CSS}>
+        <Row label="Mass" value={formatMeasure(moon.mass, 'M⊕', M_EARTH_KG, 'kg', vm)} tooltip="How much matter the moon contains, in multiples of Earth's mass." basic />
+        <Row label="Radius" value={formatMeasure(moon.radius, 'R⊕', R_EARTH_KM, 'km', vm)} tooltip="The moon's size, in multiples of Earth's radius." basic />
+        <Row label="Density" value={formatQuantity(moon.density, 'g/cm³')} tooltip="Average mass per cubic centimetre, hinting at rock or ice." />
+        <Row label="Host planet" value={host} tooltip="The planet this moon orbits." basic />
+        <Row label="Orbit a" value={formatDistance(orbit.a, du)} tooltip="Average distance from its planet (the orbit's semi-major axis)." basic />
+        <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} tooltip="How long the moon takes to circle its planet once." />
+        <Row label="Tidal lock" value={moon.tidallyLocked ? 'Yes (synchronous)' : 'No'} tooltip="Whether the moon keeps one face toward its planet, like our Moon." basic />
+      </div>
+    </div>
+  );
+}
+
 function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; name: string }): VNode {
   const du = distanceUnit.value;
   const vm = valueMode.value;
@@ -459,6 +481,14 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
     const blackHole = world.getStore(BlackHoleDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
     return blackHole ? <BlackHolePanel blackHole={blackHole} name={identity?.name ?? ''} /> : null;
+  }
+
+  if (sel.kind === 'moon') {
+    const moon = world.getStore(MoonPhysicalDef).get(sel.id);
+    const orbit = world.getStore(OrbitElementsDef).get(sel.id);
+    const identity = world.getStore(NameDef).get(sel.id);
+    const host = orbit ? world.getStore(NameDef).get(orbit.parent)?.name ?? '\u2014' : '\u2014';
+    return moon && orbit ? <MoonPanel host={host} moon={moon} name={identity?.name ?? ''} orbit={orbit} /> : null;
   }
 
   const planet = world.getStore(PlanetPhysicalDef).get(sel.id);

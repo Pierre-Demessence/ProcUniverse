@@ -243,7 +243,7 @@ export function start(container: HTMLElement, save: Save): () => void {
         const g = galaxyAt(seed, camera.x, camera.y);
         selection = g ? { galaxy: g, kind: 'galaxy' } : null;
       }
-      else if (node.kind === 'star' || node.kind === 'planet') {
+      else if (node.kind === 'star' || node.kind === 'planet' || node.kind === 'moon') {
         const id = findEntityByName(world, node.name);
         if (id !== null)
           selection = { id, kind: node.kind };
@@ -478,7 +478,7 @@ function buildNavState(seed: number, cache: SectorCache, camera: Camera, tier: T
   if (tier === 'system') {
     const focus = nearestStar(cache, camera.x, camera.y);
     if (focus)
-      system = { name: focus.name, planets: focus.planets.map(p => ({ name: p.name })) };
+      system = { name: focus.name, planets: focus.planets.map(p => ({ name: p.name, moons: p.moons.map(m => ({ name: m.name })) })) };
   }
   return {
     galaxy: galaxy ? { name: galaxy.name } : null,

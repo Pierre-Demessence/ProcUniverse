@@ -10,11 +10,12 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { GALAXY_SPRITE_SCALE, PICK_PX } from './config/render';
 import { BlackHoleDef, galaxiesInRect } from './generation/galaxies';
+import { MoonPhysicalDef } from './generation/moons';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
 
-export type BodyKind = 'black-hole' | 'planet' | 'star';
+export type BodyKind = 'black-hole' | 'moon' | 'planet' | 'star';
 
 export interface PickResult {
   id: EntityId;
@@ -74,6 +75,8 @@ export function pickBodyAt(world: EcsWorld, localCam: Camera, bx: number, by: nu
     consider(id, 'star');
   for (const [id] of world.query(PlanetPhysicalDef))
     consider(id, 'planet');
+  for (const [id] of world.query(MoonPhysicalDef))
+    consider(id, 'moon');
   for (const [id] of world.query(BlackHoleDef))
     consider(id, 'black-hole');
 

@@ -1,5 +1,6 @@
 import type { EntityId } from '@pierre/ecs/entity-id';
 
+import type { MoonPhysical } from './generation/moons';
 import type { PlanetPhysical } from './generation/planets';
 import type { StarPhysical } from './generation/stars';
 
@@ -10,6 +11,7 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 import { describe, expect, it } from 'vitest';
 
 import { BlackHoleDef } from './generation/galaxies';
+import { MoonPhysicalDef } from './generation/moons';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
@@ -43,12 +45,20 @@ const PLANET: PlanetPhysical = {
   waterState: 'liquid',
 };
 
+const MOON: MoonPhysical = {
+  density: 3.3,
+  mass: 0.012,
+  radius: 0.27,
+  tidallyLocked: true,
+};
+
 function makeWorld(): EcsWorld {
   const world = new EcsWorld();
   world.registerComponent(PositionDef);
   world.registerComponent(RenderableDef);
   world.registerComponent(StarPhysicalDef);
   world.registerComponent(PlanetPhysicalDef);
+  world.registerComponent(MoonPhysicalDef);
   world.registerComponent(BlackHoleDef);
   return world;
 }
@@ -66,6 +76,14 @@ function addPlanet(world: EcsWorld, x: number, y: number, discRadius = 0.1): Ent
   world.getStore(PositionDef).set(id, { x, y });
   world.getStore(RenderableDef).set(id, { fill: '#88f', kind: 'circle', radius: discRadius });
   world.getStore(PlanetPhysicalDef).set(id, PLANET);
+  return id;
+}
+
+function addMoon(world: EcsWorld, x: number, y: number, discRadius = 0.1): EntityId {
+  const id = world.createEntity();
+  world.getStore(PositionDef).set(id, { x, y });
+  world.getStore(RenderableDef).set(id, { fill: '#bbb', kind: 'circle', radius: discRadius });
+  world.getStore(MoonPhysicalDef).set(id, MOON);
   return id;
 }
 
@@ -104,6 +122,12 @@ describe('pickBodyAt', () => {
     const planet = addPlanet(world, 0, 0);
     addStar(world, 0.5, 0);
     expect(pickAtWorld(world, cam, 0.1, 0)).toEqual({ id: planet, kind: 'planet' });
+  });
+
+  it('selects a moon under the cursor', () => {
+    const world = makeWorld();
+    const moon = addMoon(world, 0, 0);
+    expect(pickAtWorld(world)).toEqual({ id: moon, kind: 'moon' });
   });
 
   it('treats a large drawn disc as click-anywhere, even when the pixel halo is tiny', () => {

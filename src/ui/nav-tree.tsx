@@ -21,7 +21,7 @@ import { render } from 'preact';
 import { NAV_TREE_INDENT_PX } from '../config/render';
 
 /** The kind of body a tree node represents. */
-export type NavNodeKind = 'galaxy' | 'planet' | 'star' | 'universe';
+export type NavNodeKind = 'galaxy' | 'moon' | 'planet' | 'star' | 'universe';
 
 /** One row of the location tree. */
 export interface NavNode {
@@ -43,7 +43,7 @@ export interface NavGalaxy {
 
 export interface NavSystem {
   name: string;
-  planets: { name: string }[];
+  planets: { name: string; moons: { name: string }[] }[];
 }
 
 /** The current location, assembled from the camera + tier each frame. */
@@ -64,6 +64,7 @@ export interface NavTree {
 
 const NODE_GLYPH: Record<NavNodeKind, string> = {
   galaxy: '◎',
+  moon: '☾',
   planet: '◦',
   star: '☉',
   universe: '✦',
@@ -111,6 +112,18 @@ export function navNodes(state: NavState): NavNode[] {
         label: planet.name,
         selectable: true,
       });
+      // Moons appear directly under their planet at the system tier, so every
+      // moon in the focused system is listed without zooming to the planet.
+      for (const moon of planet.moons) {
+        nodes.push({
+          name: moon.name,
+          depth: systemDepth + 2,
+          key: moon.name,
+          kind: 'moon',
+          label: moon.name,
+          selectable: true,
+        });
+      }
     }
   }
 
@@ -119,7 +132,9 @@ export function navNodes(state: NavState): NavNode[] {
 
 /** A cheap content fingerprint so the panel re-renders only when it changes. */
 export function navSignature(state: NavState): string {
-  const planets = state.system ? state.system.planets.map(p => p.name).join(',') : '';
+  const planets = state.system
+    ? state.system.planets.map(p => `${p.name}(${p.moons.map(m => m.name).join(',')})`).join(',')
+    : '';
   return [state.tier, state.galaxy?.name ?? '', state.system?.name ?? '', planets, state.selectedKey ?? ''].join('|');
 }
 
@@ -133,6 +148,8 @@ const PANEL_CSS = [
   'padding:8px 10px',
   'min-width:140px',
   'max-width:230px',
+  'max-height:calc(100vh - 20px)',
+  'overflow-y:auto',
   'background:rgba(8,12,24,0.66)',
   'border:1px solid rgba(120,150,210,0.25)',
   'border-radius:6px',

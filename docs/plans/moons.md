@@ -124,8 +124,12 @@ Deferred to last — do after major moons (5a–5d) and once Pierre has seen a s
       already worked from 5b); added a zoom-gated on-canvas moon label pass and a
       moon-specific visibility floor (`MOON_FLOOR_MIN_PX`) so moons read as
       distinct markers. "Frame this planet" deferred to the generic zoom-to TODO.
-- [ ] **5d — Inspector + picking + nav tree.** Moon panel, moon selection, the
-      Moon tree level.
+- [x] **5d — Inspector + picking + nav tree.** Moon panel, moon selection, the
+      Moon tree level. Moons are pickable on canvas (`BodyKind` += `moon`),
+      inspectable (`MoonPanel`: mass, radius, density, host planet, orbit a,
+      period, tidal-lock), and every moon of the focused system is listed in the
+      location tree under its planet at the system tier (no need to zoom to a
+      planet — Pierre's request), with a scroll fallback for long trees.
 - [ ] **5e — Minor moons.** Lazy, focus-driven spawn/despawn of the tiny irregular
       satellites as real clickable entities (Option A).
 - [ ] Build + tests + lint; peer review; browser-tune (moon counts, floor tier,

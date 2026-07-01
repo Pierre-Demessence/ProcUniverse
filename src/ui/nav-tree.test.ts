@@ -27,7 +27,7 @@ describe('navNodes', () => {
   });
 
   it('hides the system and planets until the system tier', () => {
-    const withSystem = { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }] };
+    const withSystem = { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }] };
     const nodes = navNodes(state({ galaxy: { name: 'NGC-1A2B' }, system: withSystem, tier: 'star' }));
     expect(nodes.map(n => n.kind)).toEqual(['universe', 'galaxy']);
   });
@@ -35,7 +35,7 @@ describe('navNodes', () => {
   it('shows the full chain at the system tier', () => {
     const nodes = navNodes(state({
       galaxy: { name: 'NGC-1A2B' },
-      system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }, { name: 'G-4F2A9 c' }] },
+      system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }, { name: 'G-4F2A9 c', moons: [] }] },
       tier: 'system',
     }));
     expect(nodes.map(n => ({ depth: n.depth, key: n.key, kind: n.kind }))).toEqual([
@@ -47,10 +47,26 @@ describe('navNodes', () => {
     ]);
   });
 
+  it('lists moons under their planet at the system tier', () => {
+    const nodes = navNodes(state({
+      galaxy: { name: 'NGC-1A2B' },
+      system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [{ name: 'G-4F2A9 b I' }, { name: 'G-4F2A9 b II' }] }] },
+      tier: 'system',
+    }));
+    expect(nodes.map(n => ({ depth: n.depth, key: n.key, kind: n.kind }))).toEqual([
+      { depth: 0, key: 'universe', kind: 'universe' },
+      { depth: 1, key: 'galaxy:NGC-1A2B', kind: 'galaxy' },
+      { depth: 2, key: 'G-4F2A9', kind: 'star' },
+      { depth: 3, key: 'G-4F2A9 b', kind: 'planet' },
+      { depth: 4, key: 'G-4F2A9 b I', kind: 'moon' },
+      { depth: 4, key: 'G-4F2A9 b II', kind: 'moon' },
+    ]);
+  });
+
   it('promotes the system to depth 1 when no galaxy is present', () => {
     const nodes = navNodes(state({
       galaxy: null,
-      system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }] },
+      system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }] },
       tier: 'system',
     }));
     expect(nodes.map(n => ({ depth: n.depth, kind: n.kind }))).toEqual([
@@ -63,7 +79,7 @@ describe('navNodes', () => {
   it('marks every node selectable', () => {
     const nodes = navNodes(state({
       galaxy: { name: 'NGC-1A2B' },
-      system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }] },
+      system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }] },
       tier: 'system',
     }));
     expect(nodes.map(n => n.selectable)).toEqual([true, true, true, true]);
@@ -72,8 +88,8 @@ describe('navNodes', () => {
 
 describe('navSignature', () => {
   it('is stable for identical content', () => {
-    const a = state({ galaxy: { name: 'NGC-1A2B' }, system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }] } });
-    const b = state({ galaxy: { name: 'NGC-1A2B' }, system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }] } });
+    const a = state({ galaxy: { name: 'NGC-1A2B' }, system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }] } });
+    const b = state({ galaxy: { name: 'NGC-1A2B' }, system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }] } });
     expect(navSignature(a)).toBe(navSignature(b));
   });
 
@@ -83,8 +99,14 @@ describe('navSignature', () => {
   });
 
   it('changes when the focused planets change', () => {
-    const one = state({ system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }] } });
-    const two = state({ system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b' }, { name: 'G-4F2A9 c' }] } });
+    const one = state({ system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }] } });
+    const two = state({ system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }, { name: 'G-4F2A9 c', moons: [] }] } });
     expect(navSignature(one)).not.toBe(navSignature(two));
+  });
+
+  it('changes when a planet gains a moon', () => {
+    const none = state({ system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [] }] } });
+    const one = state({ system: { name: 'G-4F2A9', planets: [{ name: 'G-4F2A9 b', moons: [{ name: 'G-4F2A9 b I' }] }] } });
+    expect(navSignature(none)).not.toBe(navSignature(one));
   });
 });
