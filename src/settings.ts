@@ -31,6 +31,9 @@ export type NumberNotation = 'auto' | 'scientific';
 /** Body sizes: true physical scale (honest, tiny when zoomed out) or floored so bodies stay visible. */
 export type BodyScale = 'true' | 'usable';
 
+/** Which backend draws the scene: the Canvas 2D path or the Three.js (WebGPU/WebGL) path. */
+export type RenderBackend = 'canvas2d' | 'three';
+
 const DEFAULT_TEMPERATURE_UNIT: TemperatureUnit = 'K';
 const DEFAULT_DISTANCE_UNIT: DistanceUnit = 'adaptive';
 const DEFAULT_VALUE_MODE: ValueMode = 'relative';
@@ -38,6 +41,7 @@ const DEFAULT_DETAIL_LEVEL: DetailLevel = 'advanced';
 const DEFAULT_NUMBER_NOTATION: NumberNotation = 'auto';
 const DEFAULT_BODY_SCALE: BodyScale = 'usable';
 const DEFAULT_NAMING_STYLE: NamingStyle = 'human';
+const DEFAULT_RENDER_BACKEND: RenderBackend = 'canvas2d';
 
 function asTemperatureUnit(value: unknown): TemperatureUnit | null {
   return value === 'C' || value === 'F' || value === 'K' ? value : null;
@@ -67,6 +71,10 @@ function asNamingStyle(value: unknown): NamingStyle | null {
   return value === 'human' || value === 'scientific' ? value : null;
 }
 
+function asRenderBackend(value: unknown): RenderBackend | null {
+  return value === 'canvas2d' || value === 'three' ? value : null;
+}
+
 const stored = loadPreferences();
 
 /** The temperature unit every panel renders, seeded from storage. */
@@ -89,6 +97,9 @@ export const bodyScale = signal<BodyScale>(asBodyScale(stored.bodyScale) ?? DEFA
 
 /** Whether names are human-readable words or scientific catalogue designations. */
 export const namingStyle = signal<NamingStyle>(asNamingStyle(stored.namingStyle) ?? DEFAULT_NAMING_STYLE);
+
+/** Which backend draws the scene, seeded from storage. */
+export const renderBackend = signal<RenderBackend>(asRenderBackend(stored.renderBackend) ?? DEFAULT_RENDER_BACKEND);
 
 /** Choose the temperature unit and persist it. */
 export function setTemperatureUnit(unit: TemperatureUnit): void {
@@ -132,6 +143,12 @@ export function setNamingStyle(style: NamingStyle): void {
   savePreference('namingStyle', style);
 }
 
+/** Choose the rendering backend and persist it. */
+export function setRenderBackend(backend: RenderBackend): void {
+  renderBackend.value = backend;
+  savePreference('renderBackend', backend);
+}
+
 /** Restore every setting to its default and clear the stored preferences. */
 export function resetSettings(): void {
   temperatureUnit.value = DEFAULT_TEMPERATURE_UNIT;
@@ -141,5 +158,6 @@ export function resetSettings(): void {
   numberNotation.value = DEFAULT_NUMBER_NOTATION;
   bodyScale.value = DEFAULT_BODY_SCALE;
   namingStyle.value = DEFAULT_NAMING_STYLE;
+  renderBackend.value = DEFAULT_RENDER_BACKEND;
   clearPreferences();
 }

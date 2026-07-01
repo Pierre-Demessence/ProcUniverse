@@ -18,7 +18,9 @@
   "dependencies": {
     "@pierre/ecs": "file:../Entity-Cornponent-System-Engine",
     "@preact/signals": "^2.9.1",
-    "preact": "^10.29.2"
+    "@types/three": "^0.184.1",
+    "preact": "^10.29.2",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^8.0.0",

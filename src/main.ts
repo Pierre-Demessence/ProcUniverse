@@ -5,6 +5,7 @@ import type { SystemData } from './generation/universe';
 import type { Tier } from './lod/tier';
 import type { Save } from './persistence/save';
 import type { Selection } from './pick';
+import type { ThreeRenderer } from './render/three/three-renderer';
 import type { NavNode, NavState, NavSystem } from './ui/nav-tree';
 
 import { EcsWorld } from '@pierre/ecs';
@@ -35,6 +36,7 @@ import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
 import { drawSelectReticle } from './render/select-reticle';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from './scale';
+import { renderBackend } from './settings';
 import { OrbitElementsDef, updateOrbits, writeOrbitPosition } from './sim/orbits';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
@@ -56,7 +58,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   const { seed } = save;
 
   const canvas = document.createElement('canvas');
-  canvas.style.cssText = 'display:block; width:100%; height:100%; touch-action:none; cursor:grab;';
+  canvas.style.cssText = 'position:absolute; inset:0; display:block; width:100%; height:100%; touch-action:none; cursor:grab;';
   container.append(canvas);
   const ctx2d = canvas.getContext('2d');
   if (!ctx2d)
@@ -78,6 +80,12 @@ export function start(container: HTMLElement, save: Save): () => void {
     throw new Error('ProcUniverse: 2D canvas context is unavailable.');
   let sceneCacheValid = false;
 
+  // Three.js (WebGPU) renderer for the parallel rendering backend. Loaded and
+  // created lazily the first time the backend is switched to Three (so Canvas 2D
+  // sessions never download the three bundle), then kept for the session.
+  let threeRenderer: ThreeRenderer | null = null;
+  let threeLoading = false;
+
   // Size the backing store to device pixels before the camera is created, so it
   // reads real dimensions rather than the canvas default (300x150).
   const sizeCanvas = (): void => {
@@ -90,6 +98,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     fadeCanvas.height = canvas.height;
     sceneCache.width = canvas.width;
     sceneCache.height = canvas.height;
+    threeRenderer?.resize(canvas.width, canvas.height);
     fadeMsLeft = 0;
     sceneCacheValid = false;
   };
@@ -327,6 +336,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   let lastVpH = camera.viewportH;
   let lastSelection: Selection | null = null;
   let lastDrawnCount = 0;
+  let lastThreeActive = false;
 
   const renderSource = new AnimationFrameTickSource();
   const unsubscribe = renderSource.subscribe((info) => {
@@ -363,12 +373,39 @@ export function start(container: HTMLElement, save: Save): () => void {
     const selChanged = selection !== lastSelection;
     lastSelection = selection;
 
+    // Rendering backend: lazily stand up the Three.js renderer the first time it
+    // is selected, keep its canvas behind the 2D HUD canvas, and show it only
+    // once it has finished initialising — until then the Canvas 2D path keeps
+    // drawing, so switching never flashes a blank frame.
+    const threeMode = renderBackend.value === 'three';
+    if (threeMode && !threeRenderer && !threeLoading) {
+      // Load the Three.js backend (and its large three bundle) on demand, so
+      // Canvas 2D sessions never pay for it. Canvas 2D keeps drawing until the
+      // module has loaded and the renderer has initialised.
+      threeLoading = true;
+      void import('./render/three/three-renderer').then(({ ThreeRenderer }) => {
+        threeRenderer = new ThreeRenderer();
+        threeRenderer.resize(canvas.width, canvas.height);
+        container.insertBefore(threeRenderer.canvas, canvas);
+      }).catch((error: unknown) => {
+        // Allow a later retry if the chunk failed to load (e.g. transient network).
+        threeLoading = false;
+        console.error('ProcUniverse: failed to load the Three.js backend.', error);
+      });
+    }
+    const threeActive = threeMode && threeRenderer !== null && threeRenderer.ready;
+    if (threeRenderer)
+      threeRenderer.canvas.style.display = threeActive ? 'block' : 'none';
+    const backendChanged = threeActive !== lastThreeActive;
+    lastThreeActive = threeActive;
+
     // A frame is dirty when there is no cached scene to blit (startup, or after
     // a resize / DPR change cleared the canvas and invalidated it), the system
-    // tier animates, the tier cross-fades, or the camera, viewport, or selection
-    // changed. Without the cache-invalid check a still camera at a non-system
-    // tier would leave the just-cleared canvas blank until the next interaction.
-    const dirty = !sceneCacheValid || tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0;
+    // tier animates, the tier cross-fades, the rendering backend changed, or the
+    // camera, viewport, or selection changed. Without the cache-invalid check a
+    // still camera at a non-system tier would leave the just-cleared canvas blank
+    // until the next interaction.
+    const dirty = !sceneCacheValid || tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0 || backendChanged;
 
     if (dirty) {
       // Absolute camera position, reconstructed only for sector indexing and the
@@ -421,7 +458,7 @@ export function start(container: HTMLElement, save: Save): () => void {
       // Capture the previous frame to cross-fade out of on a tier change — but
       // only when the cache is valid, i.e. the canvas still holds a good prior
       // frame (not a blank startup canvas or one a resize just cleared).
-      if (tierChanged && sceneCacheValid) {
+      if (tierChanged && sceneCacheValid && !threeActive) {
         fadeCtx.clearRect(0, 0, fadeCanvas.width, fadeCanvas.height);
         fadeCtx.drawImage(canvas, 0, 0);
         fadeMsLeft = TIER_FADE_MS;
@@ -442,9 +479,18 @@ export function start(container: HTMLElement, save: Save): () => void {
         range,
         renderer,
         seed,
+        threeMode: threeActive,
         tier,
         world,
       });
+
+      // Draw the system-tier bodies with the Three.js renderer onto its own
+      // canvas behind the transparent 2D canvas. `renderFrame` above has already
+      // run `applyBodyScale`, so the bodies' RenderableDef radii are floored for
+      // the current zoom before Three reads them. Only the system tier uses Three
+      // in Stage 0; the other tiers stay on Canvas 2D.
+      if (threeActive && tier === 'system' && threeRenderer)
+        threeRenderer.render({ camera: localCam, world });
 
       // Cross-fade: blend the captured old-tier frame over the new one.
       if (fadeMsLeft > 0) {
@@ -539,6 +585,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     navTree.dispose();
     resetViewButton.dispose();
     optionsMenu.dispose();
+    threeRenderer?.dispose();
   };
 }
 

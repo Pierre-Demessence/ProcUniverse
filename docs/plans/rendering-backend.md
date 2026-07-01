@@ -215,13 +215,29 @@ fill as work lands.
 
 ### Stage 0 — Three.js foundation
 
-- [ ] Stand up a Three.js `WebGPURenderer` (WebGL2 fallback) drawing into the
-      canvas; confirm both paths run.
-- [ ] A 3D orbit + pan + tilt camera; reproduce the current view as a flat plane
-      seen top-down so nothing visibly regresses.
-- [ ] Host it behind the engine `Renderer<TCtx>` seam; keep the DOM/Preact HUD.
-- [ ] Float-precision contract: feed Three.js render-origin-relative coords, as
+> Status (2026-07-01): landed behind a runtime **Renderer** toggle in the options
+> menu (`renderBackend`, default **Canvas 2D**). The Three.js backend is
+> lazy-loaded (dynamic import → separate ~730 kB chunk) so Canvas 2D sessions do
+> not download it. Only the **system tier** renders through Three so far (bodies
+> as flat discs); the other tiers and the DOM/Preact HUD stay on Canvas 2D. Green
+> on build + 222 tests + lint. Browser verification (which backend initialises,
+> body alignment, seamless toggle) is Pierre's per AGENTS.md.
+
+- [x] Stand up a Three.js `WebGPURenderer` (WebGL2 fallback) drawing into a
+      dedicated canvas. (Which backend actually initialises is logged to the
+      console for in-browser confirmation.)
+- [x] Reproduce the current system-tier view as a flat plane seen top-down
+      (orthographic camera matching the Canvas 2D `worldToView`, y-down) so
+      nothing visibly regresses. The interactive **3D orbit + pan + tilt camera**
+      is deferred to Stage 3 (true-3D plumbing).
+- [x] Host it behind the engine `Renderer<TCtx>` seam; keep the DOM/Preact HUD.
+- [x] Float-precision contract: feed Three.js render-origin-relative coords, as
       today.
+
+Deferred within Stage 0 (do as the migration continues): render body **strokes**
+(star outline, black-hole accretion ring — currently fill-only discs); move the
+remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
+(Stage 1).
 
 ### Stage 1 — Instanced 3D star field (R1)
 

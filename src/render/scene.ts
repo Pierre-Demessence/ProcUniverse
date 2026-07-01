@@ -30,6 +30,7 @@ export interface FrameDeps {
   range: SectorRange;
   renderer: Renderer<Canvas2DRenderContext>;
   seed: number;
+  threeMode: boolean;
   tier: Tier;
   world: EcsWorld;
 }
@@ -42,7 +43,20 @@ export interface FrameDeps {
  * the render-origin frame; ECS entity positions are stored in the same frame.
  */
 export function renderFrame(deps: FrameDeps): number {
-  const { cache, camera, canvas, ctx2d, originX, originY, range, renderer, seed, tier, world } = deps;
+  const { cache, camera, canvas, ctx2d, originX, originY, range, renderer, seed, threeMode, tier, world } = deps;
+
+  // In Three mode the system-tier bodies are drawn by the WebGPU renderer on its
+  // own canvas behind this one, so keep the 2D canvas transparent (they show
+  // through) and draw only the screen-space overlays on top. Every other tier
+  // still renders on Canvas 2D, whose opaque fill covers the Three canvas.
+  if (threeMode && tier === 'system') {
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    drawReferenceGrid(ctx2d, camera, originX, originY);
+    drawOrbitRings(ctx2d, camera, world);
+    applyBodyScale(world, camera.zoom);
+    drawBodyLabels(ctx2d, camera, world);
+    return -1;
+  }
 
   ctx2d.fillStyle = BACKGROUND;
   ctx2d.fillRect(0, 0, canvas.width, canvas.height);

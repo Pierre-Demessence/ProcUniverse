@@ -8,12 +8,12 @@ import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
 import type { DistanceUnit } from '../distance';
-import type { BodyScale, DetailLevel, NamingStyle, NumberNotation, TemperatureUnit, ValueMode } from '../settings';
+import type { BodyScale, DetailLevel, NamingStyle, NumberNotation, RenderBackend, TemperatureUnit, ValueMode } from '../settings';
 
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 
-import { bodyScale, detailLevel, distanceUnit, namingStyle, numberNotation, resetSettings, setBodyScale, setDetailLevel, setDistanceUnit, setNamingStyle, setNumberNotation, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from '../settings';
+import { bodyScale, detailLevel, distanceUnit, namingStyle, numberNotation, renderBackend, resetSettings, setBodyScale, setDetailLevel, setDistanceUnit, setNamingStyle, setNumberNotation, setRenderBackend, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from '../settings';
 
 export interface OptionsMenu {
   dispose: () => void;
@@ -39,6 +39,9 @@ const BODY_SCALE_LABELS: Record<BodyScale, string> = { true: 'True', usable: 'Us
 
 const NAMING_STYLES: readonly NamingStyle[] = ['human', 'scientific'];
 const NAMING_LABELS: Record<NamingStyle, string> = { human: 'Human', scientific: 'Scientific' };
+
+const RENDER_BACKENDS: readonly RenderBackend[] = ['canvas2d', 'three'];
+const RENDER_LABELS: Record<RenderBackend, string> = { canvas2d: 'Canvas 2D', three: 'Three.js' };
 
 const WRAP_CSS = [
   'position:absolute',
@@ -150,6 +153,9 @@ function OptionsPanel({ open }: { open: Signal<boolean> }): VNode {
       {open.value && (
         <div style={PANEL_CSS}>
           <div style={CAPTION_CSS}>OPTIONS</div>
+          <SettingRow label="Renderer">
+            <Segmented options={RENDER_BACKENDS} value={renderBackend.value} labels={RENDER_LABELS} onSelect={setRenderBackend} />
+          </SettingRow>
           <SettingRow label="Names">
             <Segmented options={NAMING_STYLES} value={namingStyle.value} labels={NAMING_LABELS} onSelect={setNamingStyle} />
           </SettingRow>
