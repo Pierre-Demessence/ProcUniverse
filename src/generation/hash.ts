@@ -45,3 +45,15 @@ export function hashGalaxy(worldSeed: number, gx: number, gy: number): number {
   h = mix(h ^ ((gy | 0) + 0x9E3779B9));
   return h >>> 0;
 }
+
+/**
+ * Fold a system seed and a planet's orbital index into a uint32 moon seed, kept
+ * off the system's physics rng stream so generating a planet's moons never
+ * perturbs the star or planet draws (the moons are an independent, order-safe
+ * side stream).
+ */
+export function hashMoon(systemSeed: number, planetIndex: number): number {
+  let h = (systemSeed ^ 0x1B56C4E9) >>> 0;
+  h = mix(h ^ (planetIndex | 0));
+  return h >>> 0;
+}

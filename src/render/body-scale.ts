@@ -12,6 +12,7 @@ import {
   BODY_FLOOR_PER_DECADE_PX,
 } from '../config/render';
 import { BlackHoleDef } from '../generation/galaxies';
+import { MoonPhysicalDef } from '../generation/moons';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { blackHoleVisualRadius, planetVisualRadius, starVisualRadius } from '../scale';
@@ -63,6 +64,7 @@ export function applyBodyScale(world: EcsWorld, zoom: number): void {
   const renderables = world.getStore(RenderableDef);
   const stars = world.getStore(StarPhysicalDef);
   const planets = world.getStore(PlanetPhysicalDef);
+  const moons = world.getStore(MoonPhysicalDef);
   const blackHoles = world.getStore(BlackHoleDef);
 
   for (const [id] of world.query(StarPhysicalDef)) {
@@ -91,5 +93,13 @@ export function applyBodyScale(world: EcsWorld, zoom: number): void {
     const radius = drawnBodyRadiusAu(blackHoleVisualRadius(blackHole.mass), zoom, mode);
     renderable.radius = radius;
     renderable.lineWidth = radius * BLACK_HOLE_RING_FRAC;
+  }
+
+  for (const [id] of world.query(MoonPhysicalDef)) {
+    const renderable = renderables.get(id);
+    const moon = moons.get(id);
+    if (!renderable || renderable.kind !== 'circle' || !moon)
+      continue;
+    renderable.radius = drawnBodyRadiusAu(planetVisualRadius(moon.radius), zoom, mode);
   }
 }

@@ -39,6 +39,9 @@ export const M_SUN_KG = 1.98892e30;
 /** Mass of the Earth, in kilograms. */
 export const M_EARTH_KG = 5.9722e24;
 
+/** Mass of the Earth, in solar masses (for moon periods and Hill radii). */
+export const EARTH_MASS_SOLAR = 5.9722e24 / 1.98892e30;
+
 /** Radius of the Sun, in kilometres. */
 export const R_SUN_KM = 695700;
 

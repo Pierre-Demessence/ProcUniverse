@@ -24,6 +24,10 @@ const KM_S_PER_AU_YEAR = KM_PER_AU / SECONDS_PER_YEAR;
  * mass (M☉) that sets the period — heavier stars whip their planets around
  * faster at the same `a`. Periods follow Kepler's third law in solar units, so
  * they come out directly in years.
+ *
+ * `parent` is −1 for a body orbiting its star at the fixed focus `cx`/`cy`; for a
+ * **moon** it is the entity id of its planet, whose current position becomes the
+ * focus each frame (and `starMass` then holds the planet's mass, in M☉).
  */
 export interface OrbitElements {
   a: number;
@@ -32,6 +36,7 @@ export interface OrbitElements {
   cy: number;
   e: number;
   meanAnomaly0: number;
+  parent: number;
   starMass: number;
 }
 
@@ -42,6 +47,7 @@ export const OrbitElementsDef: ComponentDef<OrbitElements> = simpleComponent<Orb
   cy: 'number',
   e: 'number',
   meanAnomaly0: 'number',
+  parent: 'number',
   starMass: 'number',
 });
 
@@ -135,10 +141,25 @@ export function writeOrbitPosition(orbit: OrbitElements, t: number, out: { x: nu
 export function updateOrbits(world: EcsWorld, simSeconds: number): void {
   const years = simSeconds / SECONDS_PER_YEAR;
   const positions = world.getStore(PositionDef);
+  // Pass 1: bodies orbiting a fixed focus (planets around their star, parent < 0).
   for (const [id, orbit] of world.query(OrbitElementsDef)) {
-    const pos = positions.get(id);
-    if (!pos)
+    if (orbit.parent >= 0)
       continue;
+    const pos = positions.get(id);
+    if (pos)
+      writeOrbitPosition(orbit, years, pos);
+  }
+  // Pass 2: bodies orbiting a moving parent (moons around a planet). The parent
+  // was positioned in pass 1, so its current position is the moon's focus.
+  for (const [id, orbit] of world.query(OrbitElementsDef)) {
+    if (orbit.parent < 0)
+      continue;
+    const pos = positions.get(id);
+    const parentPos = positions.get(orbit.parent);
+    if (!pos || !parentPos)
+      continue;
+    orbit.cx = parentPos.x;
+    orbit.cy = parentPos.y;
     writeOrbitPosition(orbit, years, pos);
   }
 }

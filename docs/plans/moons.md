@@ -114,7 +114,7 @@ Deferred to last — do after major moons (5a–5d) and once Pierre has seen a s
       + geometric-tail (true-mean) model as clearly-named local constants
       (consistent with the IMF / mass–radius params); one draw kept, so only counts
       shift; test that giants are never moonless.
-- [ ] **5b — Moon body generation.** `hashMoon`, moon orbit + physical sampling,
+- [x] **5b — Moon body generation.** `hashMoon`, moon orbit + physical sampling,
       spawn moon entities; `MoonPhysicalDef` (or reuse planet fields); determinism
       test (independent hash → planets byte-identical).
 - [ ] **5c — Rendering.** Moon markers via the morph + moon orbit rings.

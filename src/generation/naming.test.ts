@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { hashSystem } from './hash';
-import { catalogNumber, namePlanet, nameStar, planetSuffix } from './naming';
+import { catalogNumber, nameMoon, namePlanet, nameStar, planetSuffix, romanNumeral } from './naming';
 
 describe('catalogNumber', () => {
   it('is a fixed-width, zero-padded base-36 designation', () => {
@@ -41,6 +41,26 @@ describe('namePlanet', () => {
   it('appends the orbital letter to the star designation', () => {
     expect(namePlanet('G-12AB3', 0)).toBe('G-12AB3 b');
     expect(namePlanet('G-12AB3', 2)).toBe('G-12AB3 d');
+  });
+});
+
+describe('romanNumeral', () => {
+  it('renders the standard additive and subtractive forms', () => {
+    expect(romanNumeral(1)).toBe('I');
+    expect(romanNumeral(3)).toBe('III');
+    expect(romanNumeral(4)).toBe('IV');
+    expect(romanNumeral(9)).toBe('IX');
+    expect(romanNumeral(14)).toBe('XIV');
+    expect(romanNumeral(40)).toBe('XL');
+    expect(romanNumeral(90)).toBe('XC');
+  });
+});
+
+describe('nameMoon', () => {
+  it('appends the 1-based orbital order in Roman numerals', () => {
+    expect(nameMoon('G-4F2A9 b', 0)).toBe('G-4F2A9 b I');
+    expect(nameMoon('G-4F2A9 b', 1)).toBe('G-4F2A9 b II');
+    expect(nameMoon('G-4F2A9 b', 3)).toBe('G-4F2A9 b IV');
   });
 });
 

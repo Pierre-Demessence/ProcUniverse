@@ -58,3 +58,39 @@ export function planetSuffix(index: number): string {
 export function namePlanet(starName: string, index: number): string {
   return `${starName} ${planetSuffix(index)}`;
 }
+
+// Roman-numeral amounts (descending), the satellite convention: a moon is named
+// after its planet plus its orbital order in Roman numerals (Jupiter I = Io).
+const ROMAN_NUMERALS = [
+  [1000, 'M'],
+  [900, 'CM'],
+  [500, 'D'],
+  [400, 'CD'],
+  [100, 'C'],
+  [90, 'XC'],
+  [50, 'L'],
+  [40, 'XL'],
+  [10, 'X'],
+  [9, 'IX'],
+  [5, 'V'],
+  [4, 'IV'],
+  [1, 'I'],
+] as const;
+
+/** The Roman numeral for a positive integer, e.g. 4 → `IV`, 14 → `XIV`. */
+export function romanNumeral(value: number): string {
+  let remaining = value;
+  let out = '';
+  for (const [amount, symbol] of ROMAN_NUMERALS) {
+    while (remaining >= amount) {
+      out += symbol;
+      remaining -= amount;
+    }
+  }
+  return out;
+}
+
+/** A moon's name: its planet's name plus its orbital order in Roman numerals (0 → `I`). */
+export function nameMoon(planetName: string, index: number): string {
+  return `${planetName} ${romanNumeral(index + 1)}`;
+}

@@ -8,9 +8,11 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { OrbitElementsDef } from '../sim/orbits';
 import { BlackHoleDef } from './galaxies';
+import { MoonPhysicalDef } from './moons';
 import { NameDef } from './naming';
 import { PlanetPhysicalDef } from './planets';
 import { StarPhysicalDef } from './stars';
+import { EARTH_MASS_SOLAR } from './units';
 
 const STAR_STROKE = 'rgba(255, 255, 255, 0.65)';
 // A true-black core rimmed by a bright accretion glow. The fill must NOT match
@@ -37,6 +39,7 @@ export function spawnSector(
   const orbits = world.getStore(OrbitElementsDef);
   const starPhysicals = world.getStore(StarPhysicalDef);
   const planetPhysicals = world.getStore(PlanetPhysicalDef);
+  const moonPhysicals = world.getStore(MoonPhysicalDef);
   const blackHoles = world.getStore(BlackHoleDef);
   const names = world.getStore(NameDef);
   const ids: EntityId[] = [];
@@ -72,11 +75,35 @@ export function spawnSector(
         cy,
         e: planet.e,
         meanAnomaly0: planet.meanAnomaly0,
+        parent: -1,
         starMass: sys.star.mass,
       });
       planetPhysicals.set(id, planet.physical);
       names.set(id, { name: planet.name });
       ids.push(id);
+
+      // Moons orbit the planet (a moving focus): parent is the planet entity, and
+      // the central mass is the planet's, in solar units, so the period is right.
+      const planetX = cx + planet.a;
+      const planetMassSolar = planet.physical.mass * EARTH_MASS_SOLAR;
+      for (const moon of planet.moons) {
+        const moonId = world.createEntity();
+        positions.set(moonId, { x: planetX + moon.a, y: cy });
+        renderables.set(moonId, { fill: moon.color, kind: 'circle', radius: moon.radius });
+        orbits.set(moonId, {
+          a: moon.a,
+          argPeriapsis: moon.argPeriapsis,
+          cx: planetX,
+          cy,
+          e: moon.e,
+          meanAnomaly0: moon.meanAnomaly0,
+          parent: id,
+          starMass: planetMassSolar,
+        });
+        moonPhysicals.set(moonId, moon.physical);
+        names.set(moonId, { name: moon.name });
+        ids.push(moonId);
+      }
     }
   }
 

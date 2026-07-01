@@ -1,3 +1,4 @@
+import type { MoonData } from './moons';
 import type { PlanetPhysical } from './planets';
 import type { StarPhysical } from './stars';
 
@@ -20,10 +21,12 @@ import {
 } from '../config/data';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
 import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt, universeAge } from './galaxies';
-import { hashSector, hashSystem } from './hash';
+import { hashMoon, hashSector, hashSystem } from './hash';
+import { generateMoons } from './moons';
 import { namePlanet, nameStar } from './naming';
 import { frostLine, samplePlanet } from './planets';
 import { sampleStar } from './stars';
+import { EARTH_MASS_SOLAR } from './units';
 
 const TAU = Math.PI * 2;
 
@@ -45,6 +48,7 @@ export interface PlanetData {
   color: string;
   e: number;
   meanAnomaly0: number;
+  moons: MoonData[];
   physical: PlanetPhysical;
   radius: number;
 }
@@ -143,7 +147,13 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const argPeriapsis = srng() * TAU;
       const meanAnomaly0 = srng() * TAU;
       const physical = samplePlanet(srng, star.luminosity, a, star.mass, star.age, star.metallicity);
-      planets.push({ name: namePlanet(name, j), a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
+      const planetName = namePlanet(name, j);
+      const radius = planetVisualRadius(physical.radius);
+      // Moons come from an independent per-planet stream, so they never perturb
+      // the star/planet draws; a tight Hill sphere holds fewer than the drawn count.
+      const moonRng = makeSeededRng(hashMoon(systemSeed, j));
+      const moons = generateMoons(moonRng, planetName, radius, a, physical.mass * EARTH_MASS_SOLAR, star.mass, physical.moonCount);
+      planets.push({ name: planetName, a, argPeriapsis, color, e, meanAnomaly0, moons, physical, radius });
     }
 
     systems.push({ name, planets, radius, star, x, y });
