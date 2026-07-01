@@ -94,7 +94,8 @@ describe('samplePlanet', () => {
     expect(planet.rotationPeriod).toBeGreaterThan(0);
     expect(planet.obliquity).toBeGreaterThanOrEqual(0);
     expect(planet.obliquity).toBeLessThanOrEqual(180);
-    expect(planet.moonCount).toBeGreaterThanOrEqual(0);
+    expect(planet.moonRichness).toBeGreaterThanOrEqual(0);
+    expect(planet.moonRichness).toBeLessThan(1);
     expect(typeof planet.hasRings).toBe('boolean');
     expect(typeof planet.tidallyLocked).toBe('boolean');
     expect(['rocky', 'super-earth', 'ice-giant', 'gas-giant']).toContain(planet.type);
@@ -130,49 +131,6 @@ describe('samplePlanet', () => {
     expect(close.tidallyLocked).toBe(true);
     expect(far.tidallyLocked).toBe(false);
     expect(close.rotationPeriod).toBeGreaterThan(0);
-  });
-
-  it('gives giants more moons on average than rocky worlds', () => {
-    const rng = makeSeededRng(99);
-    let giantMoons = 0;
-    let giantN = 0;
-    let rockyMoons = 0;
-    let rockyN = 0;
-    for (let i = 0; i < 2000; i++) {
-      const giant = samplePlanet(rng, 1, 8, 1, 4.6e9);
-      if (giant.type === 'gas-giant' || giant.type === 'ice-giant') {
-        giantMoons += giant.moonCount;
-        giantN++;
-      }
-      const rocky = samplePlanet(rng, 1, 0.5, 1, 4.6e9);
-      if (rocky.type === 'rocky') {
-        rockyMoons += rocky.moonCount;
-        rockyN++;
-      }
-    }
-    expect(giantN).toBeGreaterThan(0);
-    expect(rockyN).toBeGreaterThan(0);
-    expect(giantMoons / giantN).toBeGreaterThan(rockyMoons / rockyN);
-  });
-
-  it('never leaves a giant moonless and averages a realistic major-moon count', () => {
-    const rng = makeSeededRng(7);
-    let giantMin = Number.POSITIVE_INFINITY;
-    let giantMoons = 0;
-    let giantN = 0;
-    for (let i = 0; i < 3000; i++) {
-      const giant = samplePlanet(rng, 1, 8, 1, 4.6e9);
-      if (giant.type === 'gas-giant' || giant.type === 'ice-giant') {
-        giantMin = Math.min(giantMin, giant.moonCount);
-        giantMoons += giant.moonCount;
-        giantN++;
-      }
-    }
-    expect(giantN).toBeGreaterThan(0);
-    expect(giantMin).toBeGreaterThanOrEqual(1); // every real giant hosts moons
-    const mean = giantMoons / giantN;
-    expect(mean).toBeGreaterThan(2);
-    expect(mean).toBeLessThan(10);
   });
 });
 

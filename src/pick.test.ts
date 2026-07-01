@@ -34,7 +34,7 @@ const PLANET: PlanetPhysical = {
   inHabitableZone: true,
   insolation: 1,
   mass: 1,
-  moonCount: 1,
+  moonRichness: 0.5,
   obliquity: 23,
   radius: 1,
   rotationPeriod: 24,

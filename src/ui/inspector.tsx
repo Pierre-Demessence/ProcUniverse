@@ -9,6 +9,7 @@
  */
 
 import type { EcsWorld } from '@pierre/ecs';
+import type { EntityId } from '@pierre/ecs/entity-id';
 import type { Signal } from '@preact/signals';
 import type { VNode } from 'preact';
 
@@ -304,7 +305,7 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
   );
 }
 
-function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
+function PlanetPanel({ name, moons, orbit, planet }: { name: string; moons: number; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
   const escape = escapeVelocity(planet.mass, planet.radius);
   const hasAtmosphere = retainsAtmosphere(escape, planet.insolation);
   const du = distanceUnit.value;
@@ -324,7 +325,7 @@ function PlanetPanel({ name, orbit, planet }: { name: string; orbit: OrbitElemen
         <Row label="Rotation" value={`${formatPeriod((planet.rotationPeriod * 3600) / SECONDS_PER_YEAR)}${planet.tidallyLocked ? ' · locked' : ''}`} tooltip="Length of one spin (its day); 'locked' means one face always faces the star." />
         <Row label="Oblateness" value={`${sigFigs(oblateness(planet.rotationPeriod, planet.mass, planet.radius) * 100)}%`} tooltip="How much spinning squashes the planet at its equator (Earth ≈ 0.3%)." />
         <Row label="Axial tilt" value={`${Math.round(planet.obliquity)}°`} tooltip="Tilt of the spin axis, which gives a planet its seasons." />
-        <Row label="Moons" value={`${planet.moonCount}${planet.hasRings ? ' · rings' : ''}`} tooltip="How many moons orbit the planet, and whether it has rings." basic />
+        <Row label="Moons" value={`${moons}${planet.hasRings ? ' · rings' : ''}`} tooltip="How many moons orbit the planet, and whether it has rings." basic />
         <TemperatureRow label="Equilibrium" kelvin={planet.equilibriumTemp} tooltip="Temperature from starlight alone, before any greenhouse warming." />
         <TemperatureRow label="Surface" kelvin={surfaceTemperature(planet.equilibriumTemp, planet.type, hasAtmosphere)} tooltip="Estimated surface temperature including greenhouse warming." basic />
         <Row label="Insolation" value={formatMeasure(planet.insolation, 'S⊕', SOLAR_CONSTANT_W_M2, 'W/m²', vm)} tooltip="How much starlight the planet receives, relative to Earth." />
@@ -419,6 +420,20 @@ interface InspectorPanelProps {
   getWorld: () => EcsWorld | null;
 }
 
+/**
+ * Count a planet's spawned moons — the entities orbiting it (each moon carries its
+ * planet's id as its orbit `parent`). Shown in the panel so the number always
+ * matches the moons actually visible at planet-zoom.
+ */
+function countMoons(world: EcsWorld, planetId: EntityId): number {
+  let count = 0;
+  for (const [, orbit] of world.query(OrbitElementsDef)) {
+    if (orbit.parent === planetId)
+      count++;
+  }
+  return count;
+}
+
 function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | null {
   const sel = selection.value;
   if (!sel)
@@ -449,7 +464,7 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
   const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
   const orbit = world.getStore(OrbitElementsDef).get(sel.id);
   const identity = world.getStore(NameDef).get(sel.id);
-  return planet && orbit ? <PlanetPanel name={identity?.name ?? ''} orbit={orbit} planet={planet} /> : null;
+  return planet && orbit ? <PlanetPanel moons={countMoons(world, sel.id)} name={identity?.name ?? ''} orbit={orbit} planet={planet} /> : null;
 }
 
 /**

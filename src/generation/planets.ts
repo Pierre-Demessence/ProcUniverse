@@ -2,7 +2,7 @@ import type { ComponentDef } from '@pierre/ecs/component-store';
 import type { RandomFn } from '@pierre/ecs/modules/rng';
 
 import { simpleComponent } from '@pierre/ecs/component-store';
-import { clamp, lerp } from '@pierre/ecs/modules/math';
+import { lerp } from '@pierre/ecs/modules/math';
 
 import { SECONDS_PER_YEAR } from './units';
 
@@ -17,7 +17,7 @@ export type WaterState = 'ice' | 'liquid' | 'vapour';
  * Masses/radii are in Earth units; temperature in kelvin; density in g/cm³;
  * rotation in hours; obliquity in degrees. Mass is the primary draw (everything
  * chemical and thermal follows from it plus the host star's luminosity); rotation,
- * axial tilt, moon count, and rings are four further draws (research §5.3–5.4).
+ * axial tilt, moon richness, and rings are four further draws (research §5.3–5.4).
  */
 export interface PlanetPhysical {
   density: number;
@@ -26,7 +26,7 @@ export interface PlanetPhysical {
   inHabitableZone: boolean;
   insolation: number;
   mass: number;
-  moonCount: number;
+  moonRichness: number;
   obliquity: number;
   radius: number;
   rotationPeriod: number;
@@ -42,7 +42,7 @@ export const PlanetPhysicalDef: ComponentDef<PlanetPhysical> = simpleComponent<P
   inHabitableZone: 'boolean',
   insolation: 'number',
   mass: 'number',
-  moonCount: 'number',
+  moonRichness: 'number',
   obliquity: 'number',
   radius: 'number',
   rotationPeriod: 'number',
@@ -177,27 +177,6 @@ function sampleRotationPeriod(rng: RandomFn, type: PlanetType): number {
   return 10 ** lerp(Math.log10(8), Math.log10(2000), rng());
 }
 
-// Major-moon counts by planet type: a per-type floor (a real giant is never
-// moonless) plus a geometric-tailed spread, calibrated to the solar system's
-// *major* moons — rocky worlds usually none (Earth 1, Mars 2, Mercury/Venus 0),
-// ice giants a few (Uranus 5, Neptune ~2), gas giants many (Jupiter/Saturn ~8).
-// `MOON_MEAN` is the tail exponential's mean; flooring it lowers the realised
-// average (gas giant ~6, ice giant ~4, super-Earth ~1, rocky ~0.5). Capped at
-// `MOON_MAX` — the dozens of tiny irregular satellites are modelled separately.
-const MOON_MIN: Record<PlanetType, number> = { 'gas-giant': 2, 'ice-giant': 1, 'rocky': 0, 'super-earth': 0 };
-const MOON_MEAN: Record<PlanetType, number> = { 'gas-giant': 4.5, 'ice-giant': 3.5, 'rocky': 0.9, 'super-earth': 1.4 };
-const MOON_MAX = 15;
-
-/**
- * Sample a planet's major-moon count from one draw: a per-type floor plus a
- * geometric-tailed spread, so giants always host several moons while rocky worlds
- * are usually bare. Still one `rng()` draw, so revising it shifts only the count.
- */
-function sampleMoonCount(rng: RandomFn, type: PlanetType): number {
-  const u = clamp(rng(), 0, 1 - 1e-9);
-  return Math.min(MOON_MIN[type] + Math.floor(-MOON_MEAN[type] * Math.log(1 - u)), MOON_MAX);
-}
-
 /**
  * Tidal-locking timescale (years): `∝ a⁶·M_p / (M_star²·R_p³)` (Gladman et al.
  * 1996 form), calibrated so Earth's is ~10¹³ yr. Compared against the star's age
@@ -212,7 +191,7 @@ function tidalLockTimescale(a: number, massEarth: number, starMassSolar: number,
  * mass (M☉), age (years), and metallicity ([Fe/H]), and the planet's semi-major
  * axis (AU). Mass is the primary draw (everything chemical and thermal chains
  * from it, biased toward giants in metal-rich systems); four further appended
- * draws give rotation, axial tilt, moon count, and a ring flag. A planet whose
+ * draws give rotation, axial tilt, moon richness, and a ring flag. A planet whose
  * tidal-locking time is shorter than the star's age is spin-locked, so its
  * rotation period becomes its orbital period. Consumes five draws.
  */
@@ -225,7 +204,9 @@ export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, 
   const hz = habitableZone(luminositySolar);
   const naturalRotation = sampleRotationPeriod(rng, type);
   const obliquity = rng() * 180;
-  const moonCount = sampleMoonCount(rng, type);
+  // A per-planet formation-luck trait in [0, 1) feeding the moon model (see
+  // moons.ts): kept as this planet's fourth draw so the stream is unchanged.
+  const moonRichness = rng();
   const hasRings = rng() < (type === 'gas-giant' ? 0.5 : type === 'ice-giant' ? 0.4 : 0.05);
   const tidallyLocked = tidalLockTimescale(a, mass, starMassSolar, radius) < starAgeYears;
   const orbitalPeriodYears = Math.sqrt(a ** 3 / starMassSolar);
@@ -236,7 +217,7 @@ export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, 
     inHabitableZone: a >= hz.inner && a <= hz.outer,
     insolation: luminositySolar / a ** 2,
     mass,
-    moonCount,
+    moonRichness,
     obliquity,
     radius,
     rotationPeriod: tidallyLocked ? orbitalPeriodYears * HOURS_PER_YEAR : naturalRotation,

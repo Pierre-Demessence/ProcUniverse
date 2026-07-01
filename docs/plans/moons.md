@@ -113,7 +113,10 @@ Deferred to last — do after major moons (5a–5d) and once Pierre has seen a s
 - [x] **5a — Moon-count realism.** Revise `sampleMoonCount` to a per-type minimum
       + geometric-tail (true-mean) model as clearly-named local constants
       (consistent with the IMF / mass–radius params); one draw kept, so only counts
-      shift; test that giants are never moonless.
+      shift; test that giants are never moonless. **Superseded** by a
+      physics-driven count model — see
+      [moon-count-physics.md](moon-count-physics.md) (count emerges from mass +
+      Hill sphere; fixes the inspector = visible mismatch and the phantom cap).
 - [x] **5b — Moon body generation.** `hashMoon`, moon orbit + physical sampling,
       spawn moon entities; `MoonPhysicalDef` (or reuse planet fields); determinism
       test (independent hash → planets byte-identical).

@@ -26,7 +26,6 @@ import { generateMoons } from './moons';
 import { namePlanet, nameStar } from './naming';
 import { frostLine, samplePlanet } from './planets';
 import { sampleStar } from './stars';
-import { EARTH_MASS_SOLAR } from './units';
 
 const TAU = Math.PI * 2;
 
@@ -150,9 +149,10 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       const planetName = namePlanet(name, j);
       const radius = planetVisualRadius(physical.radius);
       // Moons come from an independent per-planet stream, so they never perturb
-      // the star/planet draws; a tight Hill sphere holds fewer than the drawn count.
+      // the star/planet draws; their count emerges from the planet's mass and
+      // Hill sphere (see generateMoons), scaled by its moon-richness trait.
       const moonRng = makeSeededRng(hashMoon(systemSeed, j));
-      const moons = generateMoons(moonRng, planetName, radius, a, physical.mass * EARTH_MASS_SOLAR, star.mass, physical.moonCount);
+      const moons = generateMoons(moonRng, planetName, radius, a, physical.mass, star.mass, physical.moonRichness);
       planets.push({ name: planetName, a, argPeriapsis, color, e, meanAnomaly0, moons, physical, radius });
     }
 
