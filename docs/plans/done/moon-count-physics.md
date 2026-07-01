@@ -121,7 +121,7 @@ is fixed here.
       within the Hill band, named in order.
 - [x] Build + tests + lint (189 pass); peer review (LGTM, taper clamped for a
       future minor-moon caller).
-- [ ] Pierre browser-tune (occupancy ramp, taper, band fractions, spacing) — his
+- [x] Pierre browser-tune (occupancy ramp, taper, band fractions, spacing) — his
       call per AGENTS.md.
 
 ## Decisions / open questions for Pierre
