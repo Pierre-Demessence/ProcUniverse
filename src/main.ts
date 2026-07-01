@@ -17,6 +17,7 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
 import { frameZoom } from './camera/focus';
+import { cameraAbsolute, rebaseLocal } from './camera/origin';
 import { CLICK_SLOP_PX, DISC_FRAME_FACTOR, FRAME_MARGIN, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config/render';
 import { BlackHoleDef, galaxyAt } from './generation/galaxies';
 import { MoonPhysicalDef } from './generation/moons';
@@ -138,30 +139,38 @@ export function start(container: HTMLElement, save: Save): () => void {
     : originSector.systems.length > 0
       ? originSector.systems[0]
       : { x: SECTOR_SIZE / 2, y: SECTOR_SIZE / 2 };
+
+  // Floating render origin. The camera position is stored as a SMALL OFFSET from
+  // this origin (`camera.x/y`), not as an absolute coordinate, so pan/zoom deltas
+  // never fall below the float64 ULP however far the camera travels; the absolute
+  // position is `renderOrigin + camera.x`. The origin snaps to the focused star at
+  // the system tier (for canvas disc precision) and to the sector grid otherwise,
+  // rebased as the local offset grows.
+  let renderOriginX = 0;
+  let renderOriginY = 0;
+
   const frameOrigin = (): void => {
-    controller.camera.x = homeFocus.x;
-    controller.camera.y = homeFocus.y;
+    renderOriginX = Math.round(homeFocus.x / SECTOR_SIZE) * SECTOR_SIZE;
+    renderOriginY = Math.round(homeFocus.y / SECTOR_SIZE) * SECTOR_SIZE;
+    controller.camera.x = homeFocus.x - renderOriginX;
+    controller.camera.y = homeFocus.y - renderOriginY;
     controller.camera.zoom = canvas.height / SYSTEM_VIEW_AU;
   };
 
   // Resume the saved view from a previous visit, or frame the origin on a first
-  // visit. A persisted zoom is clamped to the camera range in case the config
-  // bounds changed between sessions.
+  // visit. The saved view is absolute; anchor the origin to it and store the
+  // small offset. A persisted zoom is clamped in case the config bounds changed.
   const savedView = save.view;
   if (savedView) {
-    controller.camera.x = savedView.x;
-    controller.camera.y = savedView.y;
+    renderOriginX = Math.round(savedView.x / SECTOR_SIZE) * SECTOR_SIZE;
+    renderOriginY = Math.round(savedView.y / SECTOR_SIZE) * SECTOR_SIZE;
+    controller.camera.x = savedView.x - renderOriginX;
+    controller.camera.y = savedView.y - renderOriginY;
     controller.camera.zoom = clamp(savedView.zoom, MIN_ZOOM, MAX_ZOOM);
   }
   else {
     frameOrigin();
   }
-
-  // Floating render origin: everything is drawn relative to this so the renderer
-  // works on small, precise coordinates however far the camera travels. Snapped
-  // to the sector grid, rebased only when the camera drifts far from it.
-  let renderOriginX = Math.round(controller.camera.x / SECTOR_SIZE) * SECTOR_SIZE;
-  let renderOriginY = Math.round(controller.camera.y / SECTOR_SIZE) * SECTOR_SIZE;
 
   const resizeObserver = new ResizeObserver(syncViewport);
   resizeObserver.observe(container);
@@ -249,7 +258,8 @@ export function start(container: HTMLElement, save: Save): () => void {
     if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX)
       return;
     const { bx, by } = toBackingPx(e.clientX, e.clientY);
-    const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
+    // `camera` is already in the render-origin frame, so it doubles as localCam.
+    const localCam = { ...camera };
     if (currentTier === 'system') {
       setSelection(pickBodyAt(world, localCam, bx, by));
     }
@@ -285,7 +295,7 @@ export function start(container: HTMLElement, save: Save): () => void {
         setSelection({ kind: 'universe', seed });
       }
       else if (node.kind === 'galaxy') {
-        const g = galaxyAt(seed, camera.x, camera.y);
+        const g = galaxyAt(seed, cameraAbsolute(renderOriginX, camera.x), cameraAbsolute(renderOriginY, camera.y));
         setSelection(g ? { galaxy: g, kind: 'galaxy' } : null);
       }
       else if (node.kind === 'star' || node.kind === 'planet' || node.kind === 'moon') {
@@ -329,7 +339,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     // the body at the centre of the view. Zoom is NOT changed — Lock never
     // zooms, only pins the body.
     if (lockedId !== null) {
-      const p = lockedBodyAbsPos(world, lockedId, renderOriginX, renderOriginY, simSeconds);
+      const p = lockedBodyLocalPos(world, lockedId, simSeconds);
       if (p) {
         camera.x = p.x;
         camera.y = p.y;
@@ -361,26 +371,34 @@ export function start(container: HTMLElement, save: Save): () => void {
     const dirty = !sceneCacheValid || tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0;
 
     if (dirty) {
-      const range = visibleSectors(camera);
+      // Absolute camera position, reconstructed only for sector indexing and the
+      // origin decision (both tolerate the ~ULP reconstruction error); the precise
+      // render path keeps using the small local `camera.x/y`.
+      const camAbsX = cameraAbsolute(renderOriginX, camera.x);
+      const camAbsY = cameraAbsolute(renderOriginY, camera.y);
+      const range = visibleSectors({ ...camera, x: camAbsX, y: camAbsY });
 
       // Rebase the render origin so the renderer always draws on small, precise
       // local coordinates. At the system tier we rebase onto the focused star
       // itself, dropping planet coords to tens of AU: without this, discs drawn at
       // ~10^5 AU local coordinates lose canvas path precision and render as jagged
-      // blobs. Zoomed out, snap to the sector grid and rebase only on large
-      // drifts. Respawn the streamed systems whenever the origin moves.
+      // blobs. Zoomed out, snap to the sector grid and rebase only when the local
+      // offset grows large. When the origin moves, shift `camera.x/y` by the same
+      // amount so the absolute position is unchanged, and respawn the systems.
       let originX = renderOriginX;
       let originY = renderOriginY;
       if (tier === 'system') {
-        const focus = nearestStar(cache, camera.x, camera.y);
-        originX = focus ? focus.x : Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
-        originY = focus ? focus.y : Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+        const focus = nearestStar(cache, camAbsX, camAbsY);
+        originX = focus ? focus.x : Math.round(camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
+        originY = focus ? focus.y : Math.round(camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
       }
-      else if (Math.abs(camera.x - renderOriginX) > REBASE_DIST || Math.abs(camera.y - renderOriginY) > REBASE_DIST) {
-        originX = Math.round(camera.x / SECTOR_SIZE) * SECTOR_SIZE;
-        originY = Math.round(camera.y / SECTOR_SIZE) * SECTOR_SIZE;
+      else if (Math.abs(camera.x) > REBASE_DIST || Math.abs(camera.y) > REBASE_DIST) {
+        originX = Math.round(camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
+        originY = Math.round(camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
       }
       if (originX !== renderOriginX || originY !== renderOriginY) {
+        camera.x = rebaseLocal(renderOriginX, camera.x, originX);
+        camera.y = rebaseLocal(renderOriginY, camera.y, originY);
         renderOriginX = originX;
         renderOriginY = originY;
         streamer.clear();
@@ -409,19 +427,11 @@ export function start(container: HTMLElement, save: Save): () => void {
         fadeMsLeft = TIER_FADE_MS;
       }
 
-      // Centre the locked body from its exact render-frame position rather than
-      // the camera's absolute coordinate: far from the universe origin the huge
-      // `camera.x - renderOriginX` round-trip quantises to the float64 ULP, which
-      // makes the body jitter frame-to-frame (worse the farther out and the
-      // faster time runs). The entity position is small and precise.
-      const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
-      if (lockedId !== null) {
-        const lockPos = positions.get(lockedId);
-        if (lockPos) {
-          localCam.x = lockPos.x;
-          localCam.y = lockPos.y;
-        }
-      }
+      // `camera.x/y` are already the offset from the render origin, so the camera
+      // doubles as the render-frame camera with no huge − huge subtraction. The
+      // Lock re-centre at the top of the frame set `camera` to the body's local
+      // position, so a locked body stays exactly centred.
+      const localCam = { ...camera };
       const result = renderFrame({
         cache,
         camera: localCam,
@@ -491,7 +501,9 @@ export function start(container: HTMLElement, save: Save): () => void {
     // frame so the time display and frame-time sparkline stay live.
     frameStats.setCounter('drawn', lastDrawnCount);
     inspector.update(world, selection, lockedId);
-    navTree.update(buildNavState(seed, cache, camera, tier, world, selection));
+    // The tree and the coordinate readout want the ABSOLUTE camera position.
+    const camAbs = { ...camera, x: cameraAbsolute(renderOriginX, camera.x), y: cameraAbsolute(renderOriginY, camera.y) };
+    navTree.update(buildNavState(seed, cache, camAbs, tier, world, selection));
     // Perf monitor: top-right, just left of the sim-time panel (so the tree
     // owns the top-left). Knobs are CSS pixels; the overlay draws in backing
     // pixels, hence the dpr scale.
@@ -504,7 +516,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS, x: statsX, y: STATS_HUD_TOP_PX * dpr });
     drawHint(ctx2d, canvas, tier);
     drawScaleBar(ctx2d, camera);
-    drawCoords(ctx2d, camera, seed);
+    drawCoords(ctx2d, camAbs, seed);
     timeControls.update(simSeconds);
   });
   renderSource.start();
@@ -512,7 +524,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   return (): void => {
     // Persist the final session state (camera, clock, speed) so the next visit
     // resumes here; this teardown is wired to `beforeunload`.
-    writeSave({ ...save, simSeconds, speedIndex: timeControls.speedIndex, view: { x: camera.x, y: camera.y, zoom: camera.zoom } });
+    writeSave({ ...save, simSeconds, speedIndex: timeControls.speedIndex, view: { x: cameraAbsolute(renderOriginX, camera.x), y: cameraAbsolute(renderOriginY, camera.y), zoom: camera.zoom } });
     renderSource.stop();
     unsubscribe();
     resizeObserver.disconnect();
@@ -629,16 +641,16 @@ function frameSelection(
   let extentAu: number;
 
   if (sel.kind === 'galaxy') {
-    cx = sel.galaxy.centerX;
-    cy = sel.galaxy.centerY;
+    cx = sel.galaxy.centerX - renderOriginX;
+    cy = sel.galaxy.centerY - renderOriginY;
     extentAu = sel.galaxy.radius * GALAXY_SPRITE_SCALE;
   }
   else {
     const pos = world.getStore(PositionDef).get(sel.id);
     if (!pos)
       return;
-    cx = pos.x + renderOriginX;
-    cy = pos.y + renderOriginY;
+    cx = pos.x;
+    cy = pos.y;
 
     let discRadiusAu: number;
     let satelliteExtent = 0;
@@ -679,15 +691,14 @@ function frameSelection(
 }
 
 /**
- * Re-derive a body's absolute world position from the pure orbit solver so
- * Lock stays glued at any time scale (no one-frame lag). Returns null when the
- * entity or its parent orbit has streamed out.
+ * Re-derive a body's position in the render-origin frame from the pure orbit
+ * solver so Lock stays glued at any time scale (no one-frame lag) and without
+ * round-tripping through absolute coordinates. Returns null when the entity or
+ * its parent orbit has streamed out.
  */
-function lockedBodyAbsPos(
+function lockedBodyLocalPos(
   world: EcsWorld,
   id: EntityId,
-  renderOriginX: number,
-  renderOriginY: number,
   simSeconds: number,
 ): { x: number; y: number } | null {
   const orbit = world.getStore(OrbitElementsDef).get(id);
@@ -706,5 +717,5 @@ function lockedBodyAbsPos(
     writeOrbitPosition(parentOrbit, years, planetPos);
     writeOrbitPosition({ ...orbit, cx: planetPos.x, cy: planetPos.y }, years, tmp);
   }
-  return { x: tmp.x + renderOriginX, y: tmp.y + renderOriginY };
+  return { x: tmp.x, y: tmp.y };
 }
