@@ -1,3 +1,4 @@
+import type { EntityId } from '@pierre/ecs/entity-id';
 import type { Camera } from '@pierre/ecs/modules/camera';
 
 import type { SystemData } from './generation/universe';
@@ -15,12 +16,14 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { createCameraController } from './camera/camera-controller';
-import { CLICK_SLOP_PX, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config/render';
+import { frameZoom } from './camera/focus';
+import { CLICK_SLOP_PX, DISC_FRAME_FACTOR, FRAME_MARGIN, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config/render';
 import { BlackHoleDef, galaxyAt } from './generation/galaxies';
 import { MoonPhysicalDef } from './generation/moons';
 import { NameDef } from './generation/naming';
 import { PlanetPhysicalDef } from './generation/planets';
 import { StarPhysicalDef } from './generation/stars';
+import { SECONDS_PER_YEAR } from './generation/units';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
@@ -30,8 +33,8 @@ import { drawCoords } from './render/draw-coords';
 import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
 import { drawSelectReticle } from './render/select-reticle';
-import { SECTOR_SIZE } from './scale';
-import { OrbitElementsDef, updateOrbits } from './sim/orbits';
+import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from './scale';
+import { OrbitElementsDef, updateOrbits, writeOrbitPosition } from './sim/orbits';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
 import { createOptionsMenu } from './ui/options';
@@ -93,7 +96,6 @@ export function start(container: HTMLElement, save: Save): () => void {
 
   const controller = createCameraController(canvas);
   const timeControls = createTimeControls(container, save.speedIndex);
-  const inspector = createInspector(container);
 
   const world = new EcsWorld();
   world.registerComponent(PositionDef);
@@ -193,6 +195,9 @@ export function start(container: HTMLElement, save: Save): () => void {
   let selection: Selection | null = null;
   let pointerDownX = 0;
   let pointerDownY = 0;
+  // Armed when a pointerdown starts while locked — the first move beyond
+  // CLICK_SLOP_PX releases the lock so the re-centre doesn't fight the pan.
+  let lockDragArmed = false;
 
   const toBackingPx = (clientX: number, clientY: number): { bx: number; by: number } => {
     const rect = canvas.getBoundingClientRect();
@@ -202,11 +207,41 @@ export function start(container: HTMLElement, save: Save): () => void {
     };
   };
 
+  let lockedId: EntityId | null = null;
+
+  const setSelection = (next: Selection | null): void => {
+    selection = next;
+    lockedId = null;
+  };
+
+  const toggleLock = (): void => {
+    if (!selection || (selection.kind !== 'planet' && selection.kind !== 'moon'))
+      return;
+    lockedId = lockedId === selection.id ? null : selection.id;
+  };
+
+  const onZoomTo = (): void => {
+    if (selection)
+      frameSelection(selection, world, camera, renderOriginX, renderOriginY);
+  };
+
+  const inspector = createInspector(container, { onToggleLock: toggleLock, onZoomTo });
+
   const onPickDown = (e: PointerEvent): void => {
     pointerDownX = e.clientX;
     pointerDownY = e.clientY;
+    lockDragArmed = lockedId !== null;
+  };
+  const onLockPointerMove = (e: PointerEvent): void => {
+    if (!lockDragArmed || lockedId === null)
+      return;
+    if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX) {
+      lockedId = null;
+      lockDragArmed = false;
+    }
   };
   const onPickUp = (e: PointerEvent): void => {
+    lockDragArmed = false;
     // Ignore releases over the HUD panels (tree / inspector / time): those are
     // their own clicks, not a canvas pick that should re-select or clear.
     if (e.target !== canvas)
@@ -216,18 +251,19 @@ export function start(container: HTMLElement, save: Save): () => void {
     const { bx, by } = toBackingPx(e.clientX, e.clientY);
     const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
     if (currentTier === 'system') {
-      selection = pickBodyAt(world, localCam, bx, by);
+      setSelection(pickBodyAt(world, localCam, bx, by));
     }
     else if (currentTier === 'galaxy-field') {
       const galaxy = pickGalaxyAt(seed, localCam, renderOriginX, renderOriginY, bx, by);
-      selection = galaxy ? { galaxy, kind: 'galaxy' } : null;
+      setSelection(galaxy ? { galaxy, kind: 'galaxy' } : null);
     }
   };
   const onPickKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape')
-      selection = null;
+      setSelection(null);
   };
   canvas.addEventListener('pointerdown', onPickDown);
+  window.addEventListener('pointermove', onLockPointerMove);
   window.addEventListener('pointerup', onPickUp);
   window.addEventListener('keydown', onPickKey);
 
@@ -237,23 +273,27 @@ export function start(container: HTMLElement, save: Save): () => void {
   const navTree = createNavTree(container, {
     onSelect(node: NavNode): void {
       if (node.kind === 'universe') {
-        selection = { kind: 'universe', seed };
+        setSelection({ kind: 'universe', seed });
       }
       else if (node.kind === 'galaxy') {
         const g = galaxyAt(seed, camera.x, camera.y);
-        selection = g ? { galaxy: g, kind: 'galaxy' } : null;
+        setSelection(g ? { galaxy: g, kind: 'galaxy' } : null);
       }
       else if (node.kind === 'star' || node.kind === 'planet' || node.kind === 'moon') {
         const id = findEntityByName(world, node.name);
         if (id !== null)
-          selection = { id, kind: node.kind };
+          setSelection({ id, kind: node.kind });
       }
     },
   });
 
   // Bottom-centre control to snap the camera back to the origin framing after
   // panning far across the universe.
-  const resetViewButton = createResetViewButton(container, { onReset: frameOrigin });
+  const onResetView = (): void => {
+    lockedId = null;
+    frameOrigin();
+  };
+  const resetViewButton = createResetViewButton(container, { onReset: onResetView });
 
   // Top-centre options menu for display preferences (units, etc.).
   const optionsMenu = createOptionsMenu(container);
@@ -274,6 +314,21 @@ export function start(container: HTMLElement, save: Save): () => void {
     const dt = info.deltaMs ?? 0;
     simSeconds += (dt / 1000) * timeControls.timeScale;
     frameStats.sample(dt);
+
+    // Lock: re-centre the camera on the locked body before anything else this
+    // frame so the tier, origin, streaming, and render are all consistent with
+    // the body at the centre of the view. Zoom is NOT changed — Lock never
+    // zooms, only pins the body.
+    if (lockedId !== null) {
+      const p = lockedBodyAbsPos(world, lockedId, renderOriginX, renderOriginY, simSeconds);
+      if (p) {
+        camera.x = p.x;
+        camera.y = p.y;
+      }
+      else {
+        lockedId = null;
+      }
+    }
 
     const tier = selectTier(camera, currentTier);
     const tierChanged = tier !== currentTier;
@@ -385,7 +440,7 @@ export function start(container: HTMLElement, save: Save): () => void {
         else if (selection.kind !== 'universe') {
           const pos = tier === 'system' ? positions.get(selection.id) : undefined;
           if (!pos) {
-            selection = null;
+            setSelection(null);
           }
           else {
             const renderable = renderables.get(selection.id);
@@ -414,7 +469,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     // Lightweight HUD overlays and DOM updates — cheap enough to run every
     // frame so the time display and frame-time sparkline stay live.
     frameStats.setCounter('drawn', lastDrawnCount);
-    inspector.update(world, selection);
+    inspector.update(world, selection, lockedId);
     navTree.update(buildNavState(seed, cache, camera, tier, world, selection));
     // Perf monitor: top-right, just left of the sim-time panel (so the tree
     // owns the top-left). Knobs are CSS pixels; the overlay draws in backing
@@ -442,6 +497,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     resizeObserver.disconnect();
     dprQuery?.removeEventListener('change', onDprChange);
     canvas.removeEventListener('pointerdown', onPickDown);
+    window.removeEventListener('pointermove', onLockPointerMove);
     window.removeEventListener('pointerup', onPickUp);
     window.removeEventListener('keydown', onPickKey);
     controller.dispose();
@@ -507,4 +563,127 @@ function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, ti
   ctx2d.textBaseline = 'bottom';
   ctx2d.fillText(`${HINT}   ·   tier: ${tier}`, 10, canvas.height - 8);
   ctx2d.restore();
+}
+
+// ── Camera focus & lock helpers ───────────────────────────────────────────
+
+/** The largest apoapsis among planets directly orbiting a given star. */
+function starSatelliteApoapsis(world: EcsWorld, starPosX: number, starPosY: number): number {
+  let max = 0;
+  for (const [, orbit] of world.query(OrbitElementsDef)) {
+    if (orbit.parent < 0 && Math.hypot(orbit.cx - starPosX, orbit.cy - starPosY) < 1e-6)
+      max = Math.max(max, orbit.a * (1 + orbit.e));
+  }
+  return max;
+}
+
+/** The largest apoapsis among moons orbiting a given planet. */
+function planetSatelliteApoapsis(world: EcsWorld, planetId: EntityId): number {
+  let max = 0;
+  for (const [, orbit] of world.query(OrbitElementsDef)) {
+    if (orbit.parent === planetId)
+      max = Math.max(max, orbit.a * (1 + orbit.e));
+  }
+  return max;
+}
+
+/**
+ * Pan + zoom the camera to frame the selected body together with whatever
+ * orbits it. The extent is the larger of the outermost satellite apoapsis and
+ * `DISC_FRAME_FACTOR × disc radius`, so a satellite-less body still gets a
+ * comfortable framing rather than filling the screen.
+ */
+function frameSelection(
+  sel: Selection,
+  world: EcsWorld,
+  camera: Camera,
+  renderOriginX: number,
+  renderOriginY: number,
+): void {
+  if (sel.kind === 'universe')
+    return;
+
+  let cx: number;
+  let cy: number;
+  let extentAu: number;
+
+  if (sel.kind === 'galaxy') {
+    cx = sel.galaxy.centerX;
+    cy = sel.galaxy.centerY;
+    extentAu = sel.galaxy.radius * GALAXY_SPRITE_SCALE;
+  }
+  else {
+    const pos = world.getStore(PositionDef).get(sel.id);
+    if (!pos)
+      return;
+    cx = pos.x + renderOriginX;
+    cy = pos.y + renderOriginY;
+
+    let discRadiusAu: number;
+    let satelliteExtent = 0;
+
+    if (sel.kind === 'star') {
+      const star = world.getStore(StarPhysicalDef).get(sel.id);
+      if (!star)
+        return;
+      discRadiusAu = starVisualRadius(star.radius);
+      satelliteExtent = starSatelliteApoapsis(world, pos.x, pos.y);
+    }
+    else if (sel.kind === 'planet') {
+      const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
+      if (!planet)
+        return;
+      discRadiusAu = planetVisualRadius(planet.radius);
+      satelliteExtent = planetSatelliteApoapsis(world, sel.id);
+    }
+    else if (sel.kind === 'moon') {
+      const moon = world.getStore(MoonPhysicalDef).get(sel.id);
+      if (!moon)
+        return;
+      discRadiusAu = planetVisualRadius(moon.radius);
+    }
+    else {
+      const bh = world.getStore(BlackHoleDef).get(sel.id);
+      if (!bh)
+        return;
+      discRadiusAu = blackHoleVisualRadius(bh.mass);
+    }
+
+    extentAu = Math.max(satelliteExtent, discRadiusAu * DISC_FRAME_FACTOR);
+  }
+
+  camera.zoom = frameZoom(extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+  camera.x = cx;
+  camera.y = cy;
+}
+
+/**
+ * Re-derive a body's absolute world position from the pure orbit solver so
+ * Lock stays glued at any time scale (no one-frame lag). Returns null when the
+ * entity or its parent orbit has streamed out.
+ */
+function lockedBodyAbsPos(
+  world: EcsWorld,
+  id: EntityId,
+  renderOriginX: number,
+  renderOriginY: number,
+  simSeconds: number,
+): { x: number; y: number } | null {
+  const orbit = world.getStore(OrbitElementsDef).get(id);
+  if (!orbit)
+    return null;
+  const years = simSeconds / SECONDS_PER_YEAR;
+  const tmp = { x: 0, y: 0 };
+  if (orbit.parent < 0) {
+    writeOrbitPosition(orbit, years, tmp);
+  }
+  else {
+    const parentOrbit = world.getStore(OrbitElementsDef).get(orbit.parent);
+    if (!parentOrbit)
+      return null;
+    const planetPos = { x: 0, y: 0 };
+    writeOrbitPosition(parentOrbit, years, planetPos);
+    writeOrbitPosition({ ...orbit, cx: planetPos.x, cy: planetPos.y }, years, tmp);
+  }
+  return { x: tmp.x + renderOriginX, y: tmp.y + renderOriginY };
 }

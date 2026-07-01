@@ -98,6 +98,15 @@ export const BODY_FLOOR_MIN_PX = 1.5;
 export const BODY_FLOOR_MAX_PX = 14;
 // Moons get a slightly higher floor than the base minimum so they read as
 // distinct markers around their planet at planet-zoom, not sub-pixel specks.
+// ── Camera focus & lock ──────────────────────────────────────────────
+// `FRAME_MARGIN` (>1) leaves breathing room around the framed extent so the
+// target body and its satellites are not flush against the viewport edge.
+// `DISC_FRAME_FACTOR` × disc radius gives the minimum framing extent for a
+// satellite-less body so it does not fill the screen when zoomed to.
+// `FLY_DURATION_MS` is the smooth fly-to tween duration (Phase B, deferred).
+export const FRAME_MARGIN = 1.4;
+export const DISC_FRAME_FACTOR = 8;
+export const FLY_DURATION_MS = 450;
 export const MOON_FLOOR_MIN_PX = 2.5;
 
 // ── Galaxy-field & black-hole visual sizes ────────────────────────────

@@ -36,9 +36,14 @@ import { populationColorCss } from '../render/galaxy-sprites';
 import { detailLevel, distanceUnit, namingStyle, numberNotation, temperatureUnit, valueMode } from '../settings';
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
 
+export interface InspectorActions {
+  onToggleLock: () => void;
+  onZoomTo: () => void;
+}
+
 export interface Inspector {
   dispose: () => void;
-  update: (world: EcsWorld, selection: Selection | null) => void;
+  update: (world: EcsWorld, selection: Selection | null, lockedId: EntityId | null) => void;
 }
 
 // Kelvin offset of the Celsius zero point (0 °C = 273.15 K).
@@ -188,6 +193,9 @@ const ROW_CSS = 'display:flex; justify-content:space-between; gap:16px';
 const LABEL_CSS = 'color:rgba(160,190,240,0.7)';
 const VALUE_CSS = 'color:#e6f0ff; text-align:right';
 
+const ACTION_FOOTER_CSS = 'display:flex; gap:4px; margin-top:4px; padding-top:4px; border-top:1px solid rgba(120,150,210,0.15)';
+const ACTION_BUTTON_CSS = 'padding:2px 8px; background:rgba(255,255,255,0.06); border:1px solid rgba(120,150,210,0.2); border-radius:4px; color:#cfe3ff; font:11px ui-monospace,monospace; cursor:pointer';
+
 // A help popover anchored to the LEFT of its row (the panel is pinned
 // bottom-right with no clipping, so it stays on-screen) and a touch more opaque
 // than the panel so the wrapped text stays legible over the scene behind it.
@@ -277,7 +285,7 @@ function ClassRow({ star }: { star: StarPhysical }): VNode {
   );
 }
 
-function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode {
+function StarPanel({ name, footer, star }: { footer?: VNode; name: string; star: StarPhysical }): VNode {
   const hz = habitableZone(star.luminosity);
   const du = distanceUnit.value;
   const vm = valueMode.value;
@@ -303,11 +311,12 @@ function StarPanel({ name, star }: { name: string; star: StarPhysical }): VNode 
         <Row label="Habitable zone" value={`${formatDistance(hz.inner, du)} – ${formatDistance(hz.outer, du)}`} tooltip="Distance range where a planet could have liquid surface water." basic />
         <Row label="Frost line" value={formatDistance(frostLine(star.luminosity), du)} tooltip="Distance beyond which it's cold enough for ice — where giant planets tend to form." />
       </div>
+      {footer}
     </div>
   );
 }
 
-function PlanetPanel({ name, moons, orbit, planet }: { name: string; moons: number; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
+function PlanetPanel({ name, footer, moons, orbit, planet }: { footer?: VNode; moons: number; name: string; orbit: OrbitElements; planet: PlanetPhysical }): VNode {
   const escape = escapeVelocity(planet.mass, planet.radius);
   const hasAtmosphere = retainsAtmosphere(escape, planet.insolation);
   const du = distanceUnit.value;
@@ -341,11 +350,12 @@ function PlanetPanel({ name, moons, orbit, planet }: { name: string; moons: numb
         <Row label="Eccentricity" value={sigFigs(orbit.e)} tooltip="How stretched the orbit is: 0 is a circle, nearer 1 is more elongated." />
         <Row label="Flux swing" value={`${sigFigs(insolationSwing(orbit))}×`} tooltip="How much the starlight varies between the planet's closest and farthest points." />
       </div>
+      {footer}
     </div>
   );
 }
 
-function MoonPanel({ name, host, moon, orbit }: { name: string; host: string; moon: MoonPhysical; orbit: OrbitElements }): VNode {
+function MoonPanel({ name, footer, host, moon, orbit }: { footer?: VNode; host: string; moon: MoonPhysical; name: string; orbit: OrbitElements }): VNode {
   const du = distanceUnit.value;
   const vm = valueMode.value;
   return (
@@ -361,11 +371,12 @@ function MoonPanel({ name, host, moon, orbit }: { name: string; host: string; mo
         <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} tooltip="How long the moon takes to circle its planet once." />
         <Row label="Tidal lock" value={moon.tidallyLocked ? 'Yes (synchronous)' : 'No'} tooltip="Whether the moon keeps one face toward its planet, like our Moon." basic />
       </div>
+      {footer}
     </div>
   );
 }
 
-function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; name: string }): VNode {
+function BlackHolePanel({ name, blackHole, footer }: { blackHole: BlackHolePhysical; footer?: VNode; name: string }): VNode {
   const du = distanceUnit.value;
   const vm = valueMode.value;
   return (
@@ -384,6 +395,7 @@ function BlackHolePanel({ name, blackHole }: { blackHole: BlackHolePhysical; nam
         <Row label="Hawking T" value={`${hawkingTemperature(blackHole.mass).toExponential(1)} K`} tooltip="The faint temperature it radiates through quantum effects." />
         <Row label="Evaporation" value={`${evaporationTime(blackHole.mass).toExponential(1)} yr`} tooltip="How long it would take to slowly evaporate away entirely." />
       </div>
+      {footer}
     </div>
   );
 }
@@ -403,7 +415,7 @@ function UniversePanel({ seed }: { seed: number }): VNode {
   );
 }
 
-function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
+function GalaxyPanel({ footer, galaxy }: { footer?: VNode; galaxy: GalaxyParams }): VNode {
   const swatch = populationColorCss(galaxyRepresentativeActivity(galaxy));
   const du = distanceUnit.value;
   const vm = valueMode.value;
@@ -433,11 +445,14 @@ function GalaxyPanel({ galaxy }: { galaxy: GalaxyParams }): VNode {
         <Row label="Environment" value={environmentClass(galaxy.cosmicDensity)} tooltip="How crowded its surroundings are, from empty void to dense cluster." />
         <Row label="Black hole" value={formatSolarMass(galaxy.blackHoleMass, vm)} tooltip="Mass of the supermassive black hole at the galaxy's core." basic />
       </div>
+      {footer}
     </div>
   );
 }
 
 interface InspectorPanelProps {
+  actions: InspectorActions;
+  lockedId: Signal<EntityId | null>;
   selection: Signal<Selection | null>;
   getWorld: () => EcsWorld | null;
 }
@@ -456,7 +471,7 @@ function countMoons(world: EcsWorld, planetId: EntityId): number {
   return count;
 }
 
-function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | null {
+function InspectorPanel({ actions, getWorld, lockedId, selection }: InspectorPanelProps): VNode | null {
   const sel = selection.value;
   if (!sel)
     return null;
@@ -464,8 +479,26 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
   if (sel.kind === 'universe')
     return <UniversePanel seed={sel.seed} />;
 
+  // Build the action footer for this selection kind.
+  const showLock = sel.kind === 'planet' || sel.kind === 'moon';
+  const isLocked = showLock && lockedId.value === sel.id;
+  const footer = (
+    <div style={ACTION_FOOTER_CSS}>
+      <button style={ACTION_BUTTON_CSS} type="button" onClick={actions.onZoomTo}>Zoom to</button>
+      {showLock && (
+        <button
+          style={`${ACTION_BUTTON_CSS}; ${isLocked ? 'background:rgba(100,160,255,0.3)' : ''}`}
+          type="button"
+          onClick={actions.onToggleLock}
+        >
+          {isLocked ? 'Unlock' : 'Lock'}
+        </button>
+      )}
+    </div>
+  );
+
   if (sel.kind === 'galaxy')
-    return <GalaxyPanel galaxy={sel.galaxy} />;
+    return <GalaxyPanel footer={footer} galaxy={sel.galaxy} />;
 
   const world = getWorld();
   if (!world)
@@ -474,13 +507,13 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
   if (sel.kind === 'star') {
     const star = world.getStore(StarPhysicalDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
-    return star ? <StarPanel name={displayName(identity, namingStyle.value)} star={star} /> : null;
+    return star ? <StarPanel footer={footer} name={displayName(identity, namingStyle.value)} star={star} /> : null;
   }
 
   if (sel.kind === 'black-hole') {
     const blackHole = world.getStore(BlackHoleDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
-    return blackHole ? <BlackHolePanel blackHole={blackHole} name={displayName(identity, namingStyle.value)} /> : null;
+    return blackHole ? <BlackHolePanel blackHole={blackHole} footer={footer} name={displayName(identity, namingStyle.value)} /> : null;
   }
 
   if (sel.kind === 'moon') {
@@ -488,13 +521,13 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
     const orbit = world.getStore(OrbitElementsDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
     const host = displayName(orbit ? world.getStore(NameDef).get(orbit.parent) : undefined, namingStyle.value) || '\u2014';
-    return moon && orbit ? <MoonPanel host={host} moon={moon} name={displayName(identity, namingStyle.value)} orbit={orbit} /> : null;
+    return moon && orbit ? <MoonPanel footer={footer} host={host} moon={moon} name={displayName(identity, namingStyle.value)} orbit={orbit} /> : null;
   }
 
   const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
   const orbit = world.getStore(OrbitElementsDef).get(sel.id);
   const identity = world.getStore(NameDef).get(sel.id);
-  return planet && orbit ? <PlanetPanel moons={countMoons(world, sel.id)} name={displayName(identity, namingStyle.value)} orbit={orbit} planet={planet} /> : null;
+  return planet && orbit ? <PlanetPanel footer={footer} moons={countMoons(world, sel.id)} name={displayName(identity, namingStyle.value)} orbit={orbit} planet={planet} /> : null;
 }
 
 /**
@@ -502,25 +535,27 @@ function InspectorPanel({ getWorld, selection }: InspectorPanelProps): VNode | n
  * ancestor). It renders nothing until `update` is given a non-null selection;
  * `dispose` unmounts and detaches it.
  */
-export function createInspector(container: HTMLElement): Inspector {
+export function createInspector(container: HTMLElement, actions: InspectorActions): Inspector {
   const selection = signal<Selection | null>(null);
+  const lockedId = signal<EntityId | null>(null);
   let world: EcsWorld | null = null;
 
   const mount = document.createElement('div');
   container.append(mount);
-  render(<InspectorPanel getWorld={() => world} selection={selection} />, mount);
+  render(<InspectorPanel actions={actions} getWorld={() => world} lockedId={lockedId} selection={selection} />, mount);
 
   return {
     dispose(): void {
       render(null, mount);
       mount.remove();
     },
-    update(nextWorld: EcsWorld, nextSelection: Selection | null): void {
+    update(nextWorld: EcsWorld, nextSelection: Selection | null, nextLockedId: EntityId | null): void {
       world = nextWorld;
-      // Called every frame: the render loop holds a stable selection reference
-      // between picks, so this assignment is an Object.is no-op until the
-      // selection actually changes, and the panel re-renders only then.
+      // Called every frame: the render loop holds stable references between
+      // picks, so these assignments are Object.is no-ops until something
+      // actually changes, and the panel re-renders only then.
       selection.value = nextSelection;
+      lockedId.value = nextLockedId;
     },
   };
 }
