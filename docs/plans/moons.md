@@ -120,7 +120,10 @@ Deferred to last — do after major moons (5a–5d) and once Pierre has seen a s
 - [x] **5b — Moon body generation.** `hashMoon`, moon orbit + physical sampling,
       spawn moon entities; `MoonPhysicalDef` (or reuse planet fields); determinism
       test (independent hash → planets byte-identical).
-- [ ] **5c — Rendering.** Moon markers via the morph + moon orbit rings.
+- [x] **5c — Rendering.** Moon markers via the morph + moon orbit rings (both
+      already worked from 5b); added a zoom-gated on-canvas moon label pass and a
+      moon-specific visibility floor (`MOON_FLOOR_MIN_PX`) so moons read as
+      distinct markers. "Frame this planet" deferred to the generic zoom-to TODO.
 - [ ] **5d — Inspector + picking + nav tree.** Moon panel, moon selection, the
       Moon tree level.
 - [ ] **5e — Minor moons.** Lazy, focus-driven spawn/despawn of the tiny irregular

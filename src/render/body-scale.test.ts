@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BODY_FLOOR_MAX_PX, BODY_FLOOR_MIN_PX } from '../config/render';
+import { BODY_FLOOR_MAX_PX, BODY_FLOOR_MIN_PX, MOON_FLOOR_MIN_PX } from '../config/render';
 import { bodyFloorPx, drawnBodyRadiusAu } from './body-scale';
 
 // Representative true radii in AU: a moon, Earth, Jupiter, the Sun, a giant star.
@@ -47,5 +47,20 @@ describe('drawnBodyRadiusAu', () => {
 
   it('reaches true scale when zoomed in past the floor (usable)', () => {
     expect(drawnBodyRadiusAu(SUN_AU, 1e6, 'usable')).toBe(SUN_AU);
+  });
+
+  it('raises the floor for moons via minFloorPx (usable)', () => {
+    const zoom = 1;
+    const base = drawnBodyRadiusAu(MOON_AU, zoom, 'usable');
+    const moon = drawnBodyRadiusAu(MOON_AU, zoom, 'usable', MOON_FLOOR_MIN_PX);
+    expect(base * zoom).toBeCloseTo(BODY_FLOOR_MIN_PX, 6); // base floors a moon low
+    expect(moon).toBeGreaterThan(base);
+    expect(moon * zoom).toBeCloseTo(MOON_FLOOR_MIN_PX, 6);
+  });
+
+  it('only lifts bodies below the moon minimum, not larger ones', () => {
+    // The Sun's floor (~6.9px) already exceeds MOON_FLOOR_MIN_PX, so applying the
+    // moon floor leaves it unchanged; only sub-minimum bodies (moons) are raised.
+    expect(drawnBodyRadiusAu(SUN_AU, 1, 'usable', MOON_FLOOR_MIN_PX)).toBe(drawnBodyRadiusAu(SUN_AU, 1, 'usable'));
   });
 });

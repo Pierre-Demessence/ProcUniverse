@@ -6,9 +6,11 @@ import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
 import { BlackHoleDef } from '../generation/galaxies';
+import { MoonPhysicalDef } from '../generation/moons';
 import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
+import { OrbitElementsDef } from '../sim/orbits';
 
 const GAP_PX = 6;
 const CULL_MARGIN_PX = 64;
@@ -18,6 +20,11 @@ const STAR_COLOR = 'rgba(214, 230, 255, 0.95)';
 const PLANET_COLOR = 'rgba(184, 206, 240, 0.72)';
 const BLACK_HOLE_COLOR = 'rgba(255, 190, 130, 0.95)';
 const SHADOW = 'rgba(2, 4, 10, 0.9)';
+const MOON_FONT = '9px ui-monospace, monospace';
+const MOON_COLOR = 'rgba(170, 192, 224, 0.6)';
+// Only label a moon once its orbit is wide enough on screen that the name clears
+// its planet; otherwise moon labels pile onto the planet marker at system-zoom.
+const MOON_LABEL_MIN_ORBIT_PX = 18;
 
 /**
  * SYSTEM tier: draw each body's catalogue name just below its disc, in screen
@@ -30,6 +37,7 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, cam: Camera, wor
   const positions = world.getStore(PositionDef);
   const renderables = world.getStore(RenderableDef);
   const names = world.getStore(NameDef);
+  const orbits = world.getStore(OrbitElementsDef);
 
   ctx2d.save();
   ctx2d.textAlign = 'center';
@@ -66,6 +74,17 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, cam: Camera, wor
   ctx2d.fillStyle = BLACK_HOLE_COLOR;
   for (const [id] of world.query(BlackHoleDef))
     label(id);
+
+  // Moons: only once the orbit separates them from the planet on screen, so the
+  // names don't pile onto the planet marker at system-zoom.
+  ctx2d.font = MOON_FONT;
+  ctx2d.fillStyle = MOON_COLOR;
+  for (const [id] of world.query(MoonPhysicalDef)) {
+    const orbit = orbits.get(id);
+    if (!orbit || orbit.a * cam.zoom < MOON_LABEL_MIN_ORBIT_PX)
+      continue;
+    label(id);
+  }
 
   ctx2d.restore();
 }

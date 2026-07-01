@@ -96,6 +96,9 @@ export const BODY_FLOOR_BASE_PX = 12;
 export const BODY_FLOOR_PER_DECADE_PX = 2.2;
 export const BODY_FLOOR_MIN_PX = 1.5;
 export const BODY_FLOOR_MAX_PX = 14;
+// Moons get a slightly higher floor than the base minimum so they read as
+// distinct markers around their planet at planet-zoom, not sub-pixel specks.
+export const MOON_FLOOR_MIN_PX = 2.5;
 
 // ── Galaxy-field & black-hole visual sizes ────────────────────────────
 // `GALAXY_SPRITE_SCALE` is the drawn galaxy-field sprite radius as a multiple of

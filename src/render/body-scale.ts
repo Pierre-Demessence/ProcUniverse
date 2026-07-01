@@ -10,6 +10,7 @@ import {
   BODY_FLOOR_MAX_PX,
   BODY_FLOOR_MIN_PX,
   BODY_FLOOR_PER_DECADE_PX,
+  MOON_FLOOR_MIN_PX,
 } from '../config/render';
 import { BlackHoleDef } from '../generation/galaxies';
 import { MoonPhysicalDef } from '../generation/moons';
@@ -41,14 +42,16 @@ export function bodyFloorPx(trueAu: number): number {
 /**
  * Drawn radius (AU) for a body of true radius `trueAu` at the given `zoom`.
  * `'true'` scale draws the real radius (bodies vanish to sub-pixels when zoomed
- * out); `'usable'` never lets it fall below `bodyFloorPx` on screen, so bodies
- * stay visible as ordered markers and only reach true scale once you zoom in far
- * enough that their real size overtakes the floor.
+ * out); `'usable'` never lets it fall below its floor on screen, so bodies stay
+ * visible as ordered markers and only reach true scale once you zoom in far
+ * enough that their real size overtakes the floor. `minFloorPx` raises that floor
+ * for a body that would otherwise sit at the base minimum (moons), so it still
+ * reads as a distinct marker.
  */
-export function drawnBodyRadiusAu(trueAu: number, zoom: number, mode: BodyScale): number {
+export function drawnBodyRadiusAu(trueAu: number, zoom: number, mode: BodyScale, minFloorPx = BODY_FLOOR_MIN_PX): number {
   if (mode === 'true')
     return trueAu;
-  return Math.max(trueAu, bodyFloorPx(trueAu) / zoom);
+  return Math.max(trueAu, Math.max(bodyFloorPx(trueAu), minFloorPx) / zoom);
 }
 
 /**
@@ -100,6 +103,6 @@ export function applyBodyScale(world: EcsWorld, zoom: number): void {
     const moon = moons.get(id);
     if (!renderable || renderable.kind !== 'circle' || !moon)
       continue;
-    renderable.radius = drawnBodyRadiusAu(planetVisualRadius(moon.radius), zoom, mode);
+    renderable.radius = drawnBodyRadiusAu(planetVisualRadius(moon.radius), zoom, mode, MOON_FLOOR_MIN_PX);
   }
 }
