@@ -17,7 +17,7 @@
 // far the camera may drift (in sectors) before the floating origin re-snaps when
 // zoomed out.
 export const MIN_ZOOM = 1e-12;
-export const MAX_ZOOM = 1e4;
+export const MAX_ZOOM = 1e7;
 export const ZOOM_STEP = 1.12;
 export const ZOOM_STEP_MAX = 2.5;
 export const ZOOM_STREAK_MAX = 16;
