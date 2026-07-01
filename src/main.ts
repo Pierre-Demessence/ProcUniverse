@@ -399,6 +399,11 @@ export function start(container: HTMLElement, save: Save): () => void {
     const backendChanged = threeActive !== lastThreeActive;
     lastThreeActive = threeActive;
 
+    // Tracks whether Three actually drew this frame's tier: some tiers still fall
+    // back to Canvas 2D even when the Three backend is selected, so the HUD shows
+    // the renderer really in use.
+    let renderedByThree = false;
+
     // A frame is dirty when there is no cached scene to blit (startup, or after
     // a resize / DPR change cleared the canvas and invalidated it), the system
     // tier animates, the tier cross-fades, the rendering backend changed, or the
@@ -491,12 +496,15 @@ export function start(container: HTMLElement, save: Save): () => void {
       // own drawn count.
       if (threeActive && tier === 'system' && threeRenderer) {
         threeRenderer.render({ camera: localCam, world });
+        renderedByThree = true;
       }
       else if (threeActive && tier === 'star' && threeRenderer) {
         result = threeRenderer.renderStars({ cache, camera: localCam, originX: renderOriginX, originY: renderOriginY, range });
+        renderedByThree = true;
       }
       else if (threeActive && tier === 'galaxy-field' && threeRenderer) {
         result = threeRenderer.renderGalaxyField({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
+        renderedByThree = true;
       }
 
       // Cross-fade: blend the captured old-tier frame over the new one.
@@ -567,7 +575,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     // keeping the panel snug left of the sim panel at any device pixel ratio.
     const statsX = canvas.width - (STATS_HUD_RIGHT_RESERVE_PX + STATS_HUD_GAP_PX) * dpr - STATS_HUD_WIDTH_PX;
     drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS, x: statsX, y: STATS_HUD_TOP_PX * dpr });
-    drawHint(ctx2d, canvas, tier);
+    drawHint(ctx2d, canvas, tier, renderedByThree ? `Three (${threeRenderer?.backendLabel ?? '…'})` : 'Canvas 2D');
     drawScaleBar(ctx2d, camera);
     drawCoords(ctx2d, camAbs, seed);
     timeControls.update(simSeconds);
@@ -642,13 +650,13 @@ function selectionKey(world: EcsWorld, selection: Selection | null): string | nu
   return world.getStore(NameDef).get(selection.id)?.scientific ?? null;
 }
 
-function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, tier: Tier): void {
+function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, tier: Tier, rendererLabel: string): void {
   ctx2d.save();
   ctx2d.font = '12px ui-monospace, monospace';
   ctx2d.fillStyle = 'rgba(160, 190, 240, 0.55)';
   ctx2d.textAlign = 'left';
   ctx2d.textBaseline = 'bottom';
-  ctx2d.fillText(`${HINT}   ·   tier: ${tier}`, 10, canvas.height - 8);
+  ctx2d.fillText(`${HINT}   ·   tier: ${tier}   ·   renderer: ${rendererLabel}`, 10, canvas.height - 8);
   ctx2d.restore();
 }
 

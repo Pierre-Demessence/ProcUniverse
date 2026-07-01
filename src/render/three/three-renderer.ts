@@ -96,6 +96,8 @@ export interface ThreeStarContext {
 }
 
 export class ThreeRenderer implements Renderer<ThreeRenderContext> {
+  /** The active backend once ready ('WebGPU' or 'WebGL2'), else null. */
+  backendLabel: 'WebGL2' | 'WebGPU' | null = null;
   private readonly camera: OrthographicCamera;
   /** The WebGPU/WebGL canvas, positioned behind the 2D HUD canvas by the caller. */
   readonly canvas: HTMLCanvasElement;
@@ -139,10 +141,10 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.glowMaterial = new MeshBasicMaterial({ blending: AdditiveBlending, depthTest: false, depthWrite: false, map: this.glowTexture, side: DoubleSide, transparent: true });
     this.renderer.init().then(() => {
       this.ready = true;
-      // Report the active backend once so the WebGPU / WebGL2-fallback path is
-      // verifiable in the console (Stage 0 "confirm both paths run").
-      const which = this.renderer.backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
-      console.warn(`ProcUniverse: Three.js renderer ready (${which}).`);
+      // Record + report the active backend so the WebGPU / WebGL2-fallback path
+      // is verifiable in the console and shown in the HUD renderer indicator.
+      this.backendLabel = this.renderer.backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
+      console.warn(`ProcUniverse: Three.js renderer ready (${this.backendLabel}).`);
     }).catch((error: unknown) => {
       console.error('ProcUniverse: Three.js renderer failed to initialise.', error);
     });
