@@ -405,7 +405,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     // camera, viewport, or selection changed. Without the cache-invalid check a
     // still camera at a non-system tier would leave the just-cleared canvas blank
     // until the next interaction.
-    const dirty = !sceneCacheValid || tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0 || backendChanged;
+    const dirty = !sceneCacheValid || tier === 'system' || tierChanged || camMoved || vpChanged || selChanged || fadeMsLeft > 0 || backendChanged || threeActive;
 
     if (dirty) {
       // Absolute camera position, reconstructed only for sector indexing and the
@@ -469,7 +469,7 @@ export function start(container: HTMLElement, save: Save): () => void {
       // Lock re-centre at the top of the frame set `camera` to the body's local
       // position, so a locked body stays exactly centred.
       const localCam = { ...camera };
-      const result = renderFrame({
+      let result = renderFrame({
         cache,
         camera: localCam,
         canvas,
@@ -484,13 +484,20 @@ export function start(container: HTMLElement, save: Save): () => void {
         world,
       });
 
-      // Draw the system-tier bodies with the Three.js renderer onto its own
-      // canvas behind the transparent 2D canvas. `renderFrame` above has already
-      // run `applyBodyScale`, so the bodies' RenderableDef radii are floored for
-      // the current zoom before Three reads them. Only the system tier uses Three
-      // in Stage 0; the other tiers stay on Canvas 2D.
-      if (threeActive && tier === 'system' && threeRenderer)
+      // Draw the Three.js tiers onto the renderer's own canvas behind the
+      // transparent 2D canvas. `renderFrame` above has already run
+      // `applyBodyScale`, so the system bodies' radii are floored before Three
+      // reads them; the star tier reads the sector cache directly and returns its
+      // own drawn count.
+      if (threeActive && tier === 'system' && threeRenderer) {
         threeRenderer.render({ camera: localCam, world });
+      }
+      else if (threeActive && tier === 'star' && threeRenderer) {
+        result = threeRenderer.renderStars({ cache, camera: localCam, originX: renderOriginX, originY: renderOriginY, range });
+      }
+      else if (threeActive && tier === 'galaxy-field' && threeRenderer) {
+        result = threeRenderer.renderGalaxyField({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
+      }
 
       // Cross-fade: blend the captured old-tier frame over the new one.
       if (fadeMsLeft > 0) {

@@ -26,6 +26,16 @@ export function populationColorCss(t: number): string {
 }
 
 /**
+ * Population colour quantized to the same buckets `populationGlow` uses, so a
+ * consumer that tints per instance (the Three glow tiers) matches the bucketed
+ * Canvas 2D sprites exactly.
+ */
+export function bucketedPopulationColor(t: number): [number, number, number] {
+  const bucket = clamp(Math.round(t * (RAMP_BUCKETS - 1)), 0, RAMP_BUCKETS - 1);
+  return populationColor(bucket / (RAMP_BUCKETS - 1));
+}
+
+/**
  * A cached radial glow sprite tinted by population activity `t` ∈ [0, 1]. The
  * ramp is bucketed so only a handful of sprites are ever built, keeping per-cell
  * and per-galaxy drawing a cheap blit.

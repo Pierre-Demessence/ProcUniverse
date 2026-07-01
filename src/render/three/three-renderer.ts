@@ -16,9 +16,16 @@ import type { EcsWorld } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
 
+import type { SectorCache } from '../../lod/sector-cache';
+import type { SectorRange } from '../../lod/tier';
+import type { GlowField } from './glow-fields';
+
+import { worldToView } from '@pierre/ecs/modules/camera';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
-import { CircleGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, OrthographicCamera, Scene, WebGPURenderer } from 'three/webgpu';
+import { AdditiveBlending, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, Mesh, MeshBasicMaterial, Object3D, OrthographicCamera, PlaneGeometry, Scene, WebGPURenderer } from 'three/webgpu';
+
+import { forEachGalaxyFieldGlow } from './glow-fields';
 
 /** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
 const BACKGROUND = 0x05060D;
@@ -31,6 +38,39 @@ const CIRCLE_SEGMENTS = 24;
  */
 const CAMERA_DEPTH = 1000;
 const DEFAULT_FILL = '#ffffff';
+/** Minimum on-screen star dot radius (px); mirrors the Canvas 2D star tier. */
+const STAR_MIN_DOT_PX = 1.1;
+/** Low-poly disc for star dots — they are only a few pixels across. */
+const STAR_SEGMENTS = 8;
+/** Initial star instance capacity; grown (reallocated) on demand, never shrunk. */
+const STAR_INITIAL_CAPACITY = 8192;
+/** Off-screen cull padding (px) for star instances, matching `drawStars`. */
+const STAR_CULL_PAD_PX = 4;
+/** Initial glow-sprite instance capacity; grown on demand, never shrunk. */
+const GLOW_INITIAL_CAPACITY = 1024;
+/** Radial glow-sprite texture resolution (px). */
+const GLOW_TEXTURE_SIZE = 128;
+
+/** Smallest power of two ≥ `n` (≥ 1), for instance-buffer growth. */
+function nextPowerOfTwo(n: number): number {
+  return n <= 1 ? 1 : 2 ** Math.ceil(Math.log2(n));
+}
+
+/** A white radial glow sprite (alpha falls off to the edge), tinted per instance. */
+function makeGlowTexture(): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = GLOW_TEXTURE_SIZE;
+  canvas.height = GLOW_TEXTURE_SIZE;
+  const ctx = canvas.getContext('2d')!;
+  const half = GLOW_TEXTURE_SIZE / 2;
+  const grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.4)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, GLOW_TEXTURE_SIZE, GLOW_TEXTURE_SIZE);
+  return new CanvasTexture(canvas);
+}
 
 /** Per-frame inputs: the render-origin-frame camera and the ECS world. */
 export interface ThreeRenderContext {
@@ -38,19 +78,50 @@ export interface ThreeRenderContext {
   world: EcsWorld;
 }
 
+/** Per-frame inputs for the aggregate glow tiers (galaxy / galaxy-field / universe). */
+export interface ThreeGlowContext {
+  camera: Camera;
+  originX: number;
+  originY: number;
+  seed: number;
+}
+
+/** Per-frame inputs for the star tier: the visible sectors and the read origin. */
+export interface ThreeStarContext {
+  cache: SectorCache;
+  camera: Camera;
+  originX: number;
+  originY: number;
+  range: SectorRange;
+}
+
 export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly camera: OrthographicCamera;
   /** The WebGPU/WebGL canvas, positioned behind the 2D HUD canvas by the caller. */
   readonly canvas: HTMLCanvasElement;
+  private readonly dummy = new Object3D();
   private readonly geometry: CircleGeometry;
+  private glowCapacity = 0;
+  private readonly glowGeometry: PlaneGeometry;
+  private readonly glowMaterial: MeshBasicMaterial;
+  private glowMesh: InstancedMesh | null = null;
+  private readonly glowTexture: CanvasTexture;
   private readonly group: Group;
   private readonly pool: Mesh[] = [];
   /** True once `init()` has resolved; `render` is a no-op before then. */
   ready = false;
   private readonly renderer: WebGPURenderer;
   private readonly scene: Scene;
+  private starCapacity = 0;
+  private readonly starGeometry: CircleGeometry;
+  private readonly starMaterial: MeshBasicMaterial;
+  private starMesh: InstancedMesh | null = null;
+  private readonly tmpColor = new Color();
 
   constructor() {
+    // Match Canvas 2D's raw-sRGB colours: skip three's linear working-space
+    // conversions so tints and additive blends read the same across backends.
+    ColorManagement.enabled = false;
     this.canvas = document.createElement('canvas');
     this.canvas.style.cssText = 'position:absolute; inset:0; display:none; width:100%; height:100%; pointer-events:none;';
     this.renderer = new WebGPURenderer({ antialias: true, canvas: this.canvas });
@@ -61,6 +132,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.scene.add(this.group);
     this.camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, CAMERA_DEPTH * 2);
     this.geometry = new CircleGeometry(1, CIRCLE_SEGMENTS);
+    this.starGeometry = new CircleGeometry(1, STAR_SEGMENTS);
+    this.starMaterial = new MeshBasicMaterial({ side: DoubleSide });
+    this.glowTexture = makeGlowTexture();
+    this.glowGeometry = new PlaneGeometry(1, 1);
+    this.glowMaterial = new MeshBasicMaterial({ blending: AdditiveBlending, depthTest: false, depthWrite: false, map: this.glowTexture, side: DoubleSide, transparent: true });
     this.renderer.init().then(() => {
       this.ready = true;
       // Report the active backend once so the WebGPU / WebGL2-fallback path is
@@ -75,9 +151,50 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   dispose(): void {
     for (const mesh of this.pool)
       (mesh.material as MeshBasicMaterial).dispose();
+    this.starMesh?.dispose();
+    this.starGeometry.dispose();
+    this.starMaterial.dispose();
+    this.glowMesh?.dispose();
+    this.glowGeometry.dispose();
+    this.glowMaterial.dispose();
+    this.glowTexture.dispose();
     this.geometry.dispose();
     this.renderer.dispose();
     this.canvas.remove();
+  }
+
+  /** Ensure the glow instanced mesh holds ≥ `count` instances, growing as needed. */
+  private ensureGlowMesh(count: number): InstancedMesh {
+    if (this.glowMesh && this.glowCapacity >= count)
+      return this.glowMesh;
+    if (this.glowMesh) {
+      this.scene.remove(this.glowMesh);
+      this.glowMesh.dispose();
+    }
+    const capacity = Math.max(GLOW_INITIAL_CAPACITY, nextPowerOfTwo(count));
+    const mesh = new InstancedMesh(this.glowGeometry, this.glowMaterial, capacity);
+    mesh.frustumCulled = false;
+    this.glowMesh = mesh;
+    this.glowCapacity = capacity;
+    this.scene.add(mesh);
+    return mesh;
+  }
+
+  /** Ensure the star instanced mesh holds ≥ `count` instances, growing as needed. */
+  private ensureStarMesh(count: number): InstancedMesh {
+    if (this.starMesh && this.starCapacity >= count)
+      return this.starMesh;
+    if (this.starMesh) {
+      this.scene.remove(this.starMesh);
+      this.starMesh.dispose();
+    }
+    const capacity = Math.max(STAR_INITIAL_CAPACITY, nextPowerOfTwo(count));
+    const mesh = new InstancedMesh(this.starGeometry, this.starMaterial, capacity);
+    mesh.frustumCulled = false;
+    this.starMesh = mesh;
+    this.starCapacity = capacity;
+    this.scene.add(mesh);
+    return mesh;
   }
 
   /** Reuse a pooled disc mesh, creating one on first use. */
@@ -105,6 +222,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       return;
     const { camera, world } = ctx;
     this.syncCamera(camera);
+    this.group.visible = true;
+    if (this.starMesh)
+      this.starMesh.visible = false;
+    if (this.glowMesh)
+      this.glowMesh.visible = false;
 
     const renderables = world.getStore(RenderableDef);
     const positions = world.getStore(PositionDef);
@@ -128,6 +250,100 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     }
 
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * GALAXY-FIELD tier: draw each galaxy as an additive glow sprite in one draw
+   * call. Mirrors the sprite pass of `drawGalaxyField` (the NGC labels stay on
+   * the 2D overlay). Returns the number of sprites drawn.
+   */
+  renderGalaxyField(ctx: ThreeGlowContext): number {
+    return this.renderGlowTier(ctx, forEachGalaxyFieldGlow);
+  }
+
+  /** Fill and draw the shared additive glow mesh from a tier's glow iterator. */
+  private renderGlowTier(ctx: ThreeGlowContext, forEach: GlowField): number {
+    if (!this.ready)
+      return 0;
+    const { camera, originX, originY, seed } = ctx;
+    this.syncCamera(camera);
+    this.group.visible = false;
+    if (this.starMesh)
+      this.starMesh.visible = false;
+
+    let capacity = 0;
+    forEach(camera, seed, originX, originY, () => {
+      capacity++;
+    });
+    const mesh = this.ensureGlowMesh(capacity);
+
+    let i = 0;
+    forEach(camera, seed, originX, originY, (x, y, radius, r, g, b, alpha) => {
+      this.dummy.position.set(x, y, 0);
+      this.dummy.scale.set(radius * 2, radius * 2, 1);
+      this.dummy.updateMatrix();
+      mesh.setMatrixAt(i, this.dummy.matrix);
+      this.tmpColor.setRGB((r / 255) * alpha, (g / 255) * alpha, (b / 255) * alpha);
+      mesh.setColorAt(i, this.tmpColor);
+      i++;
+    });
+    mesh.count = i;
+    mesh.visible = i > 0;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor)
+      mesh.instanceColor.needsUpdate = true;
+    this.renderer.render(this.scene, this.camera);
+    return i;
+  }
+
+  /**
+   * STAR tier: draw each visible system as an instanced disc — one draw call for
+   * the whole field. Mirrors `drawStars` (same positions, per-star colour, and
+   * min-floored size). Returns the number of stars drawn.
+   */
+  renderStars(ctx: ThreeStarContext): number {
+    if (!this.ready)
+      return 0;
+    const { cache, camera, originX, originY, range } = ctx;
+    this.syncCamera(camera);
+    this.group.visible = false;
+    if (this.glowMesh)
+      this.glowMesh.visible = false;
+
+    let capacity = 0;
+    for (let sy = range.minSy; sy <= range.maxSy; sy++) {
+      for (let sx = range.minSx; sx <= range.maxSx; sx++)
+        capacity += cache.get(sx, sy).systems.length;
+    }
+    const mesh = this.ensureStarMesh(capacity);
+
+    const minRadius = STAR_MIN_DOT_PX / camera.zoom;
+    const maxX = camera.viewportW + STAR_CULL_PAD_PX;
+    const maxY = camera.viewportH + STAR_CULL_PAD_PX;
+    let i = 0;
+    for (let sy = range.minSy; sy <= range.maxSy; sy++) {
+      for (let sx = range.minSx; sx <= range.maxSx; sx++) {
+        for (const sys of cache.get(sx, sy).systems) {
+          const v = worldToView(sys.x - originX, sys.y - originY, camera);
+          if (v.vx < -STAR_CULL_PAD_PX || v.vx > maxX || v.vy < -STAR_CULL_PAD_PX || v.vy > maxY)
+            continue;
+          const r = Math.max(minRadius, sys.radius);
+          this.dummy.position.set(sys.x - originX, sys.y - originY, 0);
+          this.dummy.scale.set(r, r, 1);
+          this.dummy.updateMatrix();
+          mesh.setMatrixAt(i, this.dummy.matrix);
+          mesh.setColorAt(i, this.tmpColor.set(sys.star.colorHex));
+          i++;
+        }
+      }
+    }
+    mesh.count = i;
+    mesh.visible = i > 0;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor)
+      mesh.instanceColor.needsUpdate = true;
+    this.renderer.render(this.scene, this.camera);
+    return i;
   }
 
   /** Match the backing store to the 2D canvas so both share one coordinate space. */

@@ -241,10 +241,22 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
 
 ### Stage 1 — Instanced 3D star field (R1)
 
-- [ ] Stars as **instanced billboard impostors** fed from the sector cache
-      (position + colour buffers); one draw call for the field.
+> Status (2026-07-01): **1a (star tier) + 1b-i (galaxy-field glow) landed.** In
+> Three mode the star tier renders as a single `InstancedMesh` of discs, and the
+> galaxy-field tier as instanced **additive glow sprites** (one shared white
+> radial-glow texture tinted per instance; `ColorManagement` off + bucketed tints
+> to match Canvas 2D's raw-sRGB additive), with the NGC labels kept on the 2D
+> overlay. Both reproduce their `draw*` counterparts in one draw call. Green on
+> build + 222 tests + lint; peer-reviewed (no blockers). Browser A/B is Pierre's.
+> Instanced discs/sprites rather than GL points because WebGPU caps GL point size
+> at 1 px. **1b-ii** (galaxy + universe aggregate glow) and **1c** (LOD retune)
+> remain.
+
+- [x] Stars as **instanced billboard impostors** fed from the sector cache
+      (position + colour buffers); one draw call for the field. (InstancedMesh
+      discs; per-star size min-floored as in `drawStars`.)
 - [ ] Galaxy / galaxy-field / universe glow tiers as instanced additive sprites
-      or a density shader.
+      or a density shader. (Galaxy-field done; galaxy + universe = 1b-ii remain.)
 - [ ] Re-tune LOD: show far more individual stars before the aggregate-glow
       switch (GPU budget is bigger, still bounded).
 

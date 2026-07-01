@@ -11,7 +11,7 @@ import { cameraToView } from '@pierre/ecs/modules/camera';
 import { drawOrbitRings } from '../sim/orbits';
 import { applyBodyScale } from './body-scale';
 import { drawGalaxy } from './draw-galaxy';
-import { drawGalaxyField } from './draw-galaxy-field';
+import { drawGalaxyField, drawGalaxyFieldLabels } from './draw-galaxy-field';
 import { drawBodyLabels } from './draw-labels';
 import { drawStars } from './draw-stars';
 import { drawUniverse } from './draw-universe';
@@ -55,6 +55,21 @@ export function renderFrame(deps: FrameDeps): number {
     drawOrbitRings(ctx2d, camera, world);
     applyBodyScale(world, camera.zoom);
     drawBodyLabels(ctx2d, camera, world);
+    return -1;
+  }
+
+  // Star tier in Three mode: the instanced star field is drawn by the Three
+  // renderer behind this canvas, so keep the 2D canvas transparent for the HUD.
+  if (threeMode && tier === 'star') {
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    return -1;
+  }
+
+  // Galaxy-field tier in Three mode: the galaxy glow sprites are drawn by Three;
+  // keep only the NGC labels on the transparent 2D overlay so they stay crisp.
+  if (threeMode && tier === 'galaxy-field') {
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    drawGalaxyFieldLabels(ctx2d, camera, seed, originX, originY);
     return -1;
   }
 

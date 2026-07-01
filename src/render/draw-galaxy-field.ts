@@ -60,3 +60,33 @@ export function drawGalaxyField(
   ctx2d.restore();
   return drawn;
 }
+
+/**
+ * Draw only the galaxy-field NGC labels — the opaque second pass of
+ * `drawGalaxyField`. Used by the Three backend, where the additive glow sprites
+ * are drawn on the GPU and only the labels remain on the 2D overlay.
+ */
+export function drawGalaxyFieldLabels(
+  ctx2d: CanvasRenderingContext2D,
+  cam: Camera,
+  seed: number,
+  originX: number,
+  originY: number,
+): void {
+  const rect = cameraViewRect(cam);
+  const minX = rect.x + originX;
+  const minY = rect.y + originY;
+  ctx2d.save();
+  ctx2d.font = '12px ui-monospace, monospace';
+  ctx2d.fillStyle = LABEL_FILL;
+  ctx2d.textAlign = 'center';
+  ctx2d.textBaseline = 'top';
+  for (const g of galaxiesInRect(seed, minX, minY, minX + rect.w, minY + rect.h)) {
+    const radiusPx = g.radius * cam.zoom * GALAXY_SPRITE_SCALE;
+    if (radiusPx * 2 < LABEL_MIN_PX)
+      continue;
+    const v = worldToView(g.centerX - originX, g.centerY - originY, cam);
+    ctx2d.fillText(namingStyle.value === 'human' ? g.humanName : g.name, v.vx, v.vy + radiusPx + 3);
+  }
+  ctx2d.restore();
+}
