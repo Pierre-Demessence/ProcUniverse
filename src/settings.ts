@@ -25,11 +25,15 @@ export type DetailLevel = 'advanced' | 'basic';
 /** How numbers render: friendly (grouped, sci only at the extremes) or always scientific. */
 export type NumberNotation = 'auto' | 'scientific';
 
+/** Body sizes: true physical scale (honest, tiny when zoomed out) or floored so bodies stay visible. */
+export type BodyScale = 'true' | 'usable';
+
 const DEFAULT_TEMPERATURE_UNIT: TemperatureUnit = 'K';
 const DEFAULT_DISTANCE_UNIT: DistanceUnit = 'adaptive';
 const DEFAULT_VALUE_MODE: ValueMode = 'relative';
 const DEFAULT_DETAIL_LEVEL: DetailLevel = 'advanced';
 const DEFAULT_NUMBER_NOTATION: NumberNotation = 'auto';
+const DEFAULT_BODY_SCALE: BodyScale = 'usable';
 
 function asTemperatureUnit(value: unknown): TemperatureUnit | null {
   return value === 'C' || value === 'F' || value === 'K' ? value : null;
@@ -51,6 +55,10 @@ function asNumberNotation(value: unknown): NumberNotation | null {
   return value === 'auto' || value === 'scientific' ? value : null;
 }
 
+function asBodyScale(value: unknown): BodyScale | null {
+  return value === 'true' || value === 'usable' ? value : null;
+}
+
 const stored = loadPreferences();
 
 /** The temperature unit every panel renders, seeded from storage. */
@@ -67,6 +75,9 @@ export const detailLevel = signal<DetailLevel>(asDetailLevel(stored.detailLevel)
 
 /** How numbers render across the inspector and HUD: friendly or always scientific. */
 export const numberNotation = signal<NumberNotation>(asNumberNotation(stored.numberNotation) ?? DEFAULT_NUMBER_NOTATION);
+
+/** Whether bodies draw at true physical scale or floored to stay visible when zoomed out. */
+export const bodyScale = signal<BodyScale>(asBodyScale(stored.bodyScale) ?? DEFAULT_BODY_SCALE);
 
 /** Choose the temperature unit and persist it. */
 export function setTemperatureUnit(unit: TemperatureUnit): void {
@@ -98,6 +109,12 @@ export function setNumberNotation(notation: NumberNotation): void {
   savePreference('numberNotation', notation);
 }
 
+/** Choose true or usable body scale and persist it. */
+export function setBodyScale(scale: BodyScale): void {
+  bodyScale.value = scale;
+  savePreference('bodyScale', scale);
+}
+
 /** Restore every setting to its default and clear the stored preferences. */
 export function resetSettings(): void {
   temperatureUnit.value = DEFAULT_TEMPERATURE_UNIT;
@@ -105,5 +122,6 @@ export function resetSettings(): void {
   valueMode.value = DEFAULT_VALUE_MODE;
   detailLevel.value = DEFAULT_DETAIL_LEVEL;
   numberNotation.value = DEFAULT_NUMBER_NOTATION;
+  bodyScale.value = DEFAULT_BODY_SCALE;
   clearPreferences();
 }

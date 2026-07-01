@@ -96,7 +96,7 @@ galaxies), with navigation made usable later by rendering tricks (warp-to-target
 The cross-cutting rescale (galaxy model + LOD tiers + zoom range) is implemented
 and documented in its own plan: [realistic-scale.md](realistic-scale.md).
 
-## Phase 4 — Apparent size (rendering) — IN PROGRESS
+## Phase 4 — Apparent size (rendering) — DONE (uncommitted)
 
 - [x] **Step 0 — true-scale baseline.** `scale.ts` `starVisualRadius` /
       `planetVisualRadius` / `blackHoleVisualRadius` now return the body's *real*
@@ -106,15 +106,19 @@ and documented in its own plan: [realistic-scale.md](realistic-scale.md).
       `*_DISC_*` config knobs are dormant, kept to feed the morph. (Star-tier dots
       still use the `MIN_DOT` floor in `draw-stars.ts`, so the star field stays
       visible; that floor folds into the morph below.)
-- [ ] Move the apparent-size decision fully out of the data layer: the data
-      carries only the true physical radius; the renderer computes drawn size from
-      `(trueRadius, zoom)`.
-- [ ] Ordered, non-overlapping size **floors** (every star floor > every planet
-      floor) so stars always dominate planets when zoomed out.
-- [ ] **Morph:** as you zoom in, true physical size takes over once
-      `physicalRadius × zoom` exceeds the floor — so flying up to a body shows its
-      real scale (huge star, tiny planet against its orbit). No render-space
-      distance warp (a radial distance compression is a fisheye — already scrapped).
+- [x] Move the apparent-size decision to render-time: `render/body-scale.ts`
+      `applyBodyScale(world, zoom)` runs each frame at the system tier and sets
+      each body's `RenderableDef` radius from `(trueRadius, zoom)`, re-derived from
+      the physical data — the data is never overwritten.
+- [x] Size **floors** via `bodyFloorPx(trueAu)` — a *monotonic* log map of the
+      true radius (not per-type tiers), so a bigger body never floors smaller than
+      a smaller one (Sun's marker ≥ Earth's) while preserving real ratios (a red
+      dwarf ≈ Jupiter, honestly, since they truly are the same size). Config knobs
+      `BODY_FLOOR_*` in `config/render` (Pierre browser-tunes).
+- [x] **Morph:** `drawnBodyRadiusAu = max(trueRadius, floorPx/zoom)` — floored
+      marker when zoomed out, true physical size once you zoom in past the floor.
+- [x] **True/Usable toggle** (`bodyScale` setting + options-menu control, default
+      Usable). "True" = honest sub-pixel bodies; "Usable" = the floor morph.
 - [x] Split `config.ts` into explicit `config/data.ts` (universe-generation knobs)
       and `config/render.ts` (presentation/feel); repoint all 19 imports. Prevents
       the earlier trap of tuning a data knob (`LY_PER_SECTOR`) thinking it was

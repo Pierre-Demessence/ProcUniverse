@@ -9,6 +9,7 @@ import type { SectorRange, Tier } from '../lod/tier';
 import { cameraToView } from '@pierre/ecs/modules/camera';
 
 import { drawOrbitRings } from '../sim/orbits';
+import { applyBodyScale } from './body-scale';
 import { drawGalaxy } from './draw-galaxy';
 import { drawGalaxyField } from './draw-galaxy-field';
 import { drawBodyLabels } from './draw-labels';
@@ -60,6 +61,7 @@ export function renderFrame(deps: FrameDeps): number {
 
   drawReferenceGrid(ctx2d, camera, originX, originY);
   drawOrbitRings(ctx2d, camera, world);
+  applyBodyScale(world, camera.zoom);
   renderer.render({ ctx2d, view: cameraToView(camera), world });
   drawBodyLabels(ctx2d, camera, world);
   return -1;

@@ -83,6 +83,20 @@ export const PLANET_DISC_PER_DECADE_AU = 0.045;
 export const PLANET_DISC_MIN_AU = 0.02;
 export const PLANET_DISC_MAX_AU = 0.18;
 
+// ── Body apparent size: the visibility "floor" morph ──────────────────
+// In "usable" body scale, a body is never drawn smaller than a floor of
+// `bodyFloorPx` screen pixels, so stars / planets / moons stay visible when
+// zoomed out; true physical size takes over once it exceeds the floor as you
+// zoom in. The floor is a gentle log map of the body's true radius (AU):
+// `BODY_FLOOR_BASE_PX` at 1 AU, ±`BODY_FLOOR_PER_DECADE_PX` per decade, clamped
+// to [`BODY_FLOOR_MIN_PX`, `BODY_FLOOR_MAX_PX`]. It is monotonic in true radius,
+// so a bigger body never floors smaller than a smaller one (no
+// planet-larger-than-its-star inversion). "True" body scale ignores the floor.
+export const BODY_FLOOR_BASE_PX = 12;
+export const BODY_FLOOR_PER_DECADE_PX = 2.2;
+export const BODY_FLOOR_MIN_PX = 1.5;
+export const BODY_FLOOR_MAX_PX = 14;
+
 // ── Galaxy-field & black-hole visual sizes ────────────────────────────
 // `GALAXY_SPRITE_SCALE` is the drawn galaxy-field sprite radius as a multiple of
 // the galaxy's world radius. `BLACK_HOLE_DISC_AU` is dormant (black holes now
