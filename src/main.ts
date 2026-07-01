@@ -409,7 +409,19 @@ export function start(container: HTMLElement, save: Save): () => void {
         fadeMsLeft = TIER_FADE_MS;
       }
 
+      // Centre the locked body from its exact render-frame position rather than
+      // the camera's absolute coordinate: far from the universe origin the huge
+      // `camera.x - renderOriginX` round-trip quantises to the float64 ULP, which
+      // makes the body jitter frame-to-frame (worse the farther out and the
+      // faster time runs). The entity position is small and precise.
       const localCam = { ...camera, x: camera.x - renderOriginX, y: camera.y - renderOriginY };
+      if (lockedId !== null) {
+        const lockPos = positions.get(lockedId);
+        if (lockPos) {
+          localCam.x = lockPos.x;
+          localCam.y = lockPos.y;
+        }
+      }
       const result = renderFrame({
         cache,
         camera: localCam,

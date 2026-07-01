@@ -20,9 +20,11 @@ export function niceStep(raw: number): number {
  * Draw an adaptive world-space reference grid so panning and zooming are
  * visible on an otherwise empty plane. The step rescales with zoom (1/2/5
  * decades), so the on-screen line count stays bounded at any magnification.
- * Lines are placed at ABSOLUTE world multiples (then projected through the
- * floating render origin), so the grid stays continuous across rebases; the
- * bright axes mark the true world `(0, 0)`.
+ * Lines are stepped in the FLOATING-ORIGIN frame (small coordinates), not in
+ * absolute world space: far from the universe origin an absolute coordinate's
+ * float64 gap (ULP) can exceed the sub-AU step, so `wx += step` would stall and
+ * loop forever. The bright axes still mark the true world `(0, 0)`, projected
+ * through the origin (off-screen when the camera is far away).
  */
 export function drawReferenceGrid(
   ctx2d: CanvasRenderingContext2D,
@@ -31,8 +33,6 @@ export function drawReferenceGrid(
   originY: number,
 ): void {
   const rect = cameraViewRect(cam);
-  const absX = rect.x + originX;
-  const absY = rect.y + originY;
   const step = niceStep(TARGET_PX / cam.zoom);
 
   ctx2d.save();
@@ -40,13 +40,13 @@ export function drawReferenceGrid(
 
   ctx2d.strokeStyle = MINOR;
   ctx2d.beginPath();
-  for (let wx = Math.floor(absX / step) * step; wx <= absX + rect.w; wx += step) {
-    const x = Math.round(worldToView(wx - originX, rect.y, cam).vx) + 0.5;
+  for (let wx = Math.floor(rect.x / step) * step; wx <= rect.x + rect.w; wx += step) {
+    const x = Math.round(worldToView(wx, rect.y, cam).vx) + 0.5;
     ctx2d.moveTo(x, 0);
     ctx2d.lineTo(x, cam.viewportH);
   }
-  for (let wy = Math.floor(absY / step) * step; wy <= absY + rect.h; wy += step) {
-    const y = Math.round(worldToView(rect.x, wy - originY, cam).vy) + 0.5;
+  for (let wy = Math.floor(rect.y / step) * step; wy <= rect.y + rect.h; wy += step) {
+    const y = Math.round(worldToView(rect.x, wy, cam).vy) + 0.5;
     ctx2d.moveTo(0, y);
     ctx2d.lineTo(cam.viewportW, y);
   }
