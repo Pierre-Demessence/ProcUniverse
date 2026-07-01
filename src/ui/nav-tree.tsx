@@ -175,7 +175,7 @@ const LABEL_CSS = 'white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
 const SELECTABLE_CSS = 'cursor:pointer';
 const SELECTED_CSS = 'background:rgba(120,150,210,0.22); color:#eaf2ff';
 
-function NavRow({ node, onSelect, selected }: { node: NavNode; onSelect: (node: NavNode) => void; selected: boolean }): VNode {
+function NavRow({ node, onDoubleClick, onSelect, selected }: { node: NavNode; onDoubleClick: (node: NavNode) => void; onSelect: (node: NavNode) => void; selected: boolean }): VNode {
   const parts = [ROW_CSS, `margin-left:${node.depth * NAV_TREE_INDENT_PX}px`];
   if (node.selectable)
     parts.push(SELECTABLE_CSS);
@@ -184,8 +184,9 @@ function NavRow({ node, onSelect, selected }: { node: NavNode; onSelect: (node: 
   return (
     <div
       style={parts.join('; ')}
-      title={node.selectable ? 'Click to inspect' : undefined}
+      title={node.selectable ? 'Click to inspect · double-click to zoom' : undefined}
       onClick={node.selectable ? () => onSelect(node) : undefined}
+      onDblClick={node.selectable ? () => onDoubleClick(node) : undefined}
     >
       <span style={GLYPH_CSS}>{NODE_GLYPH[node.kind]}</span>
       <span style={LABEL_CSS}>{node.label}</span>
@@ -193,7 +194,7 @@ function NavRow({ node, onSelect, selected }: { node: NavNode; onSelect: (node: 
   );
 }
 
-function NavTreePanel({ onSelect, state }: { onSelect: (node: NavNode) => void; state: Signal<NavState | null> }): VNode | null {
+function NavTreePanel({ onDoubleClick, onSelect, state }: { onDoubleClick: (node: NavNode) => void; onSelect: (node: NavNode) => void; state: Signal<NavState | null> }): VNode | null {
   const current = state.value;
   if (!current)
     return null;
@@ -203,7 +204,7 @@ function NavTreePanel({ onSelect, state }: { onSelect: (node: NavNode) => void; 
       <div style={CAPTION_CSS}>LOCATION</div>
       <div style={BODY_CSS}>
         {nodes.map(node => (
-          <NavRow key={node.key} node={node} onSelect={onSelect} selected={node.key === current.selectedKey} />
+          <NavRow key={node.key} node={node} onDoubleClick={onDoubleClick} onSelect={onSelect} selected={node.key === current.selectedKey} />
         ))}
       </div>
     </div>
@@ -215,13 +216,13 @@ function NavTreePanel({ onSelect, state }: { onSelect: (node: NavNode) => void; 
  * ancestor). `update` refreshes the current location each frame (deduped),
  * `onSelect` fires when a body node is clicked, and `dispose` detaches it.
  */
-export function createNavTree(container: HTMLElement, options: { onSelect: (node: NavNode) => void }): NavTree {
+export function createNavTree(container: HTMLElement, options: { onDoubleClick: (node: NavNode) => void; onSelect: (node: NavNode) => void }): NavTree {
   const state = signal<NavState | null>(null);
   let signature = '';
 
   const mount = document.createElement('div');
   container.append(mount);
-  render(<NavTreePanel onSelect={options.onSelect} state={state} />, mount);
+  render(<NavTreePanel onDoubleClick={options.onDoubleClick} onSelect={options.onSelect} state={state} />, mount);
 
   return {
     dispose(): void {

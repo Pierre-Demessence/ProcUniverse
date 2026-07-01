@@ -270,7 +270,16 @@ export function start(container: HTMLElement, save: Save): () => void {
   // Location tree (top-left): clicking a body node pins it in the inspector,
   // resolving the streamed entity by its unique catalogue name. Galaxy nodes
   // recompute the galaxy under the camera; the Universe node is not selectable.
+  // Double-clicking any node also zooms the camera to frame it.
   const navTree = createNavTree(container, {
+    onDoubleClick(node: NavNode): void {
+      onZoomTo();
+      if (node.kind === 'planet' || node.kind === 'moon') {
+        // The first click already set selection to this body via onSelect.
+        if (selection && selection.kind === node.kind)
+          lockedId = selection.id;
+      }
+    },
     onSelect(node: NavNode): void {
       if (node.kind === 'universe') {
         setSelection({ kind: 'universe', seed });
