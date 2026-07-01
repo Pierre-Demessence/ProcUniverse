@@ -96,16 +96,26 @@ galaxies), with navigation made usable later by rendering tricks (warp-to-target
 The cross-cutting rescale (galaxy model + LOD tiers + zoom range) is implemented
 and documented in its own plan: [realistic-scale.md](realistic-scale.md).
 
-## Phase 4 — Apparent size (rendering) — NOT STARTED
+## Phase 4 — Apparent size (rendering) — IN PROGRESS
 
-- Move the apparent-size decision out of the data layer: the data carries only the
-  true physical radius; the renderer computes drawn size from `(trueRadius, zoom)`.
-- Ordered, non-overlapping size **floors** (every star floor > every planet floor)
-  so stars always dominate planets when zoomed out.
-- **Morph:** as you zoom in, true physical size takes over once
-  `physicalRadius × zoom` exceeds the floor — so flying up to a body shows its real
-  scale (huge star, tiny planet against its orbit). No render-space distance warp
-  (a radial distance compression is a fisheye — already tried and scrapped).
+- [x] **Step 0 — true-scale baseline.** `scale.ts` `starVisualRadius` /
+      `planetVisualRadius` / `blackHoleVisualRadius` now return the body's *real*
+      physical radius (R☉/R⊕→AU, real Schwarzschild radius) instead of the
+      exaggerated clamped discs. Bodies are honestly tiny (a framed system shows
+      near-invisible planets, no overlap) — the clean starting point. The
+      `*_DISC_*` config knobs are dormant, kept to feed the morph. (Star-tier dots
+      still use the `MIN_DOT` floor in `draw-stars.ts`, so the star field stays
+      visible; that floor folds into the morph below.)
+- [ ] Move the apparent-size decision fully out of the data layer: the data
+      carries only the true physical radius; the renderer computes drawn size from
+      `(trueRadius, zoom)`.
+- [ ] Ordered, non-overlapping size **floors** (every star floor > every planet
+      floor) so stars always dominate planets when zoomed out.
+- [ ] **Morph:** as you zoom in, true physical size takes over once
+      `physicalRadius × zoom` exceeds the floor — so flying up to a body shows its
+      real scale (huge star, tiny planet against its orbit). No render-space
+      distance warp (a radial distance compression is a fisheye — already scrapped).
+- [ ] Split `config.ts` into explicit data vs render configs (deferred, agreed).
 
 ## Phase 5 — Moons — NOT STARTED
 

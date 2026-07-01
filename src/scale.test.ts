@@ -20,18 +20,13 @@ describe('scale', () => {
 });
 
 describe('starVisualRadius', () => {
-  it('maps a Sun-like radius to a visible AU disc, not its physical ~0.005 AU', () => {
-    expect(starVisualRadius(1)).toBeCloseTo(0.16, 6);
-    expect(starVisualRadius(1)).toBeGreaterThan(0.05);
+  it('returns the true physical radius in AU (the Sun is ~0.005 AU)', () => {
+    expect(starVisualRadius(1)).toBeCloseTo(0.00465, 5);
   });
 
-  it('grows with physical radius', () => {
+  it('scales linearly with physical radius', () => {
+    expect(starVisualRadius(10)).toBeCloseTo(10 * starVisualRadius(1), 10);
     expect(starVisualRadius(10)).toBeGreaterThan(starVisualRadius(1));
     expect(starVisualRadius(1)).toBeGreaterThan(starVisualRadius(0.2));
-  });
-
-  it('clamps to a visible, non-overwhelming range', () => {
-    expect(starVisualRadius(1e12)).toBe(0.7);
-    expect(starVisualRadius(1e-6)).toBe(0.05);
   });
 });

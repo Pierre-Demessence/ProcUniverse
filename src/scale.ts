@@ -1,51 +1,38 @@
-import { clamp } from '@pierre/ecs/modules/math';
-
-import {
-  BLACK_HOLE_DISC_AU,
-  LY_PER_SECTOR,
-  PLANET_DISC_BASE_AU,
-  PLANET_DISC_MAX_AU,
-  PLANET_DISC_MIN_AU,
-  PLANET_DISC_PER_DECADE_AU,
-  STAR_DISC_BASE_AU,
-  STAR_DISC_MAX_AU,
-  STAR_DISC_MIN_AU,
-  STAR_DISC_PER_DECADE_AU,
-} from './config';
-import { AU_PER_LY } from './generation/units';
+import { LY_PER_SECTOR } from './config';
+import { AU_PER_LY, kmToAu, R_EARTH_KM, R_SUN_KM, SCHWARZSCHILD_AU_PER_SOLAR_MASS } from './generation/units';
 
 /**
  * The world's spatial scale. The world unit is the **astronomical unit (AU)**:
  * planet orbits are a few-to-tens of AU while stars are light-years apart, the
- * ~10⁵× ratio that makes space feel real (research §2.1). The tunable knobs
- * (light-years per sector, disc sizing) live in `config.ts`; this module
- * derives the world scale and the non-physical visual-disc mapping from them.
- * A star's physical radius is a rounding error here (the Sun is ~0.005 AU), so
- * the drawn disc is a deliberately exaggerated, clamped function of it.
+ * ~10⁵× ratio that makes space feel real (research §2.1). `LY_PER_SECTOR` (in
+ * `config.ts`) sets the sector size; this module derives the world scale and the
+ * drawn radius of each body.
+ *
+ * Bodies are drawn at their **true physical radius** (a star is a rounding error
+ * at AU scale — the Sun is ~0.005 AU), so a framed system shows tiny, near-
+ * invisible bodies. That is the honest baseline; a zoom-aware apparent-size morph
+ * (Phase 4, see docs/plans/system-scale-realism.md) will make it usable without
+ * lying about scale. The dormant `*_DISC_*` knobs in `config.ts` feed that morph.
  */
 
 /** Sector edge length, in AU (the world unit), derived from `LY_PER_SECTOR`. */
 export const SECTOR_SIZE = LY_PER_SECTOR * AU_PER_LY;
 
-/** Non-physical drawn star-disc radius (AU) from a physical radius (R☉). */
+/** The Sun's and Earth's true physical radii in AU — the scale of a drawn body. */
+const SUN_RADIUS_AU = kmToAu(R_SUN_KM);
+const EARTH_RADIUS_AU = kmToAu(R_EARTH_KM);
+
+/** Drawn star radius (AU) — the star's true physical radius (R☉ → AU). */
 export function starVisualRadius(radiusSolar: number): number {
-  return clamp(
-    STAR_DISC_BASE_AU + STAR_DISC_PER_DECADE_AU * Math.log10(radiusSolar),
-    STAR_DISC_MIN_AU,
-    STAR_DISC_MAX_AU,
-  );
+  return radiusSolar * SUN_RADIUS_AU;
 }
 
-/** Non-physical drawn planet-disc radius (AU) from a physical radius (R⊕). */
+/** Drawn planet radius (AU) — the planet's true physical radius (R⊕ → AU). */
 export function planetVisualRadius(radiusEarth: number): number {
-  return clamp(
-    PLANET_DISC_BASE_AU + PLANET_DISC_PER_DECADE_AU * Math.log10(radiusEarth),
-    PLANET_DISC_MIN_AU,
-    PLANET_DISC_MAX_AU,
-  );
+  return radiusEarth * EARTH_RADIUS_AU;
 }
 
-/** Non-physical drawn black-hole-disc radius (AU), gently scaled by SMBH mass. */
+/** Drawn black-hole radius (AU) — the true Schwarzschild radius `r_s = 2GM/c²`. */
 export function blackHoleVisualRadius(massSolar: number): number {
-  return BLACK_HOLE_DISC_AU * clamp(0.4 + 0.12 * (Math.log10(massSolar) - 6), 0.4, 1.5);
+  return massSolar * SCHWARZSCHILD_AU_PER_SOLAR_MASS;
 }
