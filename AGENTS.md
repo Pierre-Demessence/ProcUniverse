@@ -4,6 +4,20 @@ Agent operating notes for the **ProcUniverse** project. See
 [docs/INDEX.md](docs/INDEX.md) for full project documentation and
 [docs/agent/README.md](docs/agent/README.md) for operational details.
 
+## Communication in chat
+
+Keep **in-session answers to Pierre in plain language** — avoid heavy
+scientific / mathematical jargon and unexplained symbols. Pierre wants to
+understand and agree with recommendations, not trust them blindly.
+
+- Lead with a plain-English explanation (analogies welcome); introduce a
+  technical term only after saying what it means in ordinary words.
+- If unsure how much detail Pierre wants, ask — e.g. offer explanations at a
+  couple of levels and let him pick which lands, or ask what he already knows.
+
+This applies to **chat answers only**. Written **plans and docs** may use normal
+technical terminology, since other people and agents read them too.
+
 ## Testing responsibilities
 
 **Browser / end-to-end testing is Pierre's job, not the agent's.** The agent
