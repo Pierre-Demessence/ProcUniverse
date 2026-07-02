@@ -32,6 +32,7 @@ import { selectTier, visibleSectors } from './lod/tier';
 import { writeSave } from './persistence/save';
 import { findEntityByName, pickBodyAt, pickGalaxyAt } from './pick';
 import { drawCoords } from './render/draw-coords';
+import { drawBodyLabels3D } from './render/draw-labels';
 import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
 import { drawSelectReticle } from './render/select-reticle';
@@ -248,7 +249,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   const onPickDown = (e: PointerEvent): void => {
     pointerDownX = e.clientX;
     pointerDownY = e.clientY;
-    lockDragArmed = lockedId !== null;
+    // Only a left-button (pan) drag breaks a lock; right-drag orbits around it.
+    lockDragArmed = lockedId !== null && e.button === 0;
   };
   const onLockPointerMove = (e: PointerEvent): void => {
     if (!lockDragArmed || lockedId === null)
@@ -260,6 +262,9 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
   const onPickUp = (e: PointerEvent): void => {
     lockDragArmed = false;
+    // Only a left-button release is a pick; right-drag orbits the 3D view.
+    if (e.button !== 0)
+      return;
     // Ignore releases over the HUD panels (tree / inspector / time): those are
     // their own clicks, not a canvas pick that should re-select or clear.
     if (e.target !== canvas)
@@ -270,7 +275,10 @@ export function start(container: HTMLElement, save: Save): () => void {
     // `camera` is already in the render-origin frame, so it doubles as localCam.
     const localCam = { ...camera };
     if (currentTier === 'system') {
-      setSelection(pickBodyAt(world, localCam, bx, by));
+      if (renderBackend.value === 'three' && threeRenderer?.ready)
+        setSelection(threeRenderer.pickAt(bx, by));
+      else
+        setSelection(pickBodyAt(world, localCam, bx, by));
     }
     else if (currentTier === 'galaxy-field') {
       const galaxy = pickGalaxyAt(seed, localCam, renderOriginX, renderOriginY, bx, by);
@@ -319,6 +327,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   // panning far across the universe.
   const onResetView = (): void => {
     lockedId = null;
+    controller.resetOrbit();
     frameOrigin();
   };
   const resetViewButton = createResetViewButton(container, { onReset: onResetView });
@@ -398,6 +407,9 @@ export function start(container: HTMLElement, save: Save): () => void {
       threeRenderer.canvas.style.display = threeActive ? 'block' : 'none';
     const backendChanged = threeActive !== lastThreeActive;
     lastThreeActive = threeActive;
+    // Left-drag panning follows the tilted/orbited ground plane only in the 3D
+    // perspective system view; every other tier keeps the raw 2D pan.
+    controller.setThreeSystemActive(threeActive && tier === 'system');
 
     // Tracks whether Three actually drew this frame's tier: some tiers still fall
     // back to Canvas 2D even when the Three backend is selected, so the HUD shows
@@ -495,7 +507,9 @@ export function start(container: HTMLElement, save: Save): () => void {
       // reads them; the star tier reads the sector cache directly and returns its
       // own drawn count.
       if (threeActive && tier === 'system' && threeRenderer) {
-        threeRenderer.render({ camera: localCam, world });
+        const three = threeRenderer;
+        three.render({ azimuth: controller.azimuth, camera: localCam, simSeconds, tilt: controller.tilt, world });
+        drawBodyLabels3D(ctx2d, world, (x, y, z, out) => three.projectToScreen(x, y, z, out), localCam.zoom);
         renderedByThree = true;
       }
       else if (threeActive && tier === 'star' && threeRenderer) {
@@ -545,8 +559,17 @@ export function start(container: HTMLElement, save: Save): () => void {
           else {
             const renderable = renderables.get(selection.id);
             const discRadius = renderable?.kind === 'circle' ? renderable.radius : 0;
-            const screen = worldToView(pos.x, pos.y, localCam);
-            drawSelectReticle(ctx2d, screen.vx, screen.vy, discRadius * camera.zoom);
+            if (threeActive && threeRenderer) {
+              // Project through the perspective camera so the reticle tracks the
+              // body once the view is orbited, tilted, or panned off-centre.
+              const p = { sx: 0, sy: 0 };
+              if (threeRenderer.projectToScreen(pos.x, pos.y, 0, p))
+                drawSelectReticle(ctx2d, p.sx, p.sy, discRadius * camera.zoom);
+            }
+            else {
+              const screen = worldToView(pos.x, pos.y, localCam);
+              drawSelectReticle(ctx2d, screen.vx, screen.vy, discRadius * camera.zoom);
+            }
           }
         }
       }
@@ -555,11 +578,18 @@ export function start(container: HTMLElement, save: Save): () => void {
       lastDrawnCount = result < 0 ? status.stars + status.planets : result;
 
       // Snapshot the fully-composed scene (background + content + reticle +
-      // cross-fade, but NO overlays) so clean frames can blit it back and
-      // only redraw the cheap HUD on top.
-      sceneCacheCtx.clearRect(0, 0, sceneCache.width, sceneCache.height);
-      sceneCacheCtx.drawImage(canvas, 0, 0);
-      sceneCacheValid = true;
+      // cross-fade, but NO overlays) so clean frames can blit it back and only
+      // redraw the cheap HUD on top. Skipped in Three mode: the scene lives on
+      // the Three canvas and every frame is dirty, so this cache is never blitted
+      // — copying the full-resolution canvas each frame would be pure overhead.
+      if (threeActive) {
+        sceneCacheValid = false;
+      }
+      else {
+        sceneCacheCtx.clearRect(0, 0, sceneCache.width, sceneCache.height);
+        sceneCacheCtx.drawImage(canvas, 0, 0);
+        sceneCacheValid = true;
+      }
     }
     else if (sceneCacheValid) {
       ctx2d.clearRect(0, 0, canvas.width, canvas.height);

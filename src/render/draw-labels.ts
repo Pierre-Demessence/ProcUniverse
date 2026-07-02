@@ -89,3 +89,59 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, cam: Camera, wor
 
   ctx2d.restore();
 }
+
+/** Projects a render-origin-frame world point to backing-px screen coords; false if off/behind. */
+export type ScreenProjector = (x: number, y: number, z: number, out: { sx: number; sy: number }) => boolean;
+
+/**
+ * SYSTEM tier (3D / Three backend): draw each body's catalogue name at its
+ * projected screen position via the perspective camera's `project`. Mirrors
+ * `drawBodyLabels` but projects through the 3D camera instead of `worldToView`,
+ * so labels track bodies when the view is tilted.
+ */
+export function drawBodyLabels3D(ctx2d: CanvasRenderingContext2D, world: EcsWorld, project: ScreenProjector, zoom: number): void {
+  const positions = world.getStore(PositionDef);
+  const names = world.getStore(NameDef);
+  const orbits = world.getStore(OrbitElementsDef);
+  const screen = { sx: 0, sy: 0 };
+
+  ctx2d.save();
+  ctx2d.textAlign = 'center';
+  ctx2d.textBaseline = 'top';
+  ctx2d.shadowColor = SHADOW;
+  ctx2d.shadowBlur = 3;
+
+  const label = (id: number): void => {
+    const identity = names.get(id);
+    const pos = positions.get(id);
+    if (!identity || !pos || !project(pos.x, pos.y, 0, screen))
+      return;
+    ctx2d.fillText(displayName(identity, namingStyle.value), screen.sx, screen.sy + GAP_PX);
+  };
+
+  ctx2d.font = STAR_FONT;
+  ctx2d.fillStyle = STAR_COLOR;
+  for (const [id] of world.query(StarPhysicalDef))
+    label(id);
+
+  ctx2d.font = PLANET_FONT;
+  ctx2d.fillStyle = PLANET_COLOR;
+  for (const [id] of world.query(PlanetPhysicalDef))
+    label(id);
+
+  ctx2d.font = STAR_FONT;
+  ctx2d.fillStyle = BLACK_HOLE_COLOR;
+  for (const [id] of world.query(BlackHoleDef))
+    label(id);
+
+  ctx2d.font = MOON_FONT;
+  ctx2d.fillStyle = MOON_COLOR;
+  for (const [id] of world.query(MoonPhysicalDef)) {
+    const orbit = orbits.get(id);
+    if (!orbit || orbit.a * zoom < MOON_LABEL_MIN_ORBIT_PX)
+      continue;
+    label(id);
+  }
+
+  ctx2d.restore();
+}

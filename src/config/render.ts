@@ -25,6 +25,35 @@ export const ZOOM_STREAK_WINDOW_MS = 220;
 export const SYSTEM_VIEW_AU = 40;
 export const REBASE_SECTORS = 8;
 
+// ── 3D system view (Three backend, system tier) ─────────────────────
+// The system tier renders as lit, rotating spheres seen by a perspective camera
+// you can orbit + tilt with a right-drag (left-drag still pans, wheel still
+// zooms). `CAMERA_FOV_DEG` is the vertical field of view; the camera distance is
+// derived from `zoom` so the framing matches the 2D view. `ORBIT_SENSITIVITY` is
+// radians of orbit per drag pixel; `TILT_MIN/MAX` bound the polar angle away from
+// the exact straight-down pole; `TILT_DEFAULT` is the gentle starting tilt.
+// `SPHERE_*_SEGMENTS` set the sphere tesselation; `STAR_SPIN_RATE` spins stars
+// (which carry no rotation data) slowly. `LIGHT_AMBIENT` + `LIGHT_KEY` shade the
+// non-emissive planets/moons.
+export const CAMERA_FOV_DEG = 50;
+export const ORBIT_SENSITIVITY = 0.006;
+export const TILT_MIN = 0.08;
+export const TILT_MAX = 1.45;
+export const TILT_DEFAULT = 0.35;
+export const SPHERE_WIDTH_SEGMENTS = 32;
+export const SPHERE_HEIGHT_SEGMENTS = 24;
+export const STAR_SPIN_RATE = 5e-8;
+export const LIGHT_AMBIENT = 0.35;
+export const LIGHT_KEY = 1.1;
+// MSAA on the Three canvas — smooths sphere / orbit-ring edges. Kept on: the
+// system view is not fill-rate bound (the earlier FPS drop was per-object orbit-
+// ring overhead, since merged into a single draw call), so MSAA is affordable.
+export const RENDER_ANTIALIAS = true;
+// Fraction of device resolution the 3D (Three) system view renders at, CSS-
+// upscaled. 1 = full device resolution; lower would trade sharpness for fill-rate
+// if ever needed (the earlier FPS issue was ring draw overhead, not fill).
+export const RENDER_SCALE = 1;
+
 // ── On-screen scale bar (world unit = AU) ────────────────────
 // The HUD scale bar mirrors one reference-grid cell and labels its real length.
 // A cell below `SCALE_KM_BELOW_AU` is shown in km (or Mkm when ≥ 1e6 km),

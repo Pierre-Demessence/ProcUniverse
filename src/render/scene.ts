@@ -50,11 +50,12 @@ export function renderFrame(deps: FrameDeps): number {
   // through) and draw only the screen-space overlays on top. Every other tier
   // still renders on Canvas 2D, whose opaque fill covers the Three canvas.
   if (threeMode && tier === 'system') {
+    // The system bodies are drawn as 3D spheres by the Three renderer behind this
+    // canvas; keep it transparent and only apply the per-frame body sizing so the
+    // spheres use the floored radii. (3D orbit rings + labels + picking land in a
+    // follow-up increment.)
     ctx2d.clearRect(0, 0, canvas.width, canvas.height);
-    drawReferenceGrid(ctx2d, camera, originX, originY);
-    drawOrbitRings(ctx2d, camera, world);
     applyBodyScale(world, camera.zoom);
-    drawBodyLabels(ctx2d, camera, world);
     return -1;
   }
 
