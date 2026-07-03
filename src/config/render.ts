@@ -35,7 +35,10 @@ export const REBASE_SECTORS = 8;
 // pole (where the look-at direction meets the up axis and the orientation
 // degenerates) and `TILT_MAX` stops just short of edge-on, so the camera stays
 // above the disk and the pan direction never inverts; `TILT_DEFAULT` is the
-// gentle starting tilt.
+// gentle starting tilt. `FLAT_TILT` is the polar angle the "Flatten" toggle
+// drops to — as close to straight-down the system plane as it can get while
+// staying off the degenerate pole, so the view reads as top-down (orbits as
+// circles) without the orientation collapsing.
 // `SPHERE_*_SEGMENTS` set the sphere tesselation; `STAR_SPIN_RATE` spins stars
 // (which carry no rotation data) slowly. `LIGHT_AMBIENT` + `LIGHT_KEY` shade the
 // non-emissive planets/moons.
@@ -44,6 +47,7 @@ export const ORBIT_SENSITIVITY = 0.006;
 export const TILT_MIN = 0.08;
 export const TILT_MAX = 1.45;
 export const TILT_DEFAULT = 0.35;
+export const FLAT_TILT = 0.02;
 export const SPHERE_WIDTH_SEGMENTS = 32;
 export const SPHERE_HEIGHT_SEGMENTS = 24;
 export const STAR_SPIN_RATE = 5e-8;

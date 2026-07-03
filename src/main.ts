@@ -39,6 +39,7 @@ import { drawSelectReticle } from './render/select-reticle';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from './scale';
 import { renderBackend } from './settings';
 import { OrbitElementsDef, PositionZDef, updateOrbits, writeOrbitPosition } from './sim/orbits';
+import { createFlattenButton } from './ui/flatten-button';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
 import { createOptionsMenu } from './ui/options';
@@ -339,6 +340,10 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
   const resetViewButton = createResetViewButton(container, { onReset: onResetView });
 
+  // Contextual flatten toggle: only shown inside a system in the 3D renderer,
+  // where snapping the tilted orbit view straight down the disk is meaningful.
+  const flattenButton = createFlattenButton(container, { onToggle: isFlat => controller.setFlat(isFlat) });
+
   // Top-centre options menu for display preferences (units, etc.).
   const optionsMenu = createOptionsMenu(container);
 
@@ -353,6 +358,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   let lastSelection: Selection | null = null;
   let lastDrawnCount = 0;
   let lastThreeActive = false;
+  let lastFlattenVisible = false;
   // Fallback orbital-plane normal (world +z) when no system is focused.
   const WORLD_PLANE_NORMAL = [0, 0, 1] as const;
 
@@ -422,6 +428,14 @@ export function start(container: HTMLElement, save: Save): () => void {
     // Left-drag panning follows the tilted/orbited ground plane only in the 3D
     // perspective system view; every other tier keeps the raw 2D pan.
     controller.setThreeSystemActive(threeActive && tier === 'system');
+
+    // The flatten toggle is only meaningful in the 3D system view; hide it
+    // everywhere else (other tiers are already top-down 2D).
+    const flattenVisible = threeActive && tier === 'system';
+    if (flattenVisible !== lastFlattenVisible) {
+      flattenButton.setVisible(flattenVisible);
+      lastFlattenVisible = flattenVisible;
+    }
 
     // Tracks whether Three actually drew this frame's tier: some tiers still fall
     // back to Canvas 2D even when the Three backend is selected, so the HUD shows
@@ -657,6 +671,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     inspector.dispose();
     navTree.dispose();
     resetViewButton.dispose();
+    flattenButton.dispose();
     optionsMenu.dispose();
     threeRenderer?.dispose();
   };

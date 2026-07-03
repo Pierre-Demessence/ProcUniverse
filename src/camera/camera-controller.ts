@@ -3,12 +3,14 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { makeCamera, viewToWorld } from '@pierre/ecs/modules/camera';
 import { clamp } from '@pierre/ecs/modules/math';
 
-import { MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, TILT_MAX, TILT_MIN, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
+import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, TILT_MAX, TILT_MIN, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
 
 export interface CameraController {
   /** Orbit azimuth (radians) for the 3D system view; ignored by the 2D path. */
   readonly azimuth: number;
   readonly camera: Camera;
+  /** Whether the flat (top-down) view override is active. */
+  readonly flat: boolean;
   /** Out-of-plane height (z) of the 3D camera focus; moved by the 3D pan and lock. */
   readonly focusZ: number;
   /** Polar tilt (radians) from straight-down for the 3D system view. */
@@ -16,6 +18,13 @@ export interface CameraController {
   dispose: () => void;
   /** Reset the 3D orbit/tilt (and focus height) to the default framing. */
   resetOrbit: () => void;
+  /**
+   * Toggle the flat (top-down) view: reports a near-straight-down tilt (looking
+   * down the focused system's plane, so orbits read as circles) and ignores
+   * orbit input, without mutating the stored tilt — so clearing it restores the
+   * prior view.
+   */
+  setFlat: (flat: boolean) => void;
   /** Set the 3D camera focus height (z), e.g. when locking onto an off-plane body. */
   setFocusZ: (z: number) => void;
   /**
@@ -57,6 +66,11 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   let tilt = TILT_DEFAULT;
   let orbiting = false;
   let panMode3D = false;
+  // Flat (top-down) override: reports a near-straight-down tilt (looking down the
+  // focused system's plane, so orbits read as circles) and ignores orbit input,
+  // without mutating the stored tilt — so clearing it restores the prior view.
+  let flat = false;
+  const effectiveTilt = (): number => (flat ? FLAT_TILT : tilt);
   // The focused system's orbital-plane basis in world space: the unit normal N
   // and two in-plane axes (u, v). The render camera is anchored to this plane, so
   // the 3D pan slides the focus along it in true screen space. `focusZ` is the
@@ -104,8 +118,13 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       return;
     const { bx, by } = toBacking(e.clientX, e.clientY);
     if (orbiting) {
+      // Horizontal drag spins the view (azimuth) in both modes; vertical drag
+      // tilts only when NOT flat — flatten locks the top-down tilt while still
+      // letting you pivot the map around its centre. The stored tilt is untouched
+      // while flat, so clearing flat restores it.
       azimuth += (bx - lastX) * ORBIT_SENSITIVITY;
-      tilt = clamp(tilt + (by - lastY) * ORBIT_SENSITIVITY, TILT_MIN, TILT_MAX);
+      if (!flat)
+        tilt = clamp(tilt + (by - lastY) * ORBIT_SENSITIVITY, TILT_MIN, TILT_MAX);
     }
     else if (panMode3D) {
       // Plane-anchored perspective view: slide the focus in true screen space so
@@ -116,8 +135,8 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       // disk tilted in space pans correctly rather than only in x,y.
       const cosA = Math.cos(azimuth);
       const sinA = Math.sin(azimuth);
-      const cosT = Math.cos(tilt);
-      const sinT = Math.sin(tilt);
+      const cosT = Math.cos(effectiveTilt());
+      const sinT = Math.sin(effectiveTilt());
       // R = −sinA·u + cosA·v; U = sinT·N − cosT·(cosA·u + sinA·v).
       const rx = -sinA * planeUx + cosA * planeVx;
       const ry = -sinA * planeUy + cosA * planeVy;
@@ -199,6 +218,9 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('contextmenu', onContextMenu);
     },
+    get flat() {
+      return flat;
+    },
     get focusZ() {
       return focusZ;
     },
@@ -206,6 +228,9 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       azimuth = 0;
       tilt = TILT_DEFAULT;
       focusZ = 0;
+    },
+    setFlat(next: boolean): void {
+      flat = next;
     },
     setFocusZ(z: number): void {
       focusZ = z;
@@ -237,7 +262,7 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       panMode3D = active;
     },
     get tilt() {
-      return tilt;
+      return effectiveTilt();
     },
   };
 }
