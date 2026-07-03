@@ -32,7 +32,7 @@ import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
 import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
-import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal, writeOrbitEllipsePoint } from '../../sim/orbits';
+import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 
 /** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
@@ -52,6 +52,11 @@ const SPHERE_POLE = new Vector3(0, 1, 0);
 const BLACK_HOLE_COLOR = '#15151c';
 /** Orbit-ring line resolution + faint styling; mirrors the 2D `drawOrbitRings`. */
 const RING_MIN_PX = 3;
+// Cull a ring whose bounding circle is more than this many viewport-spans from
+// the focus. Generous so a tilted perspective view (which sees further than the
+// top-down footprint) never pops a visible ring, while still dropping the rings
+// of a system panned out of view.
+const RING_CULL_MARGIN = 3;
 const RING_COLOR = 0x96B4E6;
 const RING_OPACITY = 0.14;
 /** Initial merged-ring vertex capacity; grown on demand. */
@@ -430,7 +435,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     }
 
     this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ, planeNormal);
-    this.updateOrbitRings(world, camera.zoom);
+    this.updateOrbitRings(world, camera);
     this.renderer.render(this.scene, this.perspective);
   }
 
@@ -633,14 +638,30 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * draw call and one buffer upload regardless of orbit count (individual line
    * objects were per-object overhead that scaled with zoom). Mirrors the 2D
    * `drawOrbitRings` ellipse (centre offset a·e away from periapsis, semi-minor
-   * a·√(1−e²), rotated by argPeriapsis) in the z=0 plane; tiny orbits are culled.
+   * a·√(1−e²), rotated by argPeriapsis) in the z=0 plane. Rings whose bounding
+   * circle is fully off-screen are culled (as in the 2D path), and the per-orbit
+   * orientation trig is hoisted out of the per-segment loop, so a system zoomed
+   * right in (huge on-screen orbits, most off-screen) stays cheap.
    */
-  private updateOrbitRings(world: EcsWorld, zoom: number): void {
+  private updateOrbitRings(world: EcsWorld, cam: Camera): void {
+    const zoom = cam.zoom;
+    const focusX = cam.x + cam.offsetX;
+    const focusY = cam.y + cam.offsetY;
+    const visibleRadius = (Math.max(cam.viewportW, cam.viewportH) / zoom) * RING_CULL_MARGIN;
+    // A ring is worth drawing when it is big enough on screen AND its bounding
+    // circle (focus ± apoapsis) reaches the visible region.
+    const isVisible = (orbit: OrbitElements): boolean => {
+      if (orbit.a * zoom < RING_MIN_PX)
+        return false;
+      const apoapsisAu = orbit.a * (1 + orbit.e);
+      return Math.hypot(orbit.cx - focusX, orbit.cy - focusY) - apoapsisAu <= visibleRadius;
+    };
+
     // First pass: total line vertices needed (2 per segment), with each ring's
     // segment count adapted to its on-screen size so it stays smooth at any zoom.
     let totalVerts = 0;
     for (const [, orbit] of world.query(OrbitElementsDef)) {
-      if (orbit.a * zoom >= RING_MIN_PX)
+      if (isVisible(orbit))
         totalVerts += ringSegmentCount(orbit.a * zoom) * 2;
     }
     if (totalVerts === 0) {
@@ -653,29 +674,50 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const attribute = mesh.geometry.getAttribute('position') as BufferAttribute;
     const array = attribute.array as Float32Array;
     let v = 0;
-    const point = { x: 0, y: 0, z: 0 };
     for (const [, orbit] of world.query(OrbitElementsDef)) {
-      if (orbit.a * zoom < RING_MIN_PX)
+      if (!isVisible(orbit))
         continue;
       const segments = ringSegmentCount(orbit.a * zoom);
+      // Hoist the ellipse + perifocal→world orientation constants out of the loop
+      // (writeOrbitEllipsePoint recomputes all six trig terms per point). The body
+      // below mirrors `perifocalToWorld`: x' = a·cosθ − a·e, y' = b·sinθ, then
+      // R_z(Ω)·R_x(i)·R_z(ω) + focus.
+      const { a, argPeriapsis, cx, cy, cz, e, inclination, longitudeAscendingNode } = orbit;
+      const semiMinor = a * Math.sqrt(1 - e * e);
+      const focalShift = a * e;
+      const cosW = Math.cos(argPeriapsis);
+      const sinW = Math.sin(argPeriapsis);
+      const cosI = Math.cos(inclination);
+      const sinI = Math.sin(inclination);
+      const cosO = Math.cos(longitudeAscendingNode);
+      const sinO = Math.sin(longitudeAscendingNode);
       let prevX = 0;
       let prevY = 0;
       let prevZ = 0;
       for (let k = 0; k <= segments; k++) {
-        writeOrbitEllipsePoint(orbit, ((k % segments) / segments) * TAU, point);
+        const theta = ((k % segments) / segments) * TAU;
+        const xOrbit = a * Math.cos(theta) - focalShift;
+        const yOrbit = semiMinor * Math.sin(theta);
+        const x1 = xOrbit * cosW - yOrbit * sinW;
+        const y1 = xOrbit * sinW + yOrbit * cosW;
+        const y2 = y1 * cosI;
+        const z2 = y1 * sinI;
+        const px = cx + x1 * cosO - y2 * sinO;
+        const py = cy + x1 * sinO + y2 * cosO;
+        const pz = cz + z2;
         if (k > 0) {
           array[v * 3] = prevX;
           array[v * 3 + 1] = prevY;
           array[v * 3 + 2] = prevZ;
           v++;
-          array[v * 3] = point.x;
-          array[v * 3 + 1] = point.y;
-          array[v * 3 + 2] = point.z;
+          array[v * 3] = px;
+          array[v * 3 + 1] = py;
+          array[v * 3 + 2] = pz;
           v++;
         }
-        prevX = point.x;
-        prevY = point.y;
-        prevZ = point.z;
+        prevX = px;
+        prevY = py;
+        prevZ = pz;
       }
     }
     mesh.geometry.setDrawRange(0, v);

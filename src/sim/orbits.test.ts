@@ -124,7 +124,7 @@ describe('ringSegmentCount', () => {
   it('clamps tiny orbits to the minimum and enormous ones to the maximum', () => {
     expect(ringSegmentCount(0)).toBe(64);
     expect(ringSegmentCount(1)).toBe(64);
-    expect(ringSegmentCount(1e9)).toBe(4096);
+    expect(ringSegmentCount(1e9)).toBe(1024);
   });
 
   it('adds segments as the on-screen radius grows, within the bounds', () => {

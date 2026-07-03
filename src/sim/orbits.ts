@@ -300,7 +300,11 @@ const MIN_RING_PX = 3;
 // which rides the true curve). Bounded so tiny orbits stay cheap and huge ones
 // stay finite.
 const RING_MIN_SEGMENTS = 64;
-const RING_MAX_SEGMENTS = 4096;
+// Capped low: only ~viewport/chord segments of any ring are ever on screen, so a
+// ring far larger than the viewport (zoomed right in) shows a near-straight arc
+// that needs few segments — a high cap just burns CPU rebuilding off-screen
+// vertices every frame. 1024 stays smooth for any ring up to viewport-scale.
+const RING_MAX_SEGMENTS = 1024;
 const RING_CHORD_PX = 6;
 
 /** Segment count to tessellate an orbit ring whose on-screen radius is `radiusPx`. */
