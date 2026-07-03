@@ -32,7 +32,7 @@ import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
 import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
-import { OrbitElementsDef, PositionZDef, tiltNormal, writeOrbitEllipsePoint } from '../../sim/orbits';
+import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal, writeOrbitEllipsePoint } from '../../sim/orbits';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 
 /** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
@@ -51,12 +51,11 @@ const SPHERE_POLE = new Vector3(0, 1, 0);
 /** Dark grey for the black-hole sphere so it reads as a shaded body, not black-on-black. */
 const BLACK_HOLE_COLOR = '#15151c';
 /** Orbit-ring line resolution + faint styling; mirrors the 2D `drawOrbitRings`. */
-const RING_SEGMENTS = 128;
 const RING_MIN_PX = 3;
 const RING_COLOR = 0x96B4E6;
 const RING_OPACITY = 0.14;
-/** Initial orbit capacity for the merged ring buffer; grown on demand. */
-const RING_INITIAL_ORBITS = 64;
+/** Initial merged-ring vertex capacity; grown on demand. */
+const RING_INITIAL_VERTS = 8192;
 /** Minimum on-screen star dot radius (px); mirrors the Canvas 2D star tier. */
 const STAR_MIN_DOT_PX = 1.1;
 /** Low-poly disc for star dots — they are only a few pixels across. */
@@ -227,17 +226,17 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return mesh;
   }
 
-  /** Ensure the merged ring buffer holds ≥ `orbitCount` orbits, growing on demand. */
-  private ensureRingMesh(orbitCount: number): LineSegments {
-    if (this.ringMesh && this.ringCapacity >= orbitCount)
+  /** Ensure the merged ring buffer holds ≥ `vertexCount` line vertices, growing on demand. */
+  private ensureRingMesh(vertexCount: number): LineSegments {
+    if (this.ringMesh && this.ringCapacity >= vertexCount)
       return this.ringMesh;
     if (this.ringMesh) {
       this.scene.remove(this.ringMesh);
       this.ringMesh.geometry.dispose();
     }
-    const capacity = Math.max(RING_INITIAL_ORBITS, nextPowerOfTwo(orbitCount));
+    const capacity = Math.max(RING_INITIAL_VERTS, nextPowerOfTwo(vertexCount));
     const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new BufferAttribute(new Float32Array(capacity * RING_SEGMENTS * 2 * 3), 3));
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(capacity * 3), 3));
     const mesh = new LineSegments(geometry, this.ringMaterial);
     mesh.frustumCulled = false;
     this.ringMesh = mesh;
@@ -605,18 +604,20 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * a·√(1−e²), rotated by argPeriapsis) in the z=0 plane; tiny orbits are culled.
    */
   private updateOrbitRings(world: EcsWorld, zoom: number): void {
-    let count = 0;
+    // First pass: total line vertices needed (2 per segment), with each ring's
+    // segment count adapted to its on-screen size so it stays smooth at any zoom.
+    let totalVerts = 0;
     for (const [, orbit] of world.query(OrbitElementsDef)) {
       if (orbit.a * zoom >= RING_MIN_PX)
-        count++;
+        totalVerts += ringSegmentCount(orbit.a * zoom) * 2;
     }
-    if (count === 0) {
+    if (totalVerts === 0) {
       if (this.ringMesh)
         this.ringMesh.visible = false;
       return;
     }
 
-    const mesh = this.ensureRingMesh(count);
+    const mesh = this.ensureRingMesh(totalVerts);
     const attribute = mesh.geometry.getAttribute('position') as BufferAttribute;
     const array = attribute.array as Float32Array;
     let v = 0;
@@ -624,11 +625,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     for (const [, orbit] of world.query(OrbitElementsDef)) {
       if (orbit.a * zoom < RING_MIN_PX)
         continue;
+      const segments = ringSegmentCount(orbit.a * zoom);
       let prevX = 0;
       let prevY = 0;
       let prevZ = 0;
-      for (let k = 0; k <= RING_SEGMENTS; k++) {
-        writeOrbitEllipsePoint(orbit, ((k % RING_SEGMENTS) / RING_SEGMENTS) * TAU, point);
+      for (let k = 0; k <= segments; k++) {
+        writeOrbitEllipsePoint(orbit, ((k % segments) / segments) * TAU, point);
         if (k > 0) {
           array[v * 3] = prevX;
           array[v * 3 + 1] = prevY;

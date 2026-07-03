@@ -293,7 +293,21 @@ export function updateOrbits(world: EcsWorld, simSeconds: number): void {
 
 const RING_STROKE = 'rgba(150, 180, 230, 0.14)';
 const MIN_RING_PX = 3;
-const RING_SEGMENTS = 96;
+// Orbit-ring tessellation: the segment count adapts to the ring's on-screen size
+// so the polyline hugs the true curve at any zoom. A fixed count looks chunky
+// when a large orbit is zoomed right in — each straight chord spans many pixels,
+// so the drawn line visibly departs from the smooth orbit (and from the planet,
+// which rides the true curve). Bounded so tiny orbits stay cheap and huge ones
+// stay finite.
+const RING_MIN_SEGMENTS = 64;
+const RING_MAX_SEGMENTS = 4096;
+const RING_CHORD_PX = 6;
+
+/** Segment count to tessellate an orbit ring whose on-screen radius is `radiusPx`. */
+export function ringSegmentCount(radiusPx: number): number {
+  const target = Math.ceil((TAU * radiusPx) / RING_CHORD_PX);
+  return Math.min(RING_MAX_SEGMENTS, Math.max(RING_MIN_SEGMENTS, target));
+}
 
 /**
  * Draw each orbit as its true ellipse (star at a focus), in screen space,
@@ -315,8 +329,9 @@ export function drawOrbitRings(ctx2d: CanvasRenderingContext2D, cam: Camera, wor
     if (focus.vx + reach < 0 || focus.vx - reach > cam.viewportW || focus.vy + reach < 0 || focus.vy - reach > cam.viewportH)
       continue;
     ctx2d.beginPath();
-    for (let k = 0; k <= RING_SEGMENTS; k++) {
-      writeOrbitEllipsePoint(orbit, ((k % RING_SEGMENTS) / RING_SEGMENTS) * TAU, point);
+    const segments = ringSegmentCount(orbit.a * cam.zoom);
+    for (let k = 0; k <= segments; k++) {
+      writeOrbitEllipsePoint(orbit, ((k % segments) / segments) * TAU, point);
       const v = worldToView(point.x, point.y, cam);
       if (k === 0)
         ctx2d.moveTo(v.vx, v.vy);

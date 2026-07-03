@@ -5,7 +5,7 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 import { describe, expect, it } from 'vitest';
 
 import { SECONDS_PER_YEAR } from '../generation/units';
-import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, planeToElements, PositionZDef, tiltNormal, updateOrbits, writeOrbitPosition } from './orbits';
+import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, planeToElements, PositionZDef, ringSegmentCount, tiltNormal, updateOrbits, writeOrbitPosition } from './orbits';
 
 function makeOrbit(overrides: Partial<OrbitElements> = {}): OrbitElements {
   return { a: 100, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: -1, starMass: 1, ...overrides };
@@ -117,6 +117,22 @@ describe('writeOrbitPosition in 3D', () => {
     // Ω rotates about z, so z is unchanged while x,y differ.
     expect(b.z).toBeCloseTo(a.z, 6);
     expect(Math.abs(b.x - a.x) + Math.abs(b.y - a.y)).toBeGreaterThan(1);
+  });
+});
+
+describe('ringSegmentCount', () => {
+  it('clamps tiny orbits to the minimum and enormous ones to the maximum', () => {
+    expect(ringSegmentCount(0)).toBe(64);
+    expect(ringSegmentCount(1)).toBe(64);
+    expect(ringSegmentCount(1e9)).toBe(4096);
+  });
+
+  it('adds segments as the on-screen radius grows, within the bounds', () => {
+    const small = ringSegmentCount(500);
+    const big = ringSegmentCount(5000);
+    expect(big).toBeGreaterThan(small);
+    expect(small).toBeGreaterThanOrEqual(64);
+    expect(big).toBeLessThanOrEqual(4096);
   });
 });
 
