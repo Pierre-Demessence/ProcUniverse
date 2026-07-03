@@ -31,17 +31,18 @@ export const REBASE_SECTORS = 8;
 // zooms). `CAMERA_FOV_DEG` is the vertical field of view; the camera distance is
 // derived from `zoom` so the framing matches the 2D view. `ORBIT_SENSITIVITY` is
 // radians of orbit per drag pixel; `TILT_MIN/MAX` bound the polar angle away from
-// both the top-down and bottom-up poles (where the look-at direction meets the up
-// axis and the orientation degenerates), so the camera can swing from near
-// straight-down through edge-on to near straight-up; `TILT_DEFAULT` is the gentle
-// starting tilt.
+// the focused system's plane normal — `TILT_MIN` keeps it off the exact top-down
+// pole (where the look-at direction meets the up axis and the orientation
+// degenerates) and `TILT_MAX` stops just short of edge-on, so the camera stays
+// above the disk and the pan direction never inverts; `TILT_DEFAULT` is the
+// gentle starting tilt.
 // `SPHERE_*_SEGMENTS` set the sphere tesselation; `STAR_SPIN_RATE` spins stars
 // (which carry no rotation data) slowly. `LIGHT_AMBIENT` + `LIGHT_KEY` shade the
 // non-emissive planets/moons.
 export const CAMERA_FOV_DEG = 50;
 export const ORBIT_SENSITIVITY = 0.006;
 export const TILT_MIN = 0.08;
-export const TILT_MAX = 3.06;
+export const TILT_MAX = 1.45;
 export const TILT_DEFAULT = 0.35;
 export const SPHERE_WIDTH_SEGMENTS = 32;
 export const SPHERE_HEIGHT_SEGMENTS = 24;

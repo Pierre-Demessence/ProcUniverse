@@ -228,11 +228,10 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
 
   let lockedId: EntityId | null = null;
-  // The 3D camera's look-at height. Tracks a locked body's out-of-plane z and is
-  // RETAINED on unlock, so unlocking (or a pan, which releases the lock) never
-  // snaps the view back to the ground plane and loses the body. Reset by
-  // Return-to-origin.
-  let focusZ = 0;
+  // The 3D camera's look-at height (z) now lives in the controller
+  // (`controller.focusZ`): the 3D pan moves it, locking sets it to the body's
+  // out-of-plane z, and Return-to-origin resets it. It is retained on unlock so
+  // the view never snaps back to the ground plane and loses the body.
 
   const setSelection = (next: Selection | null): void => {
     selection = next;
@@ -335,7 +334,6 @@ export function start(container: HTMLElement, save: Save): () => void {
   // panning far across the universe.
   const onResetView = (): void => {
     lockedId = null;
-    focusZ = 0;
     controller.resetOrbit();
     frameOrigin();
   };
@@ -355,6 +353,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   let lastSelection: Selection | null = null;
   let lastDrawnCount = 0;
   let lastThreeActive = false;
+  // Fallback orbital-plane normal (world +z) when no system is focused.
+  const WORLD_PLANE_NORMAL = [0, 0, 1] as const;
 
   const renderSource = new AnimationFrameTickSource();
   const unsubscribe = renderSource.subscribe((info) => {
@@ -365,15 +365,15 @@ export function start(container: HTMLElement, save: Save): () => void {
     // Lock: re-centre the camera on the locked body before anything else this
     // frame so the tier, origin, streaming, and render are all consistent with
     // the body at the centre of the view. Zoom is NOT changed — Lock never
-    // zooms, only pins the body. `focusZ` carries the body's out-of-plane height
-    // so the 3D camera looks at its true position, not its z=0 projection; it is
-    // retained on unlock (see its declaration) so the view doesn't jump.
+    // zooms, only pins the body. `controller.focusZ` carries the body's
+    // out-of-plane height so the 3D camera looks at its true position, not its
+    // z=0 projection; it is retained on unlock so the view doesn't jump.
     if (lockedId !== null) {
       const p = lockedBodyLocalPos(world, lockedId, simSeconds);
       if (p) {
         camera.x = p.x;
         camera.y = p.y;
-        focusZ = p.z;
+        controller.setFocusZ(p.z);
       }
       else {
         lockedId = null;
@@ -453,10 +453,12 @@ export function start(container: HTMLElement, save: Save): () => void {
       // amount so the absolute position is unchanged, and respawn the systems.
       let originX = renderOriginX;
       let originY = renderOriginY;
+      // The system the camera is over (system tier only): its star anchors the
+      // render origin and its disk normal anchors the 3D camera + pan.
+      const focusedSystem = tier === 'system' ? nearestStar(cache, camAbsX, camAbsY) : null;
       if (tier === 'system') {
-        const focus = nearestStar(cache, camAbsX, camAbsY);
-        originX = focus ? focus.x : Math.round(camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
-        originY = focus ? focus.y : Math.round(camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
+        originX = focusedSystem ? focusedSystem.x : Math.round(camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
+        originY = focusedSystem ? focusedSystem.y : Math.round(camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
       }
       else if (Math.abs(camera.x) > REBASE_DIST || Math.abs(camera.y) > REBASE_DIST) {
         originX = Math.round(camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
@@ -520,7 +522,12 @@ export function start(container: HTMLElement, save: Save): () => void {
       // own drawn count.
       if (threeActive && tier === 'system' && threeRenderer) {
         const three = threeRenderer;
-        three.render({ azimuth: controller.azimuth, camera: localCam, focusZ, simSeconds, tilt: controller.tilt, world });
+        // Anchor the 3D camera + pan to the focused system's orbital plane, so a
+        // low tilt reads as a true top-down (orbits as circles) regardless of how
+        // the disk is oriented in space.
+        const planeNormal = focusedSystem?.diskNormal ?? WORLD_PLANE_NORMAL;
+        controller.setSystemPlane(planeNormal[0], planeNormal[1], planeNormal[2]);
+        three.render({ azimuth: controller.azimuth, camera: localCam, focusZ: controller.focusZ, planeNormal, simSeconds, tilt: controller.tilt, world });
         drawBodyLabels3D(ctx2d, world, (x, y, z, out) => three.projectToScreen(x, y, z, out), localCam.zoom);
         renderedByThree = true;
       }

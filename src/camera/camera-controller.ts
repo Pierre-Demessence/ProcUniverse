@@ -9,11 +9,21 @@ export interface CameraController {
   /** Orbit azimuth (radians) for the 3D system view; ignored by the 2D path. */
   readonly azimuth: number;
   readonly camera: Camera;
+  /** Out-of-plane height (z) of the 3D camera focus; moved by the 3D pan and lock. */
+  readonly focusZ: number;
   /** Polar tilt (radians) from straight-down for the 3D system view. */
   readonly tilt: number;
   dispose: () => void;
-  /** Reset the 3D orbit/tilt to the default framing. */
+  /** Reset the 3D orbit/tilt (and focus height) to the default framing. */
   resetOrbit: () => void;
+  /** Set the 3D camera focus height (z), e.g. when locking onto an off-plane body. */
+  setFocusZ: (z: number) => void;
+  /**
+   * Set the focused system's orbital-plane unit normal, so the 3D pan slides
+   * along that plane in true screen space (matching the plane-anchored render
+   * camera). Defaults to the world +z axis until a system is focused.
+   */
+  setSystemPlane: (nx: number, ny: number, nz: number) => void;
   /**
    * Toggle 3D system-view panning: when active a left-drag pans along the
    * tilted/orbited ground plane instead of the raw 2D screen axes.
@@ -47,6 +57,21 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   let tilt = TILT_DEFAULT;
   let orbiting = false;
   let panMode3D = false;
+  // The focused system's orbital-plane basis in world space: the unit normal N
+  // and two in-plane axes (u, v). The render camera is anchored to this plane, so
+  // the 3D pan slides the focus along it in true screen space. `focusZ` is the
+  // focus's out-of-plane height, moved by that pan (and by locking onto an
+  // off-plane body). Defaults to the world +z plane (u = x̂, v = ŷ).
+  let planeNx = 0;
+  let planeNy = 0;
+  let planeNz = 1;
+  let planeUx = 1;
+  let planeUy = 0;
+  let planeUz = 0;
+  let planeVx = 0;
+  let planeVy = 1;
+  let planeVz = 0;
+  let focusZ = 0;
 
   // Accelerating zoom: rapid same-direction notches build a streak that ramps
   // the per-notch factor; a pause or direction flip resets it.
@@ -83,17 +108,31 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       tilt = clamp(tilt + (by - lastY) * ORBIT_SENSITIVITY, TILT_MIN, TILT_MAX);
     }
     else if (panMode3D) {
-      // Perspective/tilted view: map the screen drag onto the ground (z=0) plane
-      // along the camera's screen axes. Screen-right on the ground is (−sin, cos)
-      // of azimuth; the vertical drag runs along the horizontal view direction,
-      // foreshortened by tilt (a flatter view covers more ground per pixel), so
-      // the grabbed point stays under the cursor as the view rotates.
-      const dxs = (bx - lastX) / camera.zoom;
-      const fwd = ((by - lastY) / camera.zoom) / Math.max(Math.cos(tilt), 0.15);
-      const sinA = Math.sin(azimuth);
+      // Plane-anchored perspective view: slide the focus in true screen space so
+      // the grabbed point tracks the cursor at any orbit angle. R (screen-right)
+      // and U (screen-up) are the render camera's world axes expressed in the disk
+      // basis; moving the focus by −dxs·R + dys·U keeps the point under the cursor.
+      // The focus is a full 3D point (x, y on the 2D camera, z in `focusZ`), so a
+      // disk tilted in space pans correctly rather than only in x,y.
       const cosA = Math.cos(azimuth);
-      camera.x -= dxs * -sinA + fwd * cosA;
-      camera.y -= dxs * cosA + fwd * sinA;
+      const sinA = Math.sin(azimuth);
+      const cosT = Math.cos(tilt);
+      const sinT = Math.sin(tilt);
+      // R = −sinA·u + cosA·v; U = sinT·N − cosT·(cosA·u + sinA·v).
+      const rx = -sinA * planeUx + cosA * planeVx;
+      const ry = -sinA * planeUy + cosA * planeVy;
+      const rz = -sinA * planeUz + cosA * planeVz;
+      const px = cosA * planeUx + sinA * planeVx;
+      const py = cosA * planeUy + sinA * planeVy;
+      const pz = cosA * planeUz + sinA * planeVz;
+      const upx = sinT * planeNx - cosT * px;
+      const upy = sinT * planeNy - cosT * py;
+      const upz = sinT * planeNz - cosT * pz;
+      const dxs = (bx - lastX) / camera.zoom;
+      const dys = (by - lastY) / camera.zoom;
+      camera.x -= dxs * rx - dys * upx;
+      camera.y -= dxs * ry - dys * upy;
+      focusZ -= dxs * rz - dys * upz;
     }
     else {
       camera.x -= (bx - lastX) / camera.zoom;
@@ -160,9 +199,39 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('contextmenu', onContextMenu);
     },
+    get focusZ() {
+      return focusZ;
+    },
     resetOrbit(): void {
       azimuth = 0;
       tilt = TILT_DEFAULT;
+      focusZ = 0;
+    },
+    setFocusZ(z: number): void {
+      focusZ = z;
+    },
+    setSystemPlane(nx: number, ny: number, nz: number): void {
+      planeNx = nx;
+      planeNy = ny;
+      planeNz = nz;
+      // Seed an in-plane basis: u = ref × N with ref = ẑ unless N is nearly
+      // vertical (then ref = x̂), matching the render camera's basis choice.
+      const refZ = Math.abs(nz) < 0.999 ? 1 : 0;
+      const refX = refZ === 1 ? 0 : 1;
+      let ux = -refZ * ny;
+      let uy = refZ * nx - refX * nz;
+      let uz = refX * ny;
+      const ulen = Math.hypot(ux, uy, uz) || 1;
+      ux /= ulen;
+      uy /= ulen;
+      uz /= ulen;
+      planeUx = ux;
+      planeUy = uy;
+      planeUz = uz;
+      // v = N × u (unit, since N ⟂ u are orthonormal).
+      planeVx = ny * uz - nz * uy;
+      planeVy = nz * ux - nx * uz;
+      planeVz = nx * uy - ny * ux;
     },
     setThreeSystemActive(active: boolean): void {
       panMode3D = active;

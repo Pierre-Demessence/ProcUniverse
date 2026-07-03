@@ -95,6 +95,8 @@ export interface ThreeRenderContext {
   azimuth: number;
   camera: Camera;
   focusZ: number;
+  /** Unit normal of the focused system's orbital plane; the orbit camera looks down it. */
+  planeNormal: readonly [number, number, number];
   simSeconds: number;
   tilt: number;
   world: EcsWorld;
@@ -363,7 +365,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   render(ctx: ThreeRenderContext): void {
     if (!this.ready)
       return;
-    const { azimuth, camera, focusZ, simSeconds, tilt, world } = ctx;
+    const { azimuth, camera, focusZ, planeNormal, simSeconds, tilt, world } = ctx;
     this.group.visible = true;
     if (this.starMesh)
       this.starMesh.visible = false;
@@ -427,7 +429,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         mesh.visible = false;
     }
 
-    this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ);
+    this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ, planeNormal);
     this.updateOrbitRings(world, camera.zoom);
     this.renderer.render(this.scene, this.perspective);
   }
@@ -572,16 +574,46 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   /**
    * Configure the perspective camera to orbit the focus (the render-origin-frame
    * camera x,y at z=0). Distance is derived from `zoom` so the framing roughly
-   * matches the 2D view; `tilt` is the polar angle from straight-down and
-   * `azimuth` swings around. Up is the system's polar (+z) axis.
+   * matches the 2D view. The orbit is anchored to the focused system's plane:
+   * `tilt` is the polar angle away from the plane normal (0 = looking straight
+   * down it, so orbits read as circles) and `azimuth` swings around it. `up` is
+   * the plane normal, so a near-zero tilt reads as a true top-down of the system
+   * regardless of how the disk is oriented in space.
    */
-  private syncPerspective(camera: Camera, azimuth: number, tilt: number, sceneRadius: number, focusZ: number): void {
+  private syncPerspective(camera: Camera, azimuth: number, tilt: number, sceneRadius: number, focusZ: number, planeNormal: readonly [number, number, number]): void {
     const fovRad = CAMERA_FOV_DEG * DEG2RAD;
     const halfHeightWorld = camera.viewportH / camera.zoom / 2;
     const distance = halfHeightWorld / Math.tan(fovRad / 2);
     const focusX = camera.x + camera.offsetX;
     const focusY = camera.y + camera.offsetY;
+    // Plane-anchored basis (u, v, N): N is the system's disk normal, and (u, v)
+    // span the plane. The camera offset from the focus is a tilt away from N
+    // toward the azimuth direction in the plane, so at tilt→0 it sits on N and
+    // looks straight down the disk (orbits appear as circles about the star).
+    const [nx, ny, nz] = planeNormal;
+    // Reference axis not parallel to N, to seed an in-plane basis via cross products.
+    const refZ = Math.abs(nz) < 0.999 ? 1 : 0;
+    const refX = refZ === 1 ? 0 : 1;
+    // u = ref × N, normalised.
+    let ux = -refZ * ny;
+    let uy = refZ * nx - refX * nz;
+    let uz = refX * ny;
+    const ulen = Math.hypot(ux, uy, uz) || 1;
+    ux /= ulen;
+    uy /= ulen;
+    uz /= ulen;
+    // v = N × u (already unit since N ⟂ u are orthonormal).
+    const vx = ny * uz - nz * uy;
+    const vy = nz * ux - nx * uz;
+    const vz = nx * uy - ny * ux;
     const sinTilt = Math.sin(tilt);
+    const cosTilt = Math.cos(tilt);
+    const cosA = Math.cos(azimuth);
+    const sinA = Math.sin(azimuth);
+    // Offset direction from focus to camera in the plane-anchored basis.
+    const ox = sinTilt * (cosA * ux + sinA * vx) + cosTilt * nx;
+    const oy = sinTilt * (cosA * uy + sinA * vy) + cosTilt * ny;
+    const oz = sinTilt * (cosA * uz + sinA * vz) + cosTilt * nz;
     const p = this.perspective;
     p.fov = CAMERA_FOV_DEG;
     p.aspect = camera.viewportW / Math.max(1, camera.viewportH);
@@ -590,8 +622,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // body the central star sits `sceneRadius` away and would otherwise fall
     // beyond a far plane tied only to the (small) focus distance.
     p.far = Math.max(distance * 4 + halfHeightWorld * 4, distance + sceneRadius * 1.5 + halfHeightWorld * 4);
-    p.position.set(focusX + distance * sinTilt * Math.cos(azimuth), focusY + distance * sinTilt * Math.sin(azimuth), focusZ + distance * Math.cos(tilt));
-    p.up.set(0, 0, 1);
+    p.position.set(focusX + distance * ox, focusY + distance * oy, focusZ + distance * oz);
+    p.up.set(nx, ny, nz);
     p.lookAt(focusX, focusY, focusZ);
     p.updateProjectionMatrix();
   }

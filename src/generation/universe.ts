@@ -61,6 +61,8 @@ export interface PlanetData {
 
 export interface SystemData {
   name: GeneratedName;
+  /** Unit normal of the system's mean orbital (disk) plane, in world space. */
+  diskNormal: [number, number, number];
   planets: PlanetData[];
   radius: number;
   star: StarPhysical;
@@ -206,7 +208,7 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       }
     }
 
-    systems.push({ name: systemName, planets, radius, star, x, y });
+    systems.push({ name: systemName, diskNormal: [diskNx, diskNy, diskZ], planets, radius, star, x, y });
   }
 
   // A galaxy's central black hole lives in the one sector that holds its centre.
