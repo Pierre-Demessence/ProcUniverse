@@ -91,3 +91,97 @@ describe('generateSectorData', () => {
     expect(widest).toBeGreaterThan(10);
   });
 });
+
+describe('generateSectorData 3D orbital orientation', () => {
+  const DEG = Math.PI / 180;
+  function orbitNormal(inclination: number, node: number): [number, number, number] {
+    const s = Math.sin(inclination);
+    return [s * Math.sin(node), -s * Math.cos(node), Math.cos(inclination)];
+  }
+  function angleBetween(a: [number, number, number], b: [number, number, number]): number {
+    return Math.acos(Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+  }
+
+  it('gives every planet a finite inclination in [0, π] and a defined node', () => {
+    for (const sys of generateSectorData(1337, 0, 0).systems) {
+      for (const p of sys.planets) {
+        expect(Number.isFinite(p.inclination)).toBe(true);
+        expect(p.inclination).toBeGreaterThanOrEqual(0);
+        expect(p.inclination).toBeLessThanOrEqual(Math.PI);
+        expect(Number.isFinite(p.longitudeAscendingNode)).toBe(true);
+      }
+    }
+  });
+
+  it('places a planet\'s moons in its equatorial plane — tilted from the orbit by the obliquity', () => {
+    let checked = 0;
+    for (let sx = 0; sx < 3; sx++) {
+      for (let sy = 0; sy < 3; sy++) {
+        for (const sys of generateSectorData(1337, sx, sy).systems) {
+          for (const p of sys.planets) {
+            if (p.moons.length === 0)
+              continue;
+            const orbitN = orbitNormal(p.inclination, p.longitudeAscendingNode);
+            const moonN = orbitNormal(p.moons[0].inclination, p.moons[0].longitudeAscendingNode);
+            expect(angleBetween(orbitN, moonN)).toBeCloseTo(p.physical.obliquity * DEG, 5);
+            checked++;
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('draws obliquity isotropically, so some planets are tipped past 90° (retrograde spin)', () => {
+    let past90 = 0;
+    let total = 0;
+    for (let sx = 0; sx < 3; sx++) {
+      for (let sy = 0; sy < 3; sy++) {
+        for (const sys of generateSectorData(1337, sx, sy).systems) {
+          for (const p of sys.planets) {
+            total++;
+            if (p.physical.obliquity > 90)
+              past90++;
+          }
+        }
+      }
+    }
+    expect(total).toBeGreaterThan(20);
+    expect(past90).toBeGreaterThan(0);
+  });
+
+  it('tilts eccentric orbits more than near-circular ones (inclination–eccentricity equipartition)', () => {
+    // Use each system's least-eccentric planet as a proxy for its disk plane,
+    // then compare how far low-e vs high-e planets tilt from it.
+    let lowSum = 0;
+    let lowN = 0;
+    let highSum = 0;
+    let highN = 0;
+    for (let sx = 0; sx < 4; sx++) {
+      for (let sy = 0; sy < 4; sy++) {
+        for (const sys of generateSectorData(1337, sx, sy).systems) {
+          if (sys.planets.length < 3)
+            continue;
+          const ref = sys.planets.reduce((m, p) => (p.e < m.e ? p : m));
+          const refN = orbitNormal(ref.inclination, ref.longitudeAscendingNode);
+          for (const p of sys.planets) {
+            if (p === ref)
+              continue;
+            const tilt = angleBetween(refN, orbitNormal(p.inclination, p.longitudeAscendingNode));
+            if (p.e < 0.05) {
+              lowSum += tilt;
+              lowN++;
+            }
+            else if (p.e > 0.15) {
+              highSum += tilt;
+              highN++;
+            }
+          }
+        }
+      }
+    }
+    expect(lowN).toBeGreaterThan(0);
+    expect(highN).toBeGreaterThan(0);
+    expect(highSum / highN).toBeGreaterThan(lowSum / lowN);
+  });
+});

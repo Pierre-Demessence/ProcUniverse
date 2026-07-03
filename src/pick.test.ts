@@ -38,6 +38,7 @@ const PLANET: PlanetPhysical = {
   mass: 1,
   moonRichness: 0.5,
   obliquity: 23,
+  obliquityAzimuth: 0,
   radius: 1,
   rotationPeriod: 24,
   tidallyLocked: false,

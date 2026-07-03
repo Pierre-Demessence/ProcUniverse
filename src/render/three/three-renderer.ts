@@ -15,22 +15,24 @@ import type { EcsWorld } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
 
+import type { PlanetPhysical } from '../../generation/planets';
 import type { SectorCache } from '../../lod/sector-cache';
 import type { SectorRange } from '../../lod/tier';
 import type { BodyKind, PickResult } from '../../pick';
+import type { OrbitElements } from '../../sim/orbits';
 import type { GlowField } from './glow-fields';
 
 import { worldToView } from '@pierre/ecs/modules/camera';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
-import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DirectionalLight, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
+import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DirectionalLight, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, Quaternion, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
 import { CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_KEY, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_SPIN_RATE } from '../../config/render';
 import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
 import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
-import { OrbitElementsDef } from '../../sim/orbits';
+import { OrbitElementsDef, PositionZDef, tiltNormal, writeOrbitEllipsePoint } from '../../sim/orbits';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 
 /** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
@@ -44,6 +46,8 @@ const CAMERA_DEPTH = 1000;
 const DEFAULT_FILL = '#ffffff';
 const DEG2RAD = Math.PI / 180;
 const TAU = Math.PI * 2;
+/** A UV sphere's north pole is its local +Y axis; planet spheres are re-oriented so this points along the spin axis. */
+const SPHERE_POLE = new Vector3(0, 1, 0);
 /** Dark grey for the black-hole sphere so it reads as a shaded body, not black-on-black. */
 const BLACK_HOLE_COLOR = '#15151c';
 /** Orbit-ring line resolution + faint styling; mirrors the 2D `drawOrbitRings`. */
@@ -91,6 +95,7 @@ function makeGlowTexture(): CanvasTexture {
 export interface ThreeRenderContext {
   azimuth: number;
   camera: Camera;
+  focusZ: number;
   simSeconds: number;
   tilt: number;
   world: EcsWorld;
@@ -141,7 +146,10 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly starGeometry: CircleGeometry;
   private readonly starMaterial: MeshBasicMaterial;
   private starMesh: InstancedMesh | null = null;
+  private readonly tmpAxis = new Vector3();
   private readonly tmpColor = new Color();
+  private readonly tmpQuat = new Quaternion();
+  private readonly tmpQuat2 = new Quaternion();
   private readonly tmpVec = new Vector3();
   private readonly tmpVec2 = new Vector2();
   private viewH = 0;
@@ -299,6 +307,25 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   }
 
   /**
+   * Orient a planet sphere so its pole points along its spin axis — the orbital
+   * plane normal tilted by the axial obliquity around the stored azimuth — then
+   * spin it about that axis. That is the same plane its (equatorial-orbit) moons
+   * ride in, so a tilted planet and its moon disk visibly agree.
+   */
+  private orientPlanet(mesh: Mesh, planet: PlanetPhysical, orbit: OrbitElements, simSeconds: number): void {
+    const sinI = Math.sin(orbit.inclination);
+    const nx = sinI * Math.sin(orbit.longitudeAscendingNode);
+    const ny = -sinI * Math.cos(orbit.longitudeAscendingNode);
+    const nz = Math.cos(orbit.inclination);
+    const [sx, sy, sz] = tiltNormal(nx, ny, nz, planet.obliquity * DEG2RAD, planet.obliquityAzimuth);
+    this.tmpAxis.set(sx, sy, sz);
+    this.tmpQuat.setFromUnitVectors(SPHERE_POLE, this.tmpAxis);
+    const spin = (simSeconds / (planet.rotationPeriod * 3600)) * TAU;
+    this.tmpQuat2.setFromAxisAngle(this.tmpAxis, spin);
+    mesh.quaternion.multiplyQuaternions(this.tmpQuat2, this.tmpQuat);
+  }
+
+  /**
    * Raycast the cursor (backing px) against the visible system-tier spheres and
    * return the body it hits, or null. Used for picking in the 3D system view.
    */
@@ -337,7 +364,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   render(ctx: ThreeRenderContext): void {
     if (!this.ready)
       return;
-    const { azimuth, camera, simSeconds, tilt, world } = ctx;
+    const { azimuth, camera, focusZ, simSeconds, tilt, world } = ctx;
     this.group.visible = true;
     if (this.starMesh)
       this.starMesh.visible = false;
@@ -346,7 +373,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
 
     const renderables = world.getStore(RenderableDef);
     const positions = world.getStore(PositionDef);
+    const positionsZ = world.getStore(PositionZDef);
     const planets = world.getStore(PlanetPhysicalDef);
+    const orbits = world.getStore(OrbitElementsDef);
     const focusX = camera.x + camera.offsetX;
     const focusY = camera.y + camera.offsetY;
     // Frustum reach = the focused system only (nearest star + the widest planet
@@ -356,37 +385,42 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const sceneRadius = this.focusedSystemReach(world, focusX, focusY);
     let used = 0;
 
-    const place = (id: number, kind: BodyKind, emissive: boolean, colorOverride: string | null, rotX: number, rotY: number): void => {
+    const place = (id: number, kind: BodyKind, emissive: boolean, colorOverride: string | null): Mesh | null => {
       const renderable = renderables.get(id);
       const position = positions.get(id);
       if (!renderable || renderable.kind !== 'circle' || !position)
-        return;
+        return null;
       const fill = colorOverride ?? renderable.fill ?? DEFAULT_FILL;
       const mesh = this.obtainSphere(used++);
-      mesh.position.set(position.x, position.y, 0);
+      mesh.position.set(position.x, position.y, positionsZ.get(id)?.z ?? 0);
       mesh.scale.setScalar(renderable.radius);
-      mesh.rotation.set(rotX, rotY, 0);
       const material = mesh.material as MeshStandardMaterial;
       material.color.set(emissive ? '#000000' : fill);
       material.emissive.set(emissive ? fill : '#000000');
       const data = mesh.userData as { id: number; kind: BodyKind };
       data.id = id;
       data.kind = kind;
+      return mesh;
     };
 
     const starSpin = simSeconds * STAR_SPIN_RATE;
     for (const [id] of world.query(StarPhysicalDef))
-      place(id, 'star', true, null, 0, starSpin);
+      place(id, 'star', true, null)?.rotation.set(0, starSpin, 0);
     for (const [id] of world.query(PlanetPhysicalDef)) {
+      const mesh = place(id, 'planet', false, null);
+      if (!mesh)
+        continue;
       const planet = planets.get(id);
-      const rotX = planet ? planet.obliquity * DEG2RAD : 0;
-      const rotY = planet ? (simSeconds / (planet.rotationPeriod * 3600)) * TAU : 0;
-      place(id, 'planet', false, null, rotX, rotY);
+      const orbit = orbits.get(id);
+      if (planet && orbit)
+        this.orientPlanet(mesh, planet, orbit, simSeconds);
+      else
+        mesh.rotation.set(0, 0, 0);
     }
     for (const [id] of world.query(MoonPhysicalDef))
-      place(id, 'moon', false, null, 0, 0);
+      place(id, 'moon', false, null)?.rotation.set(0, 0, 0);
     for (const [id] of world.query(BlackHoleDef))
-      place(id, 'black-hole', false, BLACK_HOLE_COLOR, 0, 0);
+      place(id, 'black-hole', false, BLACK_HOLE_COLOR)?.rotation.set(0, 0, 0);
 
     for (let i = used; i < this.pool.length; i++) {
       const mesh = this.pool[i];
@@ -394,7 +428,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         mesh.visible = false;
     }
 
-    this.syncPerspective(camera, azimuth, tilt, sceneRadius);
+    this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ);
     this.updateOrbitRings(world, camera.zoom);
     this.renderer.render(this.scene, this.perspective);
   }
@@ -542,7 +576,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * matches the 2D view; `tilt` is the polar angle from straight-down and
    * `azimuth` swings around. Up is the system's polar (+z) axis.
    */
-  private syncPerspective(camera: Camera, azimuth: number, tilt: number, sceneRadius: number): void {
+  private syncPerspective(camera: Camera, azimuth: number, tilt: number, sceneRadius: number, focusZ: number): void {
     const fovRad = CAMERA_FOV_DEG * DEG2RAD;
     const halfHeightWorld = camera.viewportH / camera.zoom / 2;
     const distance = halfHeightWorld / Math.tan(fovRad / 2);
@@ -557,9 +591,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // body the central star sits `sceneRadius` away and would otherwise fall
     // beyond a far plane tied only to the (small) focus distance.
     p.far = Math.max(distance * 4 + halfHeightWorld * 4, distance + sceneRadius * 1.5 + halfHeightWorld * 4);
-    p.position.set(focusX + distance * sinTilt * Math.cos(azimuth), focusY + distance * sinTilt * Math.sin(azimuth), distance * Math.cos(tilt));
+    p.position.set(focusX + distance * sinTilt * Math.cos(azimuth), focusY + distance * sinTilt * Math.sin(azimuth), focusZ + distance * Math.cos(tilt));
     p.up.set(0, 0, 1);
-    p.lookAt(focusX, focusY, 0);
+    p.lookAt(focusX, focusY, focusZ);
     p.updateProjectionMatrix();
   }
 
@@ -586,34 +620,28 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const attribute = mesh.geometry.getAttribute('position') as BufferAttribute;
     const array = attribute.array as Float32Array;
     let v = 0;
+    const point = { x: 0, y: 0, z: 0 };
     for (const [, orbit] of world.query(OrbitElementsDef)) {
       if (orbit.a * zoom < RING_MIN_PX)
         continue;
-      const cosW = Math.cos(orbit.argPeriapsis);
-      const sinW = Math.sin(orbit.argPeriapsis);
-      const centerX = orbit.cx - orbit.a * orbit.e * cosW;
-      const centerY = orbit.cy - orbit.a * orbit.e * sinW;
-      const semiMinor = orbit.a * Math.sqrt(1 - orbit.e * orbit.e);
       let prevX = 0;
       let prevY = 0;
+      let prevZ = 0;
       for (let k = 0; k <= RING_SEGMENTS; k++) {
-        const t = ((k % RING_SEGMENTS) / RING_SEGMENTS) * TAU;
-        const lx = orbit.a * Math.cos(t);
-        const ly = semiMinor * Math.sin(t);
-        const x = centerX + lx * cosW - ly * sinW;
-        const y = centerY + lx * sinW + ly * cosW;
+        writeOrbitEllipsePoint(orbit, ((k % RING_SEGMENTS) / RING_SEGMENTS) * TAU, point);
         if (k > 0) {
           array[v * 3] = prevX;
           array[v * 3 + 1] = prevY;
-          array[v * 3 + 2] = 0;
+          array[v * 3 + 2] = prevZ;
           v++;
-          array[v * 3] = x;
-          array[v * 3 + 1] = y;
-          array[v * 3 + 2] = 0;
+          array[v * 3] = point.x;
+          array[v * 3 + 1] = point.y;
+          array[v * 3 + 2] = point.z;
           v++;
         }
-        prevX = x;
-        prevY = y;
+        prevX = point.x;
+        prevY = point.y;
+        prevZ = point.z;
       }
     }
     mesh.geometry.setDrawRange(0, v);

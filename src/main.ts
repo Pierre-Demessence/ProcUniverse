@@ -38,7 +38,7 @@ import { renderFrame } from './render/scene';
 import { drawSelectReticle } from './render/select-reticle';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from './scale';
 import { renderBackend } from './settings';
-import { OrbitElementsDef, updateOrbits, writeOrbitPosition } from './sim/orbits';
+import { OrbitElementsDef, PositionZDef, updateOrbits, writeOrbitPosition } from './sim/orbits';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
 import { createOptionsMenu } from './ui/options';
@@ -112,6 +112,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   world.registerComponent(PositionDef);
   world.registerComponent(RenderableDef);
   world.registerComponent(OrbitElementsDef);
+  world.registerComponent(PositionZDef);
   world.registerComponent(StarPhysicalDef);
   world.registerComponent(PlanetPhysicalDef);
   world.registerComponent(MoonPhysicalDef);
@@ -240,8 +241,15 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
 
   const onZoomTo = (): void => {
-    if (selection)
-      frameSelection(selection, world, camera, renderOriginX, renderOriginY);
+    if (!selection)
+      return;
+    frameSelection(selection, world, camera, renderOriginX, renderOriginY);
+    // Pin a planet / moon so it stays centred — in x, y and out-of-plane z — as
+    // it orbits; static bodies (star / galaxy / black hole) need no lock. The
+    // per-frame lock re-centre also supplies the 3D camera's focus height, so a
+    // tilted view frames the body itself rather than its z=0 projection.
+    if (selection.kind === 'planet' || selection.kind === 'moon')
+      lockedId = selection.id;
   };
 
   const inspector = createInspector(container, { onToggleLock: toggleLock, onZoomTo });
@@ -299,13 +307,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   // recompute the galaxy under the camera; the Universe node is not selectable.
   // Double-clicking any node also zooms the camera to frame it.
   const navTree = createNavTree(container, {
-    onDoubleClick(node: NavNode): void {
+    onDoubleClick(): void {
       onZoomTo();
-      if (node.kind === 'planet' || node.kind === 'moon') {
-        // The first click already set selection to this body via onSelect.
-        if (selection && selection.kind === node.kind)
-          lockedId = selection.id;
-      }
     },
     onSelect(node: NavNode): void {
       if (node.kind === 'universe') {
@@ -356,12 +359,15 @@ export function start(container: HTMLElement, save: Save): () => void {
     // Lock: re-centre the camera on the locked body before anything else this
     // frame so the tier, origin, streaming, and render are all consistent with
     // the body at the centre of the view. Zoom is NOT changed — Lock never
-    // zooms, only pins the body.
+    // zooms, only pins the body. `focusZ` carries the body's out-of-plane height
+    // so the 3D camera looks at its true position, not its z=0 projection.
+    let focusZ = 0;
     if (lockedId !== null) {
       const p = lockedBodyLocalPos(world, lockedId, simSeconds);
       if (p) {
         camera.x = p.x;
         camera.y = p.y;
+        focusZ = p.z;
       }
       else {
         lockedId = null;
@@ -508,7 +514,7 @@ export function start(container: HTMLElement, save: Save): () => void {
       // own drawn count.
       if (threeActive && tier === 'system' && threeRenderer) {
         const three = threeRenderer;
-        three.render({ azimuth: controller.azimuth, camera: localCam, simSeconds, tilt: controller.tilt, world });
+        three.render({ azimuth: controller.azimuth, camera: localCam, focusZ, simSeconds, tilt: controller.tilt, world });
         drawBodyLabels3D(ctx2d, world, (x, y, z, out) => three.projectToScreen(x, y, z, out), localCam.zoom);
         renderedByThree = true;
       }
@@ -563,7 +569,8 @@ export function start(container: HTMLElement, save: Save): () => void {
               // Project through the perspective camera so the reticle tracks the
               // body once the view is orbited, tilted, or panned off-centre.
               const p = { sx: 0, sy: 0 };
-              if (threeRenderer.projectToScreen(pos.x, pos.y, 0, p))
+              const pz = world.getStore(PositionZDef).get(selection.id)?.z ?? 0;
+              if (threeRenderer.projectToScreen(pos.x, pos.y, pz, p))
                 drawSelectReticle(ctx2d, p.sx, p.sy, discRadius * camera.zoom);
             }
             else {
@@ -800,12 +807,12 @@ function lockedBodyLocalPos(
   world: EcsWorld,
   id: EntityId,
   simSeconds: number,
-): { x: number; y: number } | null {
+): { x: number; y: number; z: number } | null {
   const orbit = world.getStore(OrbitElementsDef).get(id);
   if (!orbit)
     return null;
   const years = simSeconds / SECONDS_PER_YEAR;
-  const tmp = { x: 0, y: 0 };
+  const tmp = { x: 0, y: 0, z: 0 };
   if (orbit.parent < 0) {
     writeOrbitPosition(orbit, years, tmp);
   }
@@ -813,9 +820,9 @@ function lockedBodyLocalPos(
     const parentOrbit = world.getStore(OrbitElementsDef).get(orbit.parent);
     if (!parentOrbit)
       return null;
-    const planetPos = { x: 0, y: 0 };
+    const planetPos = { x: 0, y: 0, z: 0 };
     writeOrbitPosition(parentOrbit, years, planetPos);
-    writeOrbitPosition({ ...orbit, cx: planetPos.x, cy: planetPos.y }, years, tmp);
+    writeOrbitPosition({ ...orbit, cx: planetPos.x, cy: planetPos.y, cz: planetPos.z }, years, tmp);
   }
-  return { x: tmp.x, y: tmp.y };
+  return { x: tmp.x, y: tmp.y, z: tmp.z };
 }

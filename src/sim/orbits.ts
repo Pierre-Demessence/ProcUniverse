@@ -28,13 +28,21 @@ const KM_S_PER_AU_YEAR = KM_PER_AU / SECONDS_PER_YEAR;
  * `parent` is −1 for a body orbiting its star at the fixed focus `cx`/`cy`; for a
  * **moon** it is the entity id of its planet, whose current position becomes the
  * focus each frame (and `starMass` then holds the planet's mass, in M☉).
+ *
+ * `inclination` (i) tilts the orbit out of the reference (z=0) plane and
+ * `longitudeAscendingNode` (Ω) swings that tilt around, so the orbit is a genuine
+ * 3D ellipse; both are 0 for a flat, top-down orbit. `cz` is the focus's z (0 for
+ * a planet around its star, the planet's current z for a moon).
  */
 export interface OrbitElements {
   a: number;
   argPeriapsis: number;
   cx: number;
   cy: number;
+  cz: number;
   e: number;
+  inclination: number;
+  longitudeAscendingNode: number;
   meanAnomaly0: number;
   parent: number;
   starMass: number;
@@ -45,10 +53,27 @@ export const OrbitElementsDef: ComponentDef<OrbitElements> = simpleComponent<Orb
   argPeriapsis: 'number',
   cx: 'number',
   cy: 'number',
+  cz: 'number',
   e: 'number',
+  inclination: 'number',
+  longitudeAscendingNode: 'number',
   meanAnomaly0: 'number',
   parent: 'number',
   starMass: 'number',
+});
+
+/**
+ * The z (out-of-plane) coordinate of a body, kept parallel to the engine's 2D
+ * `PositionDef` {x, y}. `updateOrbits` writes it alongside x,y, so the Three (3D)
+ * renderer, body labels and picking can read a full 3D position while the Canvas
+ * 2D backend + HUD keep using PositionDef's x,y — the top-down projection.
+ */
+export interface PositionZ {
+  z: number;
+}
+
+export const PositionZDef: ComponentDef<PositionZ> = simpleComponent<PositionZ>('positionZ', {
+  z: 'number',
 });
 
 /**
@@ -108,21 +133,109 @@ function solveKepler(meanAnomaly: number, e: number): number {
 }
 
 /**
- * Write the orbital position at time `t` into `out` (no allocation). Uses the
- * eccentric-anomaly form `x' = a(cos E − e)`, `y' = a·sqrt(1−e²)·sin E` rotated
- * by `argPeriapsis`, which avoids a separate true-anomaly/atan2 step and is
- * numerically stable. Exported so tests can assert orbit invariants directly.
+ * Rotate a point given in the orbit's own (perifocal) plane into 3D world
+ * coordinates and add the focus: `R_z(Ω)·R_x(i)·R_z(ω)` then translate. Shared by
+ * the live-position and orbit-ring samplers. With `inclination = 0` and
+ * `longitudeAscendingNode = 0` this collapses to the old flat `argPeriapsis`-only
+ * rotation, so coplanar orbits are unchanged.
  */
-export function writeOrbitPosition(orbit: OrbitElements, t: number, out: { x: number; y: number }): void {
-  const { a, argPeriapsis, cx, cy, e } = orbit;
-  const n = TAU / orbitalPeriod(orbit.starMass, a);
-  const eccentric = solveKepler(orbit.meanAnomaly0 + n * t, e);
-  const xOrbit = a * (Math.cos(eccentric) - e);
-  const yOrbit = a * Math.sqrt(1 - e * e) * Math.sin(eccentric);
+function perifocalToWorld(orbit: OrbitElements, xOrbit: number, yOrbit: number, out: { x: number; y: number; z: number }): void {
+  const { argPeriapsis, cx, cy, cz, inclination, longitudeAscendingNode } = orbit;
   const cosW = Math.cos(argPeriapsis);
   const sinW = Math.sin(argPeriapsis);
-  out.x = cx + xOrbit * cosW - yOrbit * sinW;
-  out.y = cy + xOrbit * sinW + yOrbit * cosW;
+  const x1 = xOrbit * cosW - yOrbit * sinW;
+  const y1 = xOrbit * sinW + yOrbit * cosW;
+  const cosI = Math.cos(inclination);
+  const sinI = Math.sin(inclination);
+  const y2 = y1 * cosI;
+  const z2 = y1 * sinI;
+  const cosO = Math.cos(longitudeAscendingNode);
+  const sinO = Math.sin(longitudeAscendingNode);
+  out.x = cx + x1 * cosO - y2 * sinO;
+  out.y = cy + x1 * sinO + y2 * cosO;
+  out.z = cz + z2;
+}
+
+/**
+ * Write the 3D orbital position at time `t` into `out` (no allocation). Uses the
+ * eccentric-anomaly form `x' = a(cos E − e)`, `y' = a·sqrt(1−e²)·sin E` in the
+ * orbital plane, then rotates it into the world by argument of periapsis,
+ * inclination and ascending node (see `perifocalToWorld`). Exported so tests can
+ * assert orbit invariants directly.
+ */
+export function writeOrbitPosition(orbit: OrbitElements, t: number, out: { x: number; y: number; z: number }): void {
+  const n = TAU / orbitalPeriod(orbit.starMass, orbit.a);
+  const eccentric = solveKepler(orbit.meanAnomaly0 + n * t, orbit.e);
+  const xOrbit = orbit.a * (Math.cos(eccentric) - orbit.e);
+  const yOrbit = orbit.a * Math.sqrt(1 - orbit.e * orbit.e) * Math.sin(eccentric);
+  perifocalToWorld(orbit, xOrbit, yOrbit, out);
+}
+
+/**
+ * Write the point on the orbit's ellipse at parameter angle `theta` (0..2π traces
+ * the whole ellipse) into `out` in 3D world coordinates — the same
+ * perifocal→world rotation as `writeOrbitPosition`, used to draw orbit rings in
+ * both the 2D (x,y) and 3D (x,y,z) backends.
+ */
+export function writeOrbitEllipsePoint(orbit: OrbitElements, theta: number, out: { x: number; y: number; z: number }): void {
+  const xOrbit = orbit.a * (Math.cos(theta) - orbit.e);
+  const yOrbit = orbit.a * Math.sqrt(1 - orbit.e * orbit.e) * Math.sin(theta);
+  perifocalToWorld(orbit, xOrbit, yOrbit, out);
+}
+
+/**
+ * Inclination (i) and longitude of ascending node (Ω) for an orbit whose plane
+ * has unit normal `(nx, ny, nz)`, both measured against the reference (z=0)
+ * plane: `i = acos(n_z)` and the ascending node lies along `ẑ × n`. Inverse of
+ * the rotation `writeOrbitPosition` applies, so a plane round-trips to the same
+ * on-screen orbit. Used by generation to turn a system's disk / a planet's
+ * equator (given as normals) into stored orbital elements.
+ */
+export function planeToElements(nx: number, ny: number, nz: number): { inclination: number; longitudeAscendingNode: number } {
+  return {
+    inclination: Math.acos(Math.min(1, Math.max(-1, nz))),
+    longitudeAscendingNode: Math.atan2(nx, -ny),
+  };
+}
+
+/**
+ * Tilt the unit normal `(nx, ny, nz)` by `angle` radians toward the in-plane
+ * direction `azimuth`, returning the new unit normal. Used to derive a planet's
+ * orbital plane from its system disk (tilt by the mutual inclination) and its
+ * equatorial / moon plane from that orbit (tilt by the axial obliquity).
+ */
+export function tiltNormal(nx: number, ny: number, nz: number, angle: number, azimuth: number): [number, number, number] {
+  // Seed an in-plane basis from a reference axis that isn't parallel to n:
+  // u = ref × n, with ref = ẑ unless n is nearly vertical (then ref = x̂).
+  let ux: number;
+  let uy: number;
+  let uz: number;
+  if (Math.abs(nz) < 0.999) {
+    ux = -ny;
+    uy = nx;
+    uz = 0;
+  }
+  else {
+    ux = 0;
+    uy = -nz;
+    uz = ny;
+  }
+  const ulen = Math.hypot(ux, uy, uz) || 1;
+  ux /= ulen;
+  uy /= ulen;
+  uz /= ulen;
+  // w = n × u (unit, since n and u are orthonormal)
+  const wx = ny * uz - nz * uy;
+  const wy = nz * ux - nx * uz;
+  const wz = nx * uy - ny * ux;
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  const cosZ = Math.cos(azimuth);
+  const sinZ = Math.sin(azimuth);
+  const dirX = cosZ * ux + sinZ * wx;
+  const dirY = cosZ * uy + sinZ * wy;
+  const dirZ = cosZ * uz + sinZ * wz;
+  return [cosA * nx + sinA * dirX, cosA * ny + sinA * dirY, cosA * nz + sinA * dirZ];
 }
 
 /**
@@ -141,16 +254,24 @@ export function writeOrbitPosition(orbit: OrbitElements, t: number, out: { x: nu
 export function updateOrbits(world: EcsWorld, simSeconds: number): void {
   const years = simSeconds / SECONDS_PER_YEAR;
   const positions = world.getStore(PositionDef);
+  const positionsZ = world.getStore(PositionZDef);
+  const out = { x: 0, y: 0, z: 0 };
   // Pass 1: bodies orbiting a fixed focus (planets around their star, parent < 0).
   for (const [id, orbit] of world.query(OrbitElementsDef)) {
     if (orbit.parent >= 0)
       continue;
     const pos = positions.get(id);
-    if (pos)
-      writeOrbitPosition(orbit, years, pos);
+    if (!pos)
+      continue;
+    writeOrbitPosition(orbit, years, out);
+    pos.x = out.x;
+    pos.y = out.y;
+    const posZ = positionsZ.get(id);
+    if (posZ)
+      posZ.z = out.z;
   }
   // Pass 2: bodies orbiting a moving parent (moons around a planet). The parent
-  // was positioned in pass 1, so its current position is the moon's focus.
+  // was positioned in pass 1, so its current 3D position is the moon's focus.
   for (const [id, orbit] of world.query(OrbitElementsDef)) {
     if (orbit.parent < 0)
       continue;
@@ -160,37 +281,48 @@ export function updateOrbits(world: EcsWorld, simSeconds: number): void {
       continue;
     orbit.cx = parentPos.x;
     orbit.cy = parentPos.y;
-    writeOrbitPosition(orbit, years, pos);
+    orbit.cz = positionsZ.get(orbit.parent)?.z ?? 0;
+    writeOrbitPosition(orbit, years, out);
+    pos.x = out.x;
+    pos.y = out.y;
+    const posZ = positionsZ.get(id);
+    if (posZ)
+      posZ.z = out.z;
   }
 }
 
 const RING_STROKE = 'rgba(150, 180, 230, 0.14)';
 const MIN_RING_PX = 3;
+const RING_SEGMENTS = 96;
 
 /**
  * Draw each orbit as its true ellipse (star at a focus), in screen space,
- * culling off-screen ones. The ellipse centre sits a distance `a·e` from the
- * star toward apoapsis; the semi-minor axis is `a·sqrt(1−e²)`, rotated by
- * `argPeriapsis`.
+ * culling off-screen ones. The ring is sampled as a polyline of the 3D ellipse
+ * projected to x,y (`writeOrbitEllipsePoint`), so an inclined orbit is drawn as
+ * the same foreshortened shape its body traces top-down. The reach test culls
+ * orbits whose bounding circle is fully off-screen.
  */
 export function drawOrbitRings(ctx2d: CanvasRenderingContext2D, cam: Camera, world: EcsWorld): void {
   ctx2d.save();
   ctx2d.lineWidth = 1;
   ctx2d.strokeStyle = RING_STROKE;
+  const point = { x: 0, y: 0, z: 0 };
   for (const [, orbit] of world.query(OrbitElementsDef)) {
-    const semiMajor = orbit.a * cam.zoom;
-    if (semiMajor < MIN_RING_PX)
+    if (orbit.a * cam.zoom < MIN_RING_PX)
       continue;
     const focus = worldToView(orbit.cx, orbit.cy, cam);
     const reach = orbit.a * (1 + orbit.e) * cam.zoom;
     if (focus.vx + reach < 0 || focus.vx - reach > cam.viewportW || focus.vy + reach < 0 || focus.vy - reach > cam.viewportH)
       continue;
-    const offset = orbit.a * orbit.e * cam.zoom;
-    const centerX = focus.vx - offset * Math.cos(orbit.argPeriapsis);
-    const centerY = focus.vy - offset * Math.sin(orbit.argPeriapsis);
-    const semiMinor = semiMajor * Math.sqrt(1 - orbit.e * orbit.e);
     ctx2d.beginPath();
-    ctx2d.ellipse(centerX, centerY, semiMajor, semiMinor, orbit.argPeriapsis, 0, TAU);
+    for (let k = 0; k <= RING_SEGMENTS; k++) {
+      writeOrbitEllipsePoint(orbit, ((k % RING_SEGMENTS) / RING_SEGMENTS) * TAU, point);
+      const v = worldToView(point.x, point.y, cam);
+      if (k === 0)
+        ctx2d.moveTo(v.vx, v.vy);
+      else
+        ctx2d.lineTo(v.vx, v.vy);
+    }
     ctx2d.stroke();
   }
   ctx2d.restore();

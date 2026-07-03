@@ -10,6 +10,9 @@ import {
   DISK_OUTER_AU,
   DISK_OUTER_MAX_AU,
   ECC_MAX,
+  INCLINATION_ECC_RATIO,
+  INCLINATION_MULT_COLD,
+  INCLINATION_MULT_HOT,
   ORBIT_INNER_AU,
   ORBIT_INNER_MIN_AU,
   ORBIT_RATIO_MAX,
@@ -21,6 +24,7 @@ import {
   STAR_DENSITY_PEAK,
 } from '../config/data';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
+import { planeToElements, tiltNormal } from '../sim/orbits';
 import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt, universeAge } from './galaxies';
 import { hashMoon, hashSector, hashSystem } from './hash';
 import { generateMoons } from './moons';
@@ -47,6 +51,8 @@ export interface PlanetData {
   argPeriapsis: number;
   color: string;
   e: number;
+  inclination: number;
+  longitudeAscendingNode: number;
   meanAnomaly0: number;
   moons: MoonData[];
   physical: PlanetPhysical;
@@ -161,7 +167,43 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       // Hill sphere (see generateMoons), scaled by its moon-richness trait.
       const moonRng = makeSeededRng(planetHash);
       const moons = generateMoons(moonRng, planetName, radius, a, physical.mass, star.mass, physical.moonRichness);
-      planets.push({ name: planetName, a, argPeriapsis, color, e, meanAnomaly0, moons, physical, radius });
+      planets.push({ name: planetName, a, argPeriapsis, color, e, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0, moons, physical, radius });
+    }
+
+    // Second pass — 3D orbital orientation. Drawn here, after every planet's own
+    // sampling, so these appended draws never perturb the star / planet / moon
+    // streams: the flat universe is unchanged, it only gains tilt. The disk gets a
+    // uniformly random 3D orientation; each planet tilts from it by a mutual
+    // inclination whose spread scales with its eccentricity (equipartition) and
+    // shrinks as the planet count grows (the Kepler dichotomy); its moons ride the
+    // planet's equatorial plane — the orbit tilted by the axial obliquity.
+    const diskZ = 1 - 2 * srng();
+    const diskAzimuth = srng() * TAU;
+    const diskR = Math.sqrt(Math.max(0, 1 - diskZ * diskZ));
+    const diskNx = diskR * Math.cos(diskAzimuth);
+    const diskNy = diskR * Math.sin(diskAzimuth);
+    const multiplicity = lerp(
+      INCLINATION_MULT_HOT,
+      INCLINATION_MULT_COLD,
+      planetCount > PLANET_MIN ? (planetCount - PLANET_MIN) / (PLANET_MAX - PLANET_MIN) : 0,
+    );
+    for (const planet of planets) {
+      const sigma = INCLINATION_ECC_RATIO * planet.e * multiplicity;
+      const mutualInc = Math.min(Math.PI / 2, sigma * Math.sqrt(-2 * Math.log(1 - srng())));
+      const [onx, ony, onz] = tiltNormal(diskNx, diskNy, diskZ, mutualInc, srng() * TAU);
+      const orbitPlane = planeToElements(onx, ony, onz);
+      planet.inclination = orbitPlane.inclination;
+      planet.longitudeAscendingNode = orbitPlane.longitudeAscendingNode;
+      // Equatorial (moon) plane: the orbit normal tilted by the axial obliquity
+      // around a random azimuth, which is also stored so the sphere can spin on it.
+      const spinAzimuth = srng() * TAU;
+      planet.physical.obliquityAzimuth = spinAzimuth;
+      const [snx, sny, snz] = tiltNormal(onx, ony, onz, planet.physical.obliquity * (Math.PI / 180), spinAzimuth);
+      const equator = planeToElements(snx, sny, snz);
+      for (const moon of planet.moons) {
+        moon.inclination = equator.inclination;
+        moon.longitudeAscendingNode = equator.longitudeAscendingNode;
+      }
     }
 
     systems.push({ name: systemName, planets, radius, star, x, y });

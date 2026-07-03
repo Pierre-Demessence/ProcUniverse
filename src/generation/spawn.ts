@@ -6,7 +6,7 @@ import type { SectorData } from './universe';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
-import { OrbitElementsDef } from '../sim/orbits';
+import { OrbitElementsDef, PositionZDef } from '../sim/orbits';
 import { BlackHoleDef } from './galaxies';
 import { MoonPhysicalDef } from './moons';
 import { NameDef } from './naming';
@@ -35,6 +35,7 @@ export function spawnSector(
   originY: number,
 ): EntityId[] {
   const positions = world.getStore(PositionDef);
+  const positionsZ = world.getStore(PositionZDef);
   const renderables = world.getStore(RenderableDef);
   const orbits = world.getStore(OrbitElementsDef);
   const starPhysicals = world.getStore(StarPhysicalDef);
@@ -63,6 +64,7 @@ export function spawnSector(
     for (const planet of sys.planets) {
       const id = world.createEntity();
       positions.set(id, { x: cx + planet.a, y: cy });
+      positionsZ.set(id, { z: 0 });
       renderables.set(id, {
         fill: planet.color,
         kind: 'circle',
@@ -73,7 +75,10 @@ export function spawnSector(
         argPeriapsis: planet.argPeriapsis,
         cx,
         cy,
+        cz: 0,
         e: planet.e,
+        inclination: planet.inclination,
+        longitudeAscendingNode: planet.longitudeAscendingNode,
         meanAnomaly0: planet.meanAnomaly0,
         parent: -1,
         starMass: sys.star.mass,
@@ -89,13 +94,17 @@ export function spawnSector(
       for (const moon of planet.moons) {
         const moonId = world.createEntity();
         positions.set(moonId, { x: planetX + moon.a, y: cy });
+        positionsZ.set(moonId, { z: 0 });
         renderables.set(moonId, { fill: moon.color, kind: 'circle', radius: moon.radius });
         orbits.set(moonId, {
           a: moon.a,
           argPeriapsis: moon.argPeriapsis,
           cx: planetX,
           cy,
+          cz: 0,
           e: moon.e,
+          inclination: moon.inclination,
+          longitudeAscendingNode: moon.longitudeAscendingNode,
           meanAnomaly0: moon.meanAnomaly0,
           parent: id,
           starMass: planetMassSolar,

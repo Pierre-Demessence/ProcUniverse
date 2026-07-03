@@ -95,6 +95,8 @@ export interface MoonData {
   argPeriapsis: number;
   color: string;
   e: number;
+  inclination: number;
+  longitudeAscendingNode: number;
   meanAnomaly0: number;
   physical: MoonPhysical;
   radius: number;
@@ -157,7 +159,7 @@ export function generateMoons(
     const argPeriapsis = rng() * TAU;
     const meanAnomaly0 = rng() * TAU;
     const physical = sampleMoon(rng);
-    moons.push({ name: nameMoon(planet, moons.length), a, argPeriapsis, color, e, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
+    moons.push({ name: nameMoon(planet, moons.length), a, argPeriapsis, color, e, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0, physical, radius: planetVisualRadius(physical.radius) });
   }
   return moons;
 }

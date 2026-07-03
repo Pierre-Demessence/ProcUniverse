@@ -11,7 +11,7 @@ import { displayName, NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { namingStyle } from '../settings';
-import { OrbitElementsDef } from '../sim/orbits';
+import { OrbitElementsDef, PositionZDef } from '../sim/orbits';
 
 const GAP_PX = 6;
 const CULL_MARGIN_PX = 64;
@@ -101,6 +101,7 @@ export type ScreenProjector = (x: number, y: number, z: number, out: { sx: numbe
  */
 export function drawBodyLabels3D(ctx2d: CanvasRenderingContext2D, world: EcsWorld, project: ScreenProjector, zoom: number): void {
   const positions = world.getStore(PositionDef);
+  const positionsZ = world.getStore(PositionZDef);
   const names = world.getStore(NameDef);
   const orbits = world.getStore(OrbitElementsDef);
   const screen = { sx: 0, sy: 0 };
@@ -114,7 +115,7 @@ export function drawBodyLabels3D(ctx2d: CanvasRenderingContext2D, world: EcsWorl
   const label = (id: number): void => {
     const identity = names.get(id);
     const pos = positions.get(id);
-    if (!identity || !pos || !project(pos.x, pos.y, 0, screen))
+    if (!identity || !pos || !project(pos.x, pos.y, positionsZ.get(id)?.z ?? 0, screen))
       return;
     ctx2d.fillText(displayName(identity, namingStyle.value), screen.sx, screen.sy + GAP_PX);
   };

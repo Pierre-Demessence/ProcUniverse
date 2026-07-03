@@ -28,6 +28,7 @@ export interface PlanetPhysical {
   mass: number;
   moonRichness: number;
   obliquity: number;
+  obliquityAzimuth: number;
   radius: number;
   rotationPeriod: number;
   tidallyLocked: boolean;
@@ -44,6 +45,7 @@ export const PlanetPhysicalDef: ComponentDef<PlanetPhysical> = simpleComponent<P
   mass: 'number',
   moonRichness: 'number',
   obliquity: 'number',
+  obliquityAzimuth: 'number',
   radius: 'number',
   rotationPeriod: 'number',
   tidallyLocked: 'boolean',
@@ -203,7 +205,11 @@ export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, 
   const temperature = equilibriumTemp(luminositySolar, a, albedoFor(type));
   const hz = habitableZone(luminositySolar);
   const naturalRotation = sampleRotationPeriod(rng, type);
-  const obliquity = rng() * 180;
+  // Axial tilt drawn isotropically (uniform in cosθ over [0, 180°]) — the realistic
+  // outcome of giant impacts, giving Uranus-like sideways and Venus-like retrograde
+  // tilts their fair share. The direction the axis leans (`obliquityAzimuth`, which
+  // sets the equatorial/moon plane) is filled later by the generation pass.
+  const obliquity = Math.acos(1 - 2 * rng()) * (180 / Math.PI);
   // A per-planet formation-luck trait in [0, 1) feeding the moon model (see
   // moons.ts): kept as this planet's fourth draw so the stream is unchanged.
   const moonRichness = rng();
@@ -219,6 +225,7 @@ export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, 
     mass,
     moonRichness,
     obliquity,
+    obliquityAzimuth: 0,
     radius,
     rotationPeriod: tidallyLocked ? orbitalPeriodYears * HOURS_PER_YEAR : naturalRotation,
     tidallyLocked,

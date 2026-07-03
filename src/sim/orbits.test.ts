@@ -5,21 +5,21 @@ import { PositionDef } from '@pierre/ecs/modules/transform';
 import { describe, expect, it } from 'vitest';
 
 import { SECONDS_PER_YEAR } from '../generation/units';
-import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, updateOrbits, writeOrbitPosition } from './orbits';
+import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, planeToElements, PositionZDef, tiltNormal, updateOrbits, writeOrbitPosition } from './orbits';
 
 function makeOrbit(overrides: Partial<OrbitElements> = {}): OrbitElements {
-  return { a: 100, argPeriapsis: 0, cx: 0, cy: 0, e: 0, meanAnomaly0: 0, parent: -1, starMass: 1, ...overrides };
+  return { a: 100, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: -1, starMass: 1, ...overrides };
 }
 
 function distance(orbit: OrbitElements, t: number): number {
-  const out = { x: 0, y: 0 };
+  const out = { x: 0, y: 0, z: 0 };
   writeOrbitPosition(orbit, t, out);
   return Math.hypot(out.x - orbit.cx, out.y - orbit.cy);
 }
 
 function step(orbit: OrbitElements, t: number, dt: number): number {
-  const p0 = { x: 0, y: 0 };
-  const p1 = { x: 0, y: 0 };
+  const p0 = { x: 0, y: 0, z: 0 };
+  const p1 = { x: 0, y: 0, z: 0 };
   writeOrbitPosition(orbit, t, p0);
   writeOrbitPosition(orbit, t + dt, p1);
   return Math.hypot(p1.x - p0.x, p1.y - p0.y);
@@ -51,8 +51,8 @@ describe('writeOrbitPosition', () => {
   it('returns to the start after exactly one period', () => {
     const orbit = makeOrbit({ a: 120, argPeriapsis: 1.1, e: 0.3, meanAnomaly0: 0.5, starMass: 2 });
     const period = orbitalPeriod(orbit.starMass, orbit.a);
-    const start = { x: 0, y: 0 };
-    const looped = { x: 0, y: 0 };
+    const start = { x: 0, y: 0, z: 0 };
+    const looped = { x: 0, y: 0, z: 0 };
     writeOrbitPosition(orbit, 0, start);
     writeOrbitPosition(orbit, period, looped);
     expect(looped.x).toBeCloseTo(start.x, 5);
@@ -84,6 +84,62 @@ describe('writeOrbitPosition', () => {
   });
 });
 
+describe('writeOrbitPosition in 3D', () => {
+  it('stays in the z=0 plane when inclination is zero', () => {
+    const orbit = makeOrbit({ a: 100, argPeriapsis: 0.7, e: 0.3, meanAnomaly0: 1.2 });
+    const out = { x: 0, y: 0, z: 0 };
+    for (let k = 0; k < 6; k++) {
+      writeOrbitPosition(orbit, k * 5, out);
+      expect(out.z).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('tilts the orbit out of plane by the inclination, keeping the distance to the focus', () => {
+    const flat = makeOrbit({ a: 100, meanAnomaly0: Math.PI / 2 });
+    const tilted = makeOrbit({ a: 100, inclination: Math.PI / 6, meanAnomaly0: Math.PI / 2 });
+    const a = { x: 0, y: 0, z: 0 };
+    const b = { x: 0, y: 0, z: 0 };
+    writeOrbitPosition(flat, 0, a);
+    writeOrbitPosition(tilted, 0, b);
+    // Same eccentric anomaly → same distance from the focus, now with a z component.
+    expect(Math.hypot(a.x, a.y, a.z)).toBeCloseTo(Math.hypot(b.x, b.y, b.z), 6);
+    expect(Math.abs(b.z)).toBeGreaterThan(1);
+  });
+
+  it('rotates the ascending node about z without changing the distance to the focus', () => {
+    const base = makeOrbit({ a: 100, inclination: Math.PI / 6, meanAnomaly0: 0.9 });
+    const swung = makeOrbit({ a: 100, inclination: Math.PI / 6, longitudeAscendingNode: Math.PI / 3, meanAnomaly0: 0.9 });
+    const a = { x: 0, y: 0, z: 0 };
+    const b = { x: 0, y: 0, z: 0 };
+    writeOrbitPosition(base, 0, a);
+    writeOrbitPosition(swung, 0, b);
+    expect(Math.hypot(a.x, a.y, a.z)).toBeCloseTo(Math.hypot(b.x, b.y, b.z), 6);
+    // Ω rotates about z, so z is unchanged while x,y differ.
+    expect(b.z).toBeCloseTo(a.z, 6);
+    expect(Math.abs(b.x - a.x) + Math.abs(b.y - a.y)).toBeGreaterThan(1);
+  });
+});
+
+describe('orbital-plane geometry', () => {
+  it('reports zero inclination for the +z (flat) normal', () => {
+    expect(planeToElements(0, 0, 1).inclination).toBeCloseTo(0, 9);
+  });
+
+  it('tilts the +z normal by exactly the given angle', () => {
+    const [x, y, z] = tiltNormal(0, 0, 1, Math.PI / 4, 0);
+    expect(Math.hypot(x, y, z)).toBeCloseTo(1, 9);
+    expect(z).toBeCloseTo(Math.cos(Math.PI / 4), 9);
+    expect(planeToElements(x, y, z).inclination).toBeCloseTo(Math.PI / 4, 9);
+  });
+
+  it('leaves the normal unchanged when the tilt angle is zero', () => {
+    const [x, y, z] = tiltNormal(0, 0, 1, 0, 1.3);
+    expect(x).toBeCloseTo(0, 9);
+    expect(y).toBeCloseTo(0, 9);
+    expect(z).toBeCloseTo(1, 9);
+  });
+});
+
 describe('orbit derived quantities', () => {
   it('gives periapsis a(1−e) and apoapsis a(1+e)', () => {
     const orbit = makeOrbit({ a: 100, e: 0.4 });
@@ -111,6 +167,7 @@ describe('updateOrbits with moons', () => {
   it('keeps a moon centred on its planet as the planet moves along its own orbit', () => {
     const world = new EcsWorld();
     world.registerComponent(PositionDef);
+    world.registerComponent(PositionZDef);
     world.registerComponent(OrbitElementsDef);
     const positions = world.getStore(PositionDef);
     const orbits = world.getStore(OrbitElementsDef);
@@ -118,13 +175,13 @@ describe('updateOrbits with moons', () => {
     // A planet on a 1 AU circular orbit around a star fixed at the origin.
     const planet = world.createEntity();
     positions.set(planet, { x: 0, y: 0 });
-    orbits.set(planet, { a: 1, argPeriapsis: 0, cx: 0, cy: 0, e: 0, meanAnomaly0: 0, parent: -1, starMass: 1 });
+    orbits.set(planet, { a: 1, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: -1, starMass: 1 });
 
     // A moon on a tight circular orbit around that planet (parent = planet id),
     // with the planet's mass (solar units) as its central mass.
     const moon = world.createEntity();
     positions.set(moon, { x: 0, y: 0 });
-    orbits.set(moon, { a: 0.01, argPeriapsis: 0, cx: 0, cy: 0, e: 0, meanAnomaly0: 0, parent: planet, starMass: 3e-6 });
+    orbits.set(moon, { a: 0.01, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: planet, starMass: 3e-6 });
 
     // A quarter period in: the planet has swept away from its start, so a moon
     // still centred on the origin would be ~1 AU off. Pass 2 must re-focus it.

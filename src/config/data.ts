@@ -80,3 +80,13 @@ export const ORBIT_RATIO_OUTER_MAX = 2.5;
 export const DISK_OUTER_AU = 50;
 export const DISK_OUTER_MAX_AU = 150;
 export const ECC_MAX = 0.4;
+
+// Orbital inclination (3D tilt). A planet's tilt from its system's mean plane is
+// Rayleigh-distributed with a spread proportional to its own eccentricity —
+// dynamically hot orbits are both stretched and tilted (energy equipartition,
+// Xie et al. 2016) — and scaled by a multiplicity factor that shrinks as the
+// planet count grows, so crowded systems stay flat and sparse ones run tilted
+// (the "Kepler dichotomy"). σ_i(rad) = INCLINATION_ECC_RATIO · e · factor.
+export const INCLINATION_ECC_RATIO = 0.5;
+export const INCLINATION_MULT_HOT = 2.5;
+export const INCLINATION_MULT_COLD = 1;

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { frameZoom, maxApoapsis } from './focus';
 
 function orbit(a: number, e: number): OrbitElements {
-  return { a, argPeriapsis: 0, cx: 0, cy: 0, e, meanAnomaly0: 0, parent: -1, starMass: 1 };
+  return { a, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: -1, starMass: 1 };
 }
 
 describe('frameZoom', () => {
