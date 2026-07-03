@@ -228,6 +228,11 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
 
   let lockedId: EntityId | null = null;
+  // The 3D camera's look-at height. Tracks a locked body's out-of-plane z and is
+  // RETAINED on unlock, so unlocking (or a pan, which releases the lock) never
+  // snaps the view back to the ground plane and loses the body. Reset by
+  // Return-to-origin.
+  let focusZ = 0;
 
   const setSelection = (next: Selection | null): void => {
     selection = next;
@@ -330,6 +335,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   // panning far across the universe.
   const onResetView = (): void => {
     lockedId = null;
+    focusZ = 0;
     controller.resetOrbit();
     frameOrigin();
   };
@@ -360,8 +366,8 @@ export function start(container: HTMLElement, save: Save): () => void {
     // frame so the tier, origin, streaming, and render are all consistent with
     // the body at the centre of the view. Zoom is NOT changed — Lock never
     // zooms, only pins the body. `focusZ` carries the body's out-of-plane height
-    // so the 3D camera looks at its true position, not its z=0 projection.
-    let focusZ = 0;
+    // so the 3D camera looks at its true position, not its z=0 projection; it is
+    // retained on unlock (see its declaration) so the view doesn't jump.
     if (lockedId !== null) {
       const p = lockedBodyLocalPos(world, lockedId, simSeconds);
       if (p) {
