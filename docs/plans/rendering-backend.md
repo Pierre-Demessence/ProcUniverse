@@ -6,8 +6,10 @@ nebula effects, and (c) optionally show planets as textured spheres and/or go
 3D — all without throwing away the deterministic generation, physics, sim, and
 HUD layers already built.
 
-> Status: **design approved, scheduled later.** No code yet — this lands after
-> the realism/data session. Decisions captured in §10; the stages in §7 reflect
+> Status: **work in progress.** Stages 0, 1 (partial — LOD retune remains), and
+> 3 (partial — system-tier camera, spheres, inclined orbits, and Z landed; see
+> [true-3d-systems.md](done/true-3d-systems.md)) are implemented. Stages 2, 4,
+> and 5 are not yet started. Decisions captured in §10; the stages in §7 reflect
 > them (full 3D on Three.js, WebGPU-with-WebGL2-fallback, R1 + R2 first).
 
 ## 1. TL;DR recommendation
@@ -271,13 +273,24 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
 
 ### Stage 3 — True 3D plumbing
 
-- [ ] Add **Z** to generation (sectors, cosmic web, galaxy disk thickness +
-      inclination); keep determinism (append draws, never reorder).
-- [ ] **Inclined orbits** (§6C): per-system disk plane + small per-planet
+> Status (2026-07-02): **3D-A + 3D-B landed** — orbit/tilt camera, lit rotating
+> spheres, 3D orbit rings, 3D-projected labels, raycast picking, inclined orbits,
+> and a Z coordinate (system tier only; see
+> [true-3d-systems.md](done/true-3d-systems.md)). Remaining items extend 3D
+> beyond the system tier.
+
+- [ ] Add **Z** to generation **beyond the system tier** (sectors, cosmic web,
+      galaxy disk thickness + inclination); keep determinism (append draws,
+      never reorder).
+- [x] **Inclined orbits** (§6C): per-system disk plane + small per-planet
       inclination in `sim/orbits.ts`.
-- [ ] Distance-based LOD, raycast picking, 3D floating-origin rebase; unlock
-      full camera tilt / fly.
-- [ ] **"View as flat"** toggle (camera top-down / inclinations zeroed).
+- [x] Raycast picking; full camera tilt / fly; 3D floating-origin rebase.
+- [ ] Distance-based LOD (still uses 2D zoom for tier selection).
+- [x] **"View as flat"** toggle (camera top-down). A contextual button inside a
+      system snaps the tilted 3D view straight top-down and back to the prior
+      angle; **camera-only** (orbits keep their true projected shape — the
+      inclinations are not re-flattened at draw time). See
+      [flat-view-toggle.md](flat-view-toggle.md).
 
 ### Stage 4 — Sphere planets + procedural textures (R3)
 
