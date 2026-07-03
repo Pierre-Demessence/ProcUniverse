@@ -203,7 +203,7 @@ tilt so the sphere and its moon disk agree.
       updateOrbits test. Data-realism tests: mutual inclination grows with `e`
       (equipartition) and shrinks with planet count (dichotomy); obliquity spans
       past 90° (isotropic); moons coplanar with their planet's equatorial plane.
-- [ ] Static pipeline (`npm run build`, `npm test`, `npm run lint`) + peer review
+- [x] Static pipeline (`npm run build`, `npm test`, `npm run lint`) + peer review
       (fast model) + Pierre browser A/B.
 
 ## Invariants (do not regress)
