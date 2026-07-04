@@ -40,8 +40,10 @@ export const REBASE_SECTORS = 8;
 // staying off the degenerate pole, so the view reads as top-down (orbits as
 // circles) without the orientation collapsing.
 // `SPHERE_*_SEGMENTS` set the sphere tesselation; `STAR_SPIN_RATE` spins stars
-// (which carry no rotation data) slowly. `LIGHT_AMBIENT` + `LIGHT_KEY` shade the
-// non-emissive planets/moons.
+// (which carry no rotation data) slowly. `LIGHT_AMBIENT` is the small fill that
+// keeps a body's star-facing-away side readable; `LIGHT_STAR_BASE` is the
+// point-light intensity for a Sun-luminosity star placed at the star's position
+// (scaled per star by luminosity in `starLightIntensity`).
 export const CAMERA_FOV_DEG = 50;
 export const ORBIT_SENSITIVITY = 0.006;
 export const TILT_MIN = 0.08;
@@ -51,8 +53,21 @@ export const FLAT_TILT = 0.02;
 export const SPHERE_WIDTH_SEGMENTS = 32;
 export const SPHERE_HEIGHT_SEGMENTS = 24;
 export const STAR_SPIN_RATE = 5e-8;
-export const LIGHT_AMBIENT = 0.35;
-export const LIGHT_KEY = 1.1;
+export const LIGHT_AMBIENT = 0.15;
+export const LIGHT_STAR_BASE = 3;
+// Star corona via a post-process bloom pass on the system tier. Stars are
+// boosted to HDR (their surface colour × `STAR_EMISSIVE_STRENGTH`) so their core
+// exceeds `BLOOM_THRESHOLD` while lit planets (rarely brighter than the
+// threshold) mostly do not — selective bloom without MRT plumbing.
+// `BLOOM_STRENGTH` scales the added glow; `BLOOM_RADIUS` its spread.
+// `STAR_MIN_SCREEN_PX` floors a star's on-screen radius so its true disc, which
+// shrinks below a pixel from a distant planet, never fully vanishes — bloom then
+// renders the floored dot as a glowing glare point, as a real star stays visible.
+export const STAR_EMISSIVE_STRENGTH = 4;
+export const STAR_MIN_SCREEN_PX = 2.5;
+export const BLOOM_STRENGTH = 0.9;
+export const BLOOM_RADIUS = 0.6;
+export const BLOOM_THRESHOLD = 1.5;
 // MSAA on the Three canvas — smooths sphere / orbit-ring edges. Kept on: the
 // system view is not fill-rate bound (the earlier FPS drop was per-object orbit-
 // ring overhead, since merged into a single draw call), so MSAA is affordable.

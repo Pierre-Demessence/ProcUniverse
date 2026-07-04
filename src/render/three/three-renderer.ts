@@ -21,19 +21,24 @@ import type { SectorRange } from '../../lod/tier';
 import type { BodyKind, PickResult } from '../../pick';
 import type { OrbitElements } from '../../sim/orbits';
 import type { GlowField } from './glow-fields';
+import type { StarMaterialHandle } from './star-material';
 
 import { worldToView } from '@pierre/ecs/modules/camera';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
-import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DirectionalLight, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, Quaternion, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { pass } from 'three/tsl';
+import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, RenderPipeline, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
-import { CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_KEY, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_SPIN_RATE } from '../../config/render';
+import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
 import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
 import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
+import { createStarMaterial } from './star-material';
+import { starLightIntensity } from './star-surface';
 
 /** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
 const BACKGROUND = 0x05060D;
@@ -138,6 +143,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly glowTexture: CanvasTexture;
   private readonly group: Group;
   private readonly perspective: PerspectiveCamera;
+  /** Post-process pipeline (scene → bloom) for the system tier; null until ready. */
+  private pipeline: RenderPipeline | null = null;
   private readonly pool: Mesh[] = [];
   private readonly raycaster = new Raycaster();
   /** True once `init()` has resolved; `render` is a no-op before then. */
@@ -150,8 +157,17 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly sphereGeometry: SphereGeometry;
   private starCapacity = 0;
   private readonly starGeometry: CircleGeometry;
+  /**
+   * A single point light for the system in view, placed at the star nearest the
+   * camera focus. One light (not one per star) so the many stars streamed into
+   * the world — neighbouring systems, frustum-clipped from view — cannot stack
+   * their (decay-free, infinite-reach) illumination and blow the planets out.
+   */
+  private starLight: PointLight | null = null;
   private readonly starMaterial: MeshBasicMaterial;
   private starMesh: InstancedMesh | null = null;
+  /** Star spheres get a dedicated procedural material (not the shared lit pool). */
+  private readonly starSpherePool: { handle: StarMaterialHandle; mesh: Mesh }[] = [];
   private readonly tmpAxis = new Vector3();
   private readonly tmpColor = new Color();
   private readonly tmpQuat = new Quaternion();
@@ -181,27 +197,41 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.glowTexture = makeGlowTexture();
     this.glowGeometry = new PlaneGeometry(1, 1);
     this.glowMaterial = new MeshBasicMaterial({ blending: AdditiveBlending, depthTest: false, depthWrite: false, map: this.glowTexture, side: DoubleSide, transparent: true });
-    // Lights shade the (non-emissive) planet / moon spheres; emissive stars and
-    // the unlit instanced tiers ignore them.
+    // Ambient fills the star-facing-away side just enough to stay readable; the
+    // directional key from the previous prototype is replaced by a single point
+    // light placed at the star nearest the focus (created on demand in `render`),
+    // so bodies are lit from the actual star and the lit face tracks their orbit.
     this.scene.add(new AmbientLight(0xFFFFFF, LIGHT_AMBIENT));
-    const keyLight = new DirectionalLight(0xFFFFFF, LIGHT_KEY);
-    keyLight.position.set(1, 1, 2);
-    this.scene.add(keyLight);
     this.ringMaterial = new LineBasicMaterial({ color: RING_COLOR, opacity: RING_OPACITY, transparent: true });
     this.renderer.init().then(() => {
       this.ready = true;
       // Record + report the active backend so the WebGPU / WebGL2-fallback path
       // is verifiable in the console and shown in the HUD renderer indicator.
-      this.backendLabel = this.renderer.backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
+      // `isWebGPUBackend` lives on the concrete WebGPU backend, not the base type.
+      const backend = this.renderer.backend as { isWebGPUBackend?: boolean } | undefined;
+      this.backendLabel = backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
       console.warn(`ProcUniverse: Three.js renderer ready (${this.backendLabel}).`);
+      // System-tier post-processing: render the scene, then add a bloom of its
+      // HDR-bright pixels (the stars) so they gain a corona. Built once the
+      // renderer is initialised; the glow tiers keep rendering directly.
+      const scenePass = pass(this.scene, this.perspective);
+      const bloomPass = bloom(scenePass, BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD);
+      const pipeline = new RenderPipeline(this.renderer);
+      pipeline.outputNode = scenePass.add(bloomPass);
+      this.pipeline = pipeline;
     }).catch((error: unknown) => {
       console.error('ProcUniverse: Three.js renderer failed to initialise.', error);
     });
   }
 
   dispose(): void {
+    this.pipeline?.dispose();
     for (const mesh of this.pool)
       (mesh.material as MeshStandardMaterial).dispose();
+    for (const entry of this.starSpherePool)
+      entry.handle.dispose();
+    if (this.starLight)
+      this.scene.remove(this.starLight);
     this.starMesh?.dispose();
     this.starGeometry.dispose();
     this.starMaterial.dispose();
@@ -312,6 +342,32 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return mesh;
   }
 
+  /** The system's single star light, created (decay-free) on first use. */
+  private obtainStarLight(): PointLight {
+    if (!this.starLight) {
+      // decay = 0: constant across the system so every planet stays lit
+      // (readability over strict inverse-square; a tuning call per the plan).
+      this.starLight = new PointLight(0xFFFFFF, LIGHT_STAR_BASE, 0, 0);
+      this.scene.add(this.starLight);
+    }
+    this.starLight.visible = true;
+    return this.starLight;
+  }
+
+  /** Reuse a pooled star sphere (procedural self-lit material), creating one on first use. */
+  private obtainStarSphere(index: number): { handle: StarMaterialHandle; mesh: Mesh } {
+    let entry = this.starSpherePool[index];
+    if (!entry) {
+      const handle = createStarMaterial(STAR_EMISSIVE_STRENGTH);
+      const mesh = new Mesh(this.sphereGeometry, handle.material);
+      entry = { handle, mesh };
+      this.starSpherePool.push(entry);
+      this.group.add(mesh);
+    }
+    entry.mesh.visible = true;
+    return entry;
+  }
+
   /**
    * Orient a planet sphere so its pole points along its spin axis — the orbital
    * plane normal tilted by the axial obliquity around the stored azimuth — then
@@ -363,9 +419,10 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   /**
    * SYSTEM tier: draw the streamed bodies as lit, rotating 3D spheres viewed by
    * a perspective camera the user can orbit / tilt. `camera` is in the floating
-   * render-origin frame; orbits stay coplanar (z=0). Stars are emissive, planets
-   * and moons are lit, the black hole is a dark shaded sphere. Bodies reuse a
-   * pooled sphere mesh; the surplus is hidden.
+   * render-origin frame; orbits stay coplanar (z=0). Stars use a procedural
+   * self-lit surface shader and light their planets/moons via a point light at
+   * the star; the black hole is a dark shaded sphere. Bodies reuse pooled sphere
+   * meshes; the surplus is hidden.
    */
   render(ctx: ThreeRenderContext): void {
     if (!this.ready)
@@ -381,6 +438,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const positions = world.getStore(PositionDef);
     const positionsZ = world.getStore(PositionZDef);
     const planets = world.getStore(PlanetPhysicalDef);
+    const stars = world.getStore(StarPhysicalDef);
     const orbits = world.getStore(OrbitElementsDef);
     const focusX = camera.x + camera.offsetX;
     const focusY = camera.y + camera.offsetY;
@@ -389,9 +447,17 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // systems — light-years away — are clipped rather than drawn (bodies and
     // labels) behind the current one.
     const sceneRadius = this.focusedSystemReach(world, focusX, focusY);
+    // Position the perspective camera up front: the star size-floor below needs
+    // the camera's world position, and nothing between here and the final draw
+    // depends on the previous frame's camera.
+    this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ, planeNormal);
+    // World units per screen pixel factor: an object of world radius r at camera
+    // distance d spans `pxFactor · r / d` pixels tall-half. Used to floor a
+    // star's on-screen size so a distant star never shrinks to nothing.
+    const pxFactor = this.viewH / (2 * Math.tan((CAMERA_FOV_DEG * DEG2RAD) / 2));
     let used = 0;
 
-    const place = (id: number, kind: BodyKind, emissive: boolean, colorOverride: string | null): Mesh | null => {
+    const place = (id: number, kind: BodyKind, colorOverride: string | null): Mesh | null => {
       const renderable = renderables.get(id);
       const position = positions.get(id);
       if (!renderable || renderable.kind !== 'circle' || !position)
@@ -400,9 +466,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       const mesh = this.obtainSphere(used++);
       mesh.position.set(position.x, position.y, positionsZ.get(id)?.z ?? 0);
       mesh.scale.setScalar(renderable.radius);
-      const material = mesh.material as MeshStandardMaterial;
-      material.color.set(emissive ? '#000000' : fill);
-      material.emissive.set(emissive ? fill : '#000000');
+      (mesh.material as MeshStandardMaterial).color.set(fill);
       const data = mesh.userData as { id: number; kind: BodyKind };
       data.id = id;
       data.kind = kind;
@@ -410,10 +474,59 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     };
 
     const starSpin = simSeconds * STAR_SPIN_RATE;
-    for (const [id] of world.query(StarPhysicalDef))
-      place(id, 'star', true, null)?.rotation.set(0, starSpin, 0);
+    const wallClock = performance.now() / 1000;
+    let starsUsed = 0;
+    // Track the star nearest the camera focus — the system in view — to carry
+    // the single scene light (see `starLight`).
+    let nearestStarD2 = Infinity;
+    let litColor: string | null = null;
+    let litLuminosity = 0;
+    for (const [id] of world.query(StarPhysicalDef)) {
+      const renderable = renderables.get(id);
+      const position = positions.get(id);
+      const star = stars.get(id);
+      if (!renderable || renderable.kind !== 'circle' || !position || !star)
+        continue;
+      const { handle, mesh } = this.obtainStarSphere(starsUsed);
+      mesh.position.set(position.x, position.y, positionsZ.get(id)?.z ?? 0);
+      // Floor the on-screen size: a star's true disc shrinks below a pixel from
+      // a distant planet and vanishes, but a real star stays a bright glare
+      // point — so never draw it smaller than `STAR_MIN_SCREEN_PX` (bloom then
+      // turns the floored dot into a visible glow). Guard the pre-resize case
+      // where `pxFactor` is 0 (avoids an infinite radius).
+      const distToCam = this.perspective.position.distanceTo(mesh.position);
+      const minRadius = pxFactor > 0 ? (STAR_MIN_SCREEN_PX * distToCam) / pxFactor : 0;
+      mesh.scale.setScalar(Math.max(renderable.radius, minRadius));
+      mesh.rotation.set(0, starSpin, 0);
+      handle.setStar(renderable.fill ?? DEFAULT_FILL, star.temperature);
+      handle.setTime(wallClock);
+      const data = mesh.userData as { id: number; kind: BodyKind };
+      data.id = id;
+      data.kind = 'star';
+      const dx = position.x - focusX;
+      const dy = position.y - focusY;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < nearestStarD2) {
+        nearestStarD2 = d2;
+        litColor = renderable.fill ?? DEFAULT_FILL;
+        litLuminosity = star.luminosity;
+        this.tmpVec.copy(mesh.position);
+      }
+      starsUsed++;
+    }
+    // One light at the focused system's star, tinted + scaled to it. Lights the
+    // planets/moons on their star-facing side without stacking (see `starLight`).
+    if (litColor !== null) {
+      const light = this.obtainStarLight();
+      light.position.copy(this.tmpVec);
+      light.color.set(litColor);
+      light.intensity = starLightIntensity(litLuminosity, LIGHT_STAR_BASE);
+    }
+    else if (this.starLight) {
+      this.starLight.visible = false;
+    }
     for (const [id] of world.query(PlanetPhysicalDef)) {
-      const mesh = place(id, 'planet', false, null);
+      const mesh = place(id, 'planet', null);
       if (!mesh)
         continue;
       const planet = planets.get(id);
@@ -424,19 +537,28 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         mesh.rotation.set(0, 0, 0);
     }
     for (const [id] of world.query(MoonPhysicalDef))
-      place(id, 'moon', false, null)?.rotation.set(0, 0, 0);
+      place(id, 'moon', null)?.rotation.set(0, 0, 0);
     for (const [id] of world.query(BlackHoleDef))
-      place(id, 'black-hole', false, BLACK_HOLE_COLOR)?.rotation.set(0, 0, 0);
+      place(id, 'black-hole', BLACK_HOLE_COLOR)?.rotation.set(0, 0, 0);
 
     for (let i = used; i < this.pool.length; i++) {
       const mesh = this.pool[i];
       if (mesh)
         mesh.visible = false;
     }
+    for (let i = starsUsed; i < this.starSpherePool.length; i++) {
+      const entry = this.starSpherePool[i];
+      if (entry)
+        entry.mesh.visible = false;
+    }
 
-    this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ, planeNormal);
     this.updateOrbitRings(world, camera);
-    this.renderer.render(this.scene, this.perspective);
+    // Render through the bloom pipeline once built; the scene pass inside it
+    // uses the perspective camera positioned above.
+    if (this.pipeline)
+      this.pipeline.render();
+    else
+      this.renderer.render(this.scene, this.perspective);
   }
 
   /** GALAXY tier: aggregate galaxy-density glow (one draw call). Mirrors `drawGalaxy`. */
