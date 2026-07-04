@@ -10,6 +10,8 @@
  * that should outlive a seed reset live in `preferences.ts`.
  */
 
+import type { Bookmark } from '../bookmarks';
+
 import { DEFAULT_SPEED_INDEX, SPEED_STEPS } from '../config/render';
 
 const SAVE_KEY = 'procuniverse:save';
@@ -24,6 +26,7 @@ export interface SavedView {
 
 /** The full persisted save: the world seed plus seed-bound session state. */
 export interface Save {
+  bookmarks: Bookmark[];
   seed: number;
   simSeconds: number;
   speedIndex: number;
@@ -36,7 +39,7 @@ function mintSeed(): number {
 }
 
 function freshSave(seed: number): Save {
-  return { seed, simSeconds: 0, speedIndex: DEFAULT_SPEED_INDEX, version: SAVE_VERSION, view: null };
+  return { bookmarks: [], seed, simSeconds: 0, speedIndex: DEFAULT_SPEED_INDEX, version: SAVE_VERSION, view: null };
 }
 
 function isSpeedIndex(value: unknown): value is number {
@@ -57,6 +60,37 @@ function parseView(value: unknown): SavedView | null {
   return null;
 }
 
+const BOOKMARK_KINDS = new Set<string>(['black-hole', 'galaxy', 'moon', 'planet', 'star', 'universe']);
+
+function parseBookmark(value: unknown): Bookmark | null {
+  if (typeof value !== 'object' || value === null)
+    return null;
+  const { name, extentAu, kind, label, x, y } = value as Record<string, unknown>;
+  if (
+    typeof name === 'string'
+    && typeof label === 'string'
+    && typeof kind === 'string' && BOOKMARK_KINDS.has(kind)
+    && typeof x === 'number' && Number.isFinite(x)
+    && typeof y === 'number' && Number.isFinite(y)
+    && typeof extentAu === 'number' && Number.isFinite(extentAu) && extentAu > 0
+  ) {
+    return { name, extentAu, kind: kind as Bookmark['kind'], label, x, y };
+  }
+  return null;
+}
+
+function parseBookmarks(value: unknown): Bookmark[] {
+  if (!Array.isArray(value))
+    return [];
+  const out: Bookmark[] = [];
+  for (const item of value) {
+    const bm = parseBookmark(item);
+    if (bm)
+      out.push(bm);
+  }
+  return out;
+}
+
 /**
  * Parse a stored save payload. Returns null when the seed is missing or invalid
  * (the caller mints a fresh universe); otherwise fills sensible defaults for any
@@ -74,10 +108,11 @@ export function parseSave(raw: string | null): Save | null {
   }
   if (typeof value !== 'object' || value === null)
     return null;
-  const { seed, simSeconds, speedIndex, view } = value as Record<string, unknown>;
+  const { bookmarks, seed, simSeconds, speedIndex, view } = value as Record<string, unknown>;
   if (typeof seed !== 'number' || !Number.isInteger(seed) || seed < 0)
     return null;
   return {
+    bookmarks: parseBookmarks(bookmarks),
     seed: seed >>> 0,
     simSeconds: typeof simSeconds === 'number' && Number.isFinite(simSeconds) && simSeconds >= 0 ? simSeconds : 0,
     speedIndex: isSpeedIndex(speedIndex) ? speedIndex : DEFAULT_SPEED_INDEX,

@@ -37,13 +37,14 @@ import { detailLevel, distanceUnit, namingStyle, numberNotation, temperatureUnit
 import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis } from '../sim/orbits';
 
 export interface InspectorActions {
+  onToggleBookmark: () => void;
   onToggleLock: () => void;
   onZoomTo: () => void;
 }
 
 export interface Inspector {
   dispose: () => void;
-  update: (world: EcsWorld, selection: Selection | null, lockedId: EntityId | null) => void;
+  update: (world: EcsWorld, selection: Selection | null, lockedId: EntityId | null, bookmarked: boolean) => void;
 }
 
 // Kelvin offset of the Celsius zero point (0 °C = 273.15 K).
@@ -453,6 +454,7 @@ function GalaxyPanel({ footer, galaxy }: { footer?: VNode; galaxy: GalaxyParams 
 
 interface InspectorPanelProps {
   actions: InspectorActions;
+  bookmarked: Signal<boolean>;
   lockedId: Signal<EntityId | null>;
   selection: Signal<Selection | null>;
   getWorld: () => EcsWorld | null;
@@ -472,7 +474,7 @@ function countMoons(world: EcsWorld, planetId: EntityId): number {
   return count;
 }
 
-function InspectorPanel({ actions, getWorld, lockedId, selection }: InspectorPanelProps): VNode | null {
+function InspectorPanel({ actions, bookmarked, getWorld, lockedId, selection }: InspectorPanelProps): VNode | null {
   const sel = selection.value;
   if (!sel)
     return null;
@@ -495,6 +497,13 @@ function InspectorPanel({ actions, getWorld, lockedId, selection }: InspectorPan
           {isLocked ? 'Unlock' : 'Lock'}
         </button>
       )}
+      <button
+        style={`${ACTION_BUTTON_CSS}; ${bookmarked.value ? 'color:rgba(255,210,100,0.85)' : ''}`}
+        type="button"
+        onClick={actions.onToggleBookmark}
+      >
+        {bookmarked.value ? '★ Bookmarked' : '☆ Bookmark'}
+      </button>
     </div>
   );
 
@@ -537,26 +546,25 @@ function InspectorPanel({ actions, getWorld, lockedId, selection }: InspectorPan
  * `dispose` unmounts and detaches it.
  */
 export function createInspector(container: HTMLElement, actions: InspectorActions): Inspector {
+  const bookmarked = signal<boolean>(false);
   const selection = signal<Selection | null>(null);
   const lockedId = signal<EntityId | null>(null);
   let world: EcsWorld | null = null;
 
   const mount = document.createElement('div');
   container.append(mount);
-  render(<InspectorPanel actions={actions} getWorld={() => world} lockedId={lockedId} selection={selection} />, mount);
+  render(<InspectorPanel actions={actions} bookmarked={bookmarked} getWorld={() => world} lockedId={lockedId} selection={selection} />, mount);
 
   return {
     dispose(): void {
       render(null, mount);
       mount.remove();
     },
-    update(nextWorld: EcsWorld, nextSelection: Selection | null, nextLockedId: EntityId | null): void {
+    update(nextWorld: EcsWorld, nextSelection: Selection | null, nextLockedId: EntityId | null, nextBookmarked: boolean): void {
       world = nextWorld;
-      // Called every frame: the render loop holds stable references between
-      // picks, so these assignments are Object.is no-ops until something
-      // actually changes, and the panel re-renders only then.
       selection.value = nextSelection;
       lockedId.value = nextLockedId;
+      bookmarked.value = nextBookmarked;
     },
   };
 }

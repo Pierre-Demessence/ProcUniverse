@@ -1,6 +1,7 @@
 import type { EntityId } from '@pierre/ecs/entity-id';
 import type { Camera } from '@pierre/ecs/modules/camera';
 
+import type { Bookmark } from './bookmarks';
 import type { SystemData } from './generation/universe';
 import type { Tier } from './lod/tier';
 import type { Save } from './persistence/save';
@@ -16,6 +17,7 @@ import { drawStatsOverlay, FrameStats } from '@pierre/ecs/modules/stats';
 import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
+import { bookmarkKey, selectionBookmarkKey } from './bookmarks';
 import { createCameraController } from './camera/camera-controller';
 import { frameZoom } from './camera/focus';
 import { cameraAbsolute, rebaseLocal } from './camera/origin';
@@ -39,6 +41,7 @@ import { drawSelectReticle } from './render/select-reticle';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from './scale';
 import { renderBackend } from './settings';
 import { OrbitElementsDef, PositionZDef, updateOrbits, writeOrbitPosition } from './sim/orbits';
+import { createBookmarkList } from './ui/bookmark-list';
 import { createFlattenButton } from './ui/flatten-button';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
@@ -58,6 +61,11 @@ const HINT = 'Drag to pan  ·  Scroll to zoom';
 export function start(container: HTMLElement, save: Save): () => void {
   container.innerHTML = '';
   const { seed } = save;
+  const bookmarks: Bookmark[] = [...save.bookmarks];
+  const persistBookmarks = (): void => {
+    save.bookmarks = bookmarks;
+    writeSave(save);
+  };
 
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:absolute; inset:0; display:block; width:100%; height:100%; touch-action:none; cursor:grab;';
@@ -229,6 +237,12 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
 
   let lockedId: EntityId | null = null;
+  // When a bookmark-inspect targets a body that is not yet streamed, zoom there
+  // first and retry findEntityByName each frame until the sector streams in.
+  let pendingBookmark: Bookmark | null = null;
+  // Whether the pending bookmark should also select the body once it streams in
+  // (inspect) or only re-centre the camera on its live position (zoom).
+  let pendingBookmarkSelect = false;
   // The 3D camera's look-at height (z) now lives in the controller
   // (`controller.focusZ`): the 3D pan moves it, locking sets it to the body's
   // out-of-plane z, and Return-to-origin resets it. It is retained on unlock so
@@ -237,6 +251,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   const setSelection = (next: Selection | null): void => {
     selection = next;
     lockedId = null;
+    pendingBookmark = null;
+    pendingBookmarkSelect = false;
   };
 
   const toggleLock = (): void => {
@@ -257,7 +273,25 @@ export function start(container: HTMLElement, save: Save): () => void {
       lockedId = selection.id;
   };
 
-  const inspector = createInspector(container, { onToggleLock: toggleLock, onZoomTo });
+  const onToggleBookmark = (): void => {
+    if (!selection)
+      return;
+    const selKey = selectionBookmarkKey(selection, world);
+    if (!selKey)
+      return;
+    const idx = bookmarks.findIndex(b => bookmarkKey(b.kind, b.name) === selKey);
+    if (idx >= 0) {
+      bookmarks.splice(idx, 1);
+    }
+    else {
+      const bm = createBookmarkFromSelection(selection, world, renderOriginX, renderOriginY);
+      if (bm)
+        bookmarks.push(bm);
+    }
+    persistBookmarks();
+  };
+
+  const inspector = createInspector(container, { onToggleBookmark, onToggleLock: toggleLock, onZoomTo });
 
   const onPickDown = (e: PointerEvent): void => {
     pointerDownX = e.clientX;
@@ -335,6 +369,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   // panning far across the universe.
   const onResetView = (): void => {
     lockedId = null;
+    pendingBookmark = null;
+    pendingBookmarkSelect = false;
     controller.resetOrbit();
     frameOrigin();
   };
@@ -346,6 +382,75 @@ export function start(container: HTMLElement, save: Save): () => void {
 
   // Top-centre options menu for display preferences (units, etc.).
   const optionsMenu = createOptionsMenu(container);
+
+  // Bookmark zoom helper: move the camera to the bookmarked system so the
+  // sector streams in.  For orbiting bodies (planets, moons) the bookmarked
+  // position is stale — the pending resolution corrects to the live position
+  // once the entity appears.
+  const bookmarkZoomTo = (bm: Bookmark): void => {
+    camera.x = bm.x - renderOriginX;
+    camera.y = bm.y - renderOriginY;
+    camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+    lockedId = null;
+    pendingBookmark = null;
+    pendingBookmarkSelect = false;
+    if (bm.kind !== 'universe' && bm.kind !== 'galaxy') {
+      const id = findEntityByName(world, bm.name);
+      if (id !== null) {
+        const pos = world.getStore(PositionDef).get(id);
+        if (pos) {
+          camera.x = pos.x;
+          camera.y = pos.y;
+        }
+      }
+      else {
+        pendingBookmark = bm;
+      }
+    }
+  };
+
+  // Inspect a bookmarked body: zoom to its system (so it streams in if needed)
+  // and open the inspector.  Uses the inspector's Zoom-to for re-framing.
+  const onBookmarkInspect = (bm: Bookmark): void => {
+    pendingBookmark = null;
+    pendingBookmarkSelect = false;
+    bookmarkZoomTo(bm);
+
+    if (bm.kind === 'universe') {
+      setSelection({ kind: 'universe', seed });
+      return;
+    }
+    if (bm.kind === 'galaxy') {
+      const g = galaxyAt(seed, bm.x, bm.y);
+      if (g)
+        setSelection({ galaxy: g, kind: 'galaxy' });
+      return;
+    }
+
+    const id = findEntityByName(world, bm.name);
+    if (id !== null) {
+      setSelection({ id, kind: bm.kind as 'black-hole' | 'moon' | 'planet' | 'star' });
+      if (bm.kind === 'planet' || bm.kind === 'moon')
+        lockedId = id;
+    }
+    else {
+      pendingBookmark = bm;
+      pendingBookmarkSelect = true;
+    }
+  };
+
+  const onBookmarkRemove = (bm: Bookmark): void => {
+    const idx = bookmarks.findIndex(b => bookmarkKey(b.kind, b.name) === bookmarkKey(bm.kind, bm.name));
+    if (idx >= 0) {
+      bookmarks.splice(idx, 1);
+      persistBookmarks();
+    }
+  };
+
+  const bookmarkList = createBookmarkList(container, {
+    onInspect: onBookmarkInspect,
+    onRemove: onBookmarkRemove,
+  });
 
   // Dirty-frame tracking: at non-system tiers nothing animates, so when the
   // camera is still the view is identical frame to frame.  Skip the heavy
@@ -500,6 +605,30 @@ export function start(container: HTMLElement, save: Save): () => void {
       if (tier === 'system')
         updateOrbits(world, simSeconds);
 
+      // Resolve a pending bookmark inspect before rendering so the first frame
+      // already shows the body at its live orbital position (the bookmarked
+      // coords are stale for orbiting bodies).  This must run after the
+      // streamer has spawned the sector's entities and updateOrbits has moved
+      // them to the current simulation time.
+      if (pendingBookmark && tier === 'system') {
+        const id = findEntityByName(world, pendingBookmark.name);
+        if (id !== null) {
+          const pos = world.getStore(PositionDef).get(id);
+          if (pos) {
+            camera.x = pos.x;
+            camera.y = pos.y;
+          }
+          if (pendingBookmarkSelect) {
+            const bmKind = pendingBookmark.kind;
+            setSelection({ id, kind: bmKind as 'black-hole' | 'moon' | 'planet' | 'star' });
+            if (bmKind === 'planet' || bmKind === 'moon')
+              lockedId = id;
+          }
+          pendingBookmark = null;
+          pendingBookmarkSelect = false;
+        }
+      }
+
       // Capture the previous frame to cross-fade out of on a tier change — but
       // only when the cache is valid, i.e. the canvas still holds a good prior
       // frame (not a blank startup canvas or one a resize just cleared).
@@ -633,7 +762,11 @@ export function start(container: HTMLElement, save: Save): () => void {
     // Lightweight HUD overlays and DOM updates — cheap enough to run every
     // frame so the time display and frame-time sparkline stay live.
     frameStats.setCounter('drawn', lastDrawnCount);
-    inspector.update(world, selection, lockedId);
+
+    const selKey = selection ? selectionBookmarkKey(selection, world) : null;
+    const bookmarked = selKey !== null && bookmarks.some(b => bookmarkKey(b.kind, b.name) === selKey);
+    inspector.update(world, selection, lockedId, bookmarked);
+    bookmarkList.update(bookmarks);
     // The tree and the coordinate readout want the ABSOLUTE camera position.
     const camAbs = { ...camera, x: cameraAbsolute(renderOriginX, camera.x), y: cameraAbsolute(renderOriginY, camera.y) };
     navTree.update(buildNavState(seed, cache, camAbs, tier, world, selection));
@@ -670,10 +803,95 @@ export function start(container: HTMLElement, save: Save): () => void {
     timeControls.dispose();
     inspector.dispose();
     navTree.dispose();
+    bookmarkList.dispose();
     resetViewButton.dispose();
     flattenButton.dispose();
     optionsMenu.dispose();
     threeRenderer?.dispose();
+  };
+}
+
+/**
+ * Build a self-contained Bookmark from the current selection so it can be
+ * zoomed-to and inspected later, even when the body is not streamed.
+ * Absolute-world positions and the framing extent are captured once.
+ */
+function createBookmarkFromSelection(
+  sel: Selection,
+  world: EcsWorld,
+  renderOriginX: number,
+  renderOriginY: number,
+): Bookmark | null {
+  if (sel.kind === 'universe') {
+    return {
+      name: '',
+      extentAu: SECTOR_SIZE * 10,
+      kind: 'universe',
+      label: 'Universe',
+      x: 0,
+      y: 0,
+    };
+  }
+
+  if (sel.kind === 'galaxy') {
+    return {
+      name: sel.galaxy.name,
+      extentAu: sel.galaxy.radius * GALAXY_SPRITE_SCALE,
+      kind: 'galaxy',
+      label: sel.galaxy.humanName,
+      x: sel.galaxy.centerX,
+      y: sel.galaxy.centerY,
+    };
+  }
+
+  const pos = world.getStore(PositionDef).get(sel.id);
+  if (!pos)
+    return null;
+  const absX = cameraAbsolute(renderOriginX, pos.x);
+  const absY = cameraAbsolute(renderOriginY, pos.y);
+
+  const identity = world.getStore(NameDef).get(sel.id);
+  if (!identity)
+    return null;
+
+  let discRadiusAu: number;
+  let satelliteExtent = 0;
+
+  if (sel.kind === 'star') {
+    const star = world.getStore(StarPhysicalDef).get(sel.id);
+    if (!star)
+      return null;
+    discRadiusAu = starVisualRadius(star.radius);
+    satelliteExtent = starSatelliteApoapsis(world, pos.x, pos.y);
+  }
+  else if (sel.kind === 'planet') {
+    const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
+    if (!planet)
+      return null;
+    discRadiusAu = planetVisualRadius(planet.radius);
+    satelliteExtent = planetSatelliteApoapsis(world, sel.id);
+  }
+  else if (sel.kind === 'moon') {
+    const moon = world.getStore(MoonPhysicalDef).get(sel.id);
+    if (!moon)
+      return null;
+    discRadiusAu = planetVisualRadius(moon.radius);
+  }
+  else {
+    // black-hole
+    const bh = world.getStore(BlackHoleDef).get(sel.id);
+    if (!bh)
+      return null;
+    discRadiusAu = blackHoleVisualRadius(bh.mass);
+  }
+
+  return {
+    name: identity.scientific,
+    extentAu: Math.max(satelliteExtent, discRadiusAu * DISC_FRAME_FACTOR),
+    kind: sel.kind,
+    label: identity.human,
+    x: absX,
+    y: absY,
   };
 }
 
