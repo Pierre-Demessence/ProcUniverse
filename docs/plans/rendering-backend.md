@@ -282,6 +282,16 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
 - [ ] Add **Z** to generation **beyond the system tier** (sectors, cosmic web,
       galaxy disk thickness + inclination); keep determinism (append draws,
       never reorder).
+      - *Starfield realism (rides on this Z work):* once galaxies have real 3D
+        structure, revisit the background starfield to (a) orient the Milky-Way
+        band to **each galaxy's own disk plane** instead of the fixed world XY,
+        (b) make it **type-aware** — no band for elliptical / spheroidal
+        galaxies (no disk), (c) weight star density by the **real 3D galaxy
+        density** along each view direction, with band prominence varying by
+        morphology (strong spiral/barred, faint/none elliptical), and (d) tie
+        the sky to the galaxy the camera is *inside* vs. one viewed from
+        outside. (The flat-galaxy density-falloff polish is separate and does
+        **not** wait on this — see `docs/plans/starfield-falloff.md`.)
 - [x] **Inclined orbits** (§6C): per-system disk plane + small per-planet
       inclination in `sim/orbits.ts`.
 - [x] Raycast picking; full camera tilt / fly; 3D floating-origin rebase.
