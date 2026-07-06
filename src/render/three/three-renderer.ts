@@ -22,6 +22,7 @@ import type { BodyKind, PickResult } from '../../pick';
 import type { OrbitElements } from '../../sim/orbits';
 import type { GlowField } from './glow-fields';
 import type { StarMaterialHandle } from './star-material';
+import type { StarfieldDome } from './starfield';
 
 import { worldToView } from '@pierre/ecs/modules/camera';
 import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
@@ -31,7 +32,7 @@ import { pass } from 'three/tsl';
 import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, RenderPipeline, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
 import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
-import { BlackHoleDef } from '../../generation/galaxies';
+import { BlackHoleDef, galaxyAt } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
 import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
@@ -39,6 +40,7 @@ import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '..
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 import { createStarMaterial } from './star-material';
 import { starLightIntensity } from './star-surface';
+import { createStarfieldDome } from './starfield';
 
 /** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
 const BACKGROUND = 0x05060D;
@@ -156,6 +158,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly scene: Scene;
   private readonly sphereGeometry: SphereGeometry;
   private starCapacity = 0;
+  private starfieldDome: StarfieldDome | null = null;
   private readonly starGeometry: CircleGeometry;
   /**
    * A single point light for the system in view, placed at the star nearest the
@@ -225,6 +228,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   }
 
   dispose(): void {
+    this.starfieldDome?.dispose();
     this.pipeline?.dispose();
     for (const mesh of this.pool)
       (mesh.material as MeshStandardMaterial).dispose();
@@ -451,6 +455,16 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // the camera's world position, and nothing between here and the final draw
     // depends on the previous frame's camera.
     this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ, planeNormal);
+    // Anchor the starfield sky to the camera and fit its radius just inside the
+    // far plane so it renders as a background: solid content (planets/stars) is
+    // closer and occludes it via the depth test, while the sky fills everywhere
+    // else. (A fixed origin-centred dome would fall beyond the far plane and be
+    // clipped away.)
+    if (this.starfieldDome) {
+      const p = this.perspective;
+      this.starfieldDome.place(p.position.x, p.position.y, p.position.z, p.far * 0.95);
+      this.starfieldDome.setVisible(true);
+    }
     // World units per screen pixel factor: an object of world radius r at camera
     // distance d spans `pxFactor · r / d` pixels tall-half. Used to floor a
     // star's on-screen size so a distant star never shrinks to nothing.
@@ -581,6 +595,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       return 0;
     const { camera, originX, originY, seed } = ctx;
     this.syncCamera(camera);
+    this.starfieldDome?.setVisible(false);
     this.group.visible = false;
     if (this.ringMesh)
       this.ringMesh.visible = false;
@@ -622,6 +637,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       return 0;
     const { cache, camera, originX, originY, range } = ctx;
     this.syncCamera(camera);
+    this.starfieldDome?.setVisible(false);
     this.group.visible = false;
     if (this.ringMesh)
       this.ringMesh.visible = false;
@@ -845,5 +861,35 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     mesh.geometry.setDrawRange(0, v);
     attribute.needsUpdate = true;
     mesh.visible = true;
+  }
+
+  /**
+   * Update the background starfield dome for the current galaxy context.
+   * Called once per frame before any tier-specific render.
+   *
+   * `renderOriginX`, `renderOriginY` — the floating render origin (AU).
+   * `camAbsX`, `camAbsY` — absolute camera position (AU), for galaxy lookup.
+   */
+  updateStarfield(seed: number, renderOriginX: number, renderOriginY: number, camAbsX: number, camAbsY: number): void {
+    if (!this.ready)
+      return;
+    if (!this.starfieldDome) {
+      this.starfieldDome = createStarfieldDome();
+      this.scene.add(this.starfieldDome.object);
+    }
+    const g = galaxyAt(seed, camAbsX, camAbsY);
+    this.starfieldDome.update(
+      seed,
+      g
+        ? {
+            centerX: g.centerX - renderOriginX,
+            centerY: g.centerY - renderOriginY,
+            orientation: g.orientation,
+            void: false,
+          }
+        : { centerX: 0, centerY: 0, orientation: 0, void: true },
+      camAbsX,
+      camAbsY,
+    );
   }
 }

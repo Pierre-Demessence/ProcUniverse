@@ -663,32 +663,35 @@ export function start(container: HTMLElement, save: Save): () => void {
       // `applyBodyScale`, so the system bodies' radii are floored before Three
       // reads them; the star tier reads the sector cache directly and returns its
       // own drawn count.
-      if (threeActive && tier === 'system' && threeRenderer) {
-        const three = threeRenderer;
-        // Anchor the 3D camera + pan to the focused system's orbital plane, so a
-        // low tilt reads as a true top-down (orbits as circles) regardless of how
-        // the disk is oriented in space.
-        const planeNormal = focusedSystem?.diskNormal ?? WORLD_PLANE_NORMAL;
-        controller.setSystemPlane(planeNormal[0], planeNormal[1], planeNormal[2]);
-        three.render({ azimuth: controller.azimuth, camera: localCam, focusZ: controller.focusZ, planeNormal, simSeconds, tilt: controller.tilt, world });
-        drawBodyLabels3D(ctx2d, world, (x, y, z, out) => three.projectToScreen(x, y, z, out), localCam.zoom);
-        renderedByThree = true;
-      }
-      else if (threeActive && tier === 'star' && threeRenderer) {
-        result = threeRenderer.renderStars({ cache, camera: localCam, originX: renderOriginX, originY: renderOriginY, range });
-        renderedByThree = true;
-      }
-      else if (threeActive && tier === 'galaxy-field' && threeRenderer) {
-        result = threeRenderer.renderGalaxyField({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
-        renderedByThree = true;
-      }
-      else if (threeActive && tier === 'galaxy' && threeRenderer) {
-        result = threeRenderer.renderGalaxy({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
-        renderedByThree = true;
-      }
-      else if (threeActive && tier === 'universe' && threeRenderer) {
-        result = threeRenderer.renderUniverse({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
-        renderedByThree = true;
+      if (threeActive && threeRenderer) {
+        threeRenderer.updateStarfield(seed, renderOriginX, renderOriginY, camAbsX, camAbsY);
+        if (tier === 'system') {
+          const three = threeRenderer;
+          // Anchor the 3D camera + pan to the focused system's orbital plane, so a
+          // low tilt reads as a true top-down (orbits as circles) regardless of how
+          // the disk is oriented in space.
+          const planeNormal = focusedSystem?.diskNormal ?? WORLD_PLANE_NORMAL;
+          controller.setSystemPlane(planeNormal[0], planeNormal[1], planeNormal[2]);
+          three.render({ azimuth: controller.azimuth, camera: localCam, focusZ: controller.focusZ, planeNormal, simSeconds, tilt: controller.tilt, world });
+          drawBodyLabels3D(ctx2d, world, (x, y, z, out) => three.projectToScreen(x, y, z, out), localCam.zoom);
+          renderedByThree = true;
+        }
+        else if (tier === 'star') {
+          result = threeRenderer.renderStars({ cache, camera: localCam, originX: renderOriginX, originY: renderOriginY, range });
+          renderedByThree = true;
+        }
+        else if (tier === 'galaxy-field') {
+          result = threeRenderer.renderGalaxyField({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
+          renderedByThree = true;
+        }
+        else if (tier === 'galaxy') {
+          result = threeRenderer.renderGalaxy({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
+          renderedByThree = true;
+        }
+        else if (tier === 'universe') {
+          result = threeRenderer.renderUniverse({ camera: localCam, originX: renderOriginX, originY: renderOriginY, seed });
+          renderedByThree = true;
+        }
       }
 
       // Cross-fade: blend the captured old-tier frame over the new one.
