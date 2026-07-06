@@ -73,12 +73,12 @@ instanced sprites) unchanged.
 
 ## 5. Steps
 
-- [ ] **5.1** Replace `diskFactor` in `generateStars` with a smooth (Gaussian /
+- [x] **5.1** Replace `diskFactor` in `generateStars` with a smooth (Gaussian /
   smoothstep) profile + a tapering ambient floor; add `BAND_SIGMA` / floor knobs.
-- [ ] **5.2** Match `makeBandTexture` to the same profile.
-- [ ] **5.3** Static pipeline: build + tests + lint.
-- [ ] **5.4** Peer review (fast model, lightweight).
-- [ ] **5.5** Pierre browser-tunes the falloff width + floor.
+- [x] **5.2** Match `makeBandTexture` to the same profile.
+- [x] **5.3** Static pipeline: build + tests + lint.
+- [x] **5.4** Peer review (fast model, lightweight).
+- [x] **5.5** Pierre browser-tunes the falloff width + floor.
 
 ## 6. Decisions log
 

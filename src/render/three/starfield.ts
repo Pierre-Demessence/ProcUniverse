@@ -42,12 +42,23 @@ const STAR_BRIGHT_RANGE = 0.82;
  * radius since every star sits at the same distance from the camera.
  */
 const STAR_ANGULAR_SIZE = 0.003;
+/**
+ * Sparse ambient star probability far from the galactic plane, so the poles read
+ * as a few scattered foreground stars rather than empty black (or, as before, a
+ * uniform 5% field). Kept small so the plane→pole gradient stays visible.
+ */
+const STAR_AMBIENT = 0.05;
 
-// ── Milky Way band ──────────────────────────────────────────────────────────
-/** How tightly the band glow concentrates toward the disk plane. */
-const BAND_FALLOFF = 8;
+// ── Milky Way band ─────────────────────────────────────────────────────
+/**
+ * Gaussian half-width of the galactic band, in units of the out-of-plane
+ * direction cosine (|z| ∈ [0,1]). Larger = a wider, softer band and a gentler
+ * density gradient. This drives BOTH the star density falloff and the diffuse
+ * band texture so they agree.
+ */
+const BAND_SIGMA = 0.25;
 /** Band peak brightness (fractional). */
-const BAND_BRIGHTNESS = 0.10;
+const BAND_BRIGHTNESS = 0.05;
 
 // ── Public interface ────────────────────────────────────────────────────────
 
@@ -115,6 +126,15 @@ export function pixelToDir(px: number, py: number): { x: number; y: number; z: n
   };
 }
 
+/**
+ * Smooth galactic-plane weight from an out-of-plane direction cosine `z`
+ * (|z| ∈ [0,1]): 1 in the plane, easing smoothly to ~0 toward the poles. Used
+ * for both the star density falloff and the band texture so they match.
+ */
+function diskWeight(z: number): number {
+  return Math.exp(-(z * z) / (BAND_SIGMA * BAND_SIGMA));
+}
+
 // ── Texture generation ──────────────────────────────────────────────────────
 
 // ── Sprite / band textures (shared) ─────────────────────────────────────────
@@ -153,7 +173,7 @@ function makeBandTexture(): CanvasTexture {
   const data = imageData.data;
   for (let py = 0; py < TEX_H; py++) {
     const dir = pixelToDir(TEX_W / 2, py);
-    const diskFactor = Math.max(0, 1 - Math.abs(dir.z) * BAND_FALLOFF);
+    const diskFactor = diskWeight(dir.z);
     if (diskFactor < 0.01)
       continue;
     const alpha = Math.round(diskFactor * BAND_BRIGHTNESS * 255);
@@ -223,8 +243,8 @@ function generateStars(
 
     const towardCore = (dx * toCoreWx + dy * toCoreWy) * 0.5 + 0.5;
     const coreFactor = towardCore * 0.55 + 0.45;
-    // Disk-plane factor: |z| → 0 = in plane, 1 = perpendicular.
-    const diskFactor = Math.max(0, 1 - Math.abs(z) * BAND_FALLOFF);
+    // Smooth disk-plane weight: densest in the plane, easing to ~0 at the poles.
+    const diskFactor = diskWeight(z);
 
     const probeX = camWorldX + dx * PROBE_DIST;
     const probeY = camWorldY + dy * PROBE_DIST;
@@ -237,7 +257,9 @@ function generateStars(
     }
     else {
       const rawDensity = galaxyDensityAt(seed, probeX, probeY);
-      density = Math.max(0.05, Math.min(0.95, rawDensity * coreFactor * diskFactor));
+      // Gradient from the plane outward + a small ambient floor (no hard clip),
+      // so there is no uniform sprinkle competing with the band.
+      density = Math.min(0.95, STAR_AMBIENT + rawDensity * coreFactor * diskFactor);
       const rawActivity = galaxyActivityAt(seed, probeX, probeY);
       activity = rawActivity * 0.3 + coreFactor * 0.7;
     }
