@@ -14,7 +14,6 @@
 import type { EcsWorld } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
-import type { MeshBasicNodeMaterial } from 'three/webgpu';
 
 import type { PlanetPhysical } from '../../generation/planets';
 import type { SectorCache } from '../../lod/sector-cache';
@@ -22,6 +21,7 @@ import type { SectorRange } from '../../lod/tier';
 import type { BodyKind, PickResult } from '../../pick';
 import type { OrbitElements } from '../../sim/orbits';
 import type { GlowField } from './glow-fields';
+import type { RingMaterialHandle } from './planet-rings';
 import type { StarMaterialHandle } from './star-material';
 import type { StarfieldDome } from './starfield';
 
@@ -39,7 +39,7 @@ import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
-import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringOuterRadius, ringVariety } from './planet-rings';
+import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringColor, ringOuterRadius, ringVariety } from './planet-rings';
 import { createStarMaterial } from './star-material';
 import { starLightIntensity } from './star-surface';
 import { createStarfieldDome } from './starfield';
@@ -153,10 +153,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private pipeline: RenderPipeline | null = null;
   /** Shared unit-ring geometry for planet rings (scaled per planet). */
   private readonly planetRingGeometry: RingGeometry;
-  /** Shared translucent ring material (analytic radial profile). */
-  private readonly planetRingMaterial: MeshBasicNodeMaterial;
-  /** Pooled ring meshes for planets with rings; surplus hidden each frame. */
-  private readonly planetRingPool: Mesh[] = [];
+  /** Pooled ring materials + meshes for planets with rings; surplus hidden each frame. */
+  private readonly planetRingPool: { handle: RingMaterialHandle; mesh: Mesh }[] = [];
   private readonly pool: Mesh[] = [];
   private readonly raycaster = new Raycaster();
   /** True once `init()` has resolved; `render` is a no-op before then. */
@@ -208,7 +206,6 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.starGeometry = new CircleGeometry(1, STAR_SEGMENTS);
     this.starMaterial = new MeshBasicMaterial({ side: DoubleSide });
     this.planetRingGeometry = new RingGeometry(RING_INNER_FRAC, 1, RING_SEGMENTS);
-    this.planetRingMaterial = createRingMaterial();
     this.glowTexture = makeGlowTexture();
     this.glowGeometry = new PlaneGeometry(1, 1);
     this.glowMaterial = new MeshBasicMaterial({ blending: AdditiveBlending, depthTest: false, depthWrite: false, map: this.glowTexture, side: DoubleSide, transparent: true });
@@ -256,8 +253,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.glowMaterial.dispose();
     this.glowTexture.dispose();
     this.sphereGeometry.dispose();
+    for (const entry of this.planetRingPool)
+      entry.handle.dispose();
     this.planetRingGeometry.dispose();
-    this.planetRingMaterial.dispose();
     this.ringMesh?.geometry.dispose();
     this.ringMaterial.dispose();
     this.renderer.dispose();
@@ -348,16 +346,18 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return Math.sqrt(nearestStar2) + maxApoapsis;
   }
 
-  /** Reuse a pooled ring mesh (shared geometry + material), creating one on first use. */
-  private obtainPlanetRing(index: number): Mesh {
-    let mesh = this.planetRingPool[index];
-    if (!mesh) {
-      mesh = new Mesh(this.planetRingGeometry, this.planetRingMaterial);
-      this.planetRingPool.push(mesh);
+  /** Reuse a pooled ring (its own material + a shared geometry), creating one on first use. */
+  private obtainPlanetRing(index: number): { handle: RingMaterialHandle; mesh: Mesh } {
+    let entry = this.planetRingPool[index];
+    if (!entry) {
+      const handle = createRingMaterial();
+      const mesh = new Mesh(this.planetRingGeometry, handle.material);
+      entry = { handle, mesh };
+      this.planetRingPool.push(entry);
       this.group.add(mesh);
     }
-    mesh.visible = true;
-    return mesh;
+    entry.mesh.visible = true;
+    return entry;
   }
 
   /** Reuse a pooled sphere mesh, creating one (with its own lit material) on first use. */
@@ -582,8 +582,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         mesh.rotation.set(0, 0, 0);
     }
     // Rings: a translucent disc in each ringed planet's equatorial plane, scaled
-    // to the planet's drawn radius and oriented on its spin axis.
+    // to the planet's drawn radius and oriented on its spin axis, lit by the star
+    // with the planet's shadow band carved across it and coloured by temperature.
     let ringsUsed = 0;
+    const ringStar = this.starLight;
+    const ringShadow = ringStar && ringStar.visible ? 1 : 0;
     for (const [id] of world.query(PlanetPhysicalDef)) {
       const planet = planets.get(id);
       if (!planet || !planet.hasRings)
@@ -593,16 +596,17 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       const orbit = orbits.get(id);
       if (!renderable || renderable.kind !== 'circle' || !position || !orbit)
         continue;
-      const ring = this.obtainPlanetRing(ringsUsed++);
-      ring.position.set(position.x, position.y, positionsZ.get(id)?.z ?? 0);
-      ring.scale.setScalar(ringOuterRadius(renderable.radius, ringVariety(planet.mass, planet.equilibriumTemp)));
+      const { handle, mesh } = this.obtainPlanetRing(ringsUsed++);
+      mesh.position.set(position.x, position.y, positionsZ.get(id)?.z ?? 0);
+      mesh.scale.setScalar(ringOuterRadius(renderable.radius, ringVariety(planet.mass, planet.equilibriumTemp)));
       this.planetSpinAxis(planet, orbit, this.tmpAxis);
-      ring.quaternion.setFromUnitVectors(RING_POLE, this.tmpAxis);
+      mesh.quaternion.setFromUnitVectors(RING_POLE, this.tmpAxis);
+      handle.setRing(mesh.position, renderable.radius, ringStar ? ringStar.position : mesh.position, ringShadow, ringColor(planet.equilibriumTemp));
     }
     for (let i = ringsUsed; i < this.planetRingPool.length; i++) {
-      const ring = this.planetRingPool[i];
-      if (ring)
-        ring.visible = false;
+      const entry = this.planetRingPool[i];
+      if (entry)
+        entry.mesh.visible = false;
     }
     for (const [id] of world.query(MoonPhysicalDef))
       place(id, 'moon', null)?.rotation.set(0, 0, 0);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ringOuterRadius, ringVariety } from './planet-rings';
+import { ringColor, ringOuterRadius, ringVariety } from './planet-rings';
 
 describe('ringVariety', () => {
   it('stays within [0, 1)', () => {
@@ -33,5 +33,27 @@ describe('ringOuterRadius', () => {
   it('grows with variety and with planet radius', () => {
     expect(ringOuterRadius(1, 0.9)).toBeGreaterThan(ringOuterRadius(1, 0.1));
     expect(ringOuterRadius(2, 0.5)).toBeCloseTo(2 * ringOuterRadius(1, 0.5));
+  });
+});
+
+describe('ringColor', () => {
+  it('makes cold rings icy blue-white and warm rings dusty/reddish', () => {
+    const cold = ringColor(60);
+    const warm = ringColor(600);
+    // Cold: blue channel dominant and bright; warm: red dominant and darker.
+    expect(cold[2]).toBeGreaterThan(cold[0]);
+    expect(warm[0]).toBeGreaterThan(warm[2]);
+    expect(cold[2]).toBeGreaterThan(warm[2]);
+  });
+
+  it('gets progressively redder (blue−red) from cold to hot', () => {
+    const blueBias = (c: [number, number, number]): number => c[2] - c[0];
+    expect(blueBias(ringColor(60))).toBeGreaterThan(blueBias(ringColor(250)));
+    expect(blueBias(ringColor(250))).toBeGreaterThan(blueBias(ringColor(600)));
+  });
+
+  it('clamps beyond the temperature anchors', () => {
+    expect(ringColor(0)).toEqual(ringColor(80));
+    expect(ringColor(5000)).toEqual(ringColor(500));
   });
 });
