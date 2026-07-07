@@ -14,6 +14,7 @@
 import type { EcsWorld } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
+import type { MeshBasicNodeMaterial } from 'three/webgpu';
 
 import type { PlanetPhysical } from '../../generation/planets';
 import type { SectorCache } from '../../lod/sector-cache';
@@ -29,7 +30,7 @@ import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { pass } from 'three/tsl';
-import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, RenderPipeline, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
+import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
 import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
 import { BlackHoleDef, galaxyAt } from '../../generation/galaxies';
@@ -38,6 +39,7 @@ import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
+import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringOuterRadius, ringVariety } from './planet-rings';
 import { createStarMaterial } from './star-material';
 import { starLightIntensity } from './star-surface';
 import { createStarfieldDome } from './starfield';
@@ -55,6 +57,8 @@ const DEG2RAD = Math.PI / 180;
 const TAU = Math.PI * 2;
 /** A UV sphere's north pole is its local +Y axis; planet spheres are re-oriented so this points along the spin axis. */
 const SPHERE_POLE = new Vector3(0, 1, 0);
+/** A ring lies in its local XY plane (normal +Z); it is re-oriented so +Z points along the planet's spin axis. */
+const RING_POLE = new Vector3(0, 0, 1);
 /** Dark grey for the black-hole sphere so it reads as a shaded body, not black-on-black. */
 const BLACK_HOLE_COLOR = '#15151c';
 /** Orbit-ring line resolution + faint styling; mirrors the 2D `drawOrbitRings`. */
@@ -147,6 +151,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly perspective: PerspectiveCamera;
   /** Post-process pipeline (scene → bloom) for the system tier; null until ready. */
   private pipeline: RenderPipeline | null = null;
+  /** Shared unit-ring geometry for planet rings (scaled per planet). */
+  private readonly planetRingGeometry: RingGeometry;
+  /** Shared translucent ring material (analytic radial profile). */
+  private readonly planetRingMaterial: MeshBasicNodeMaterial;
+  /** Pooled ring meshes for planets with rings; surplus hidden each frame. */
+  private readonly planetRingPool: Mesh[] = [];
   private readonly pool: Mesh[] = [];
   private readonly raycaster = new Raycaster();
   /** True once `init()` has resolved; `render` is a no-op before then. */
@@ -197,6 +207,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.sphereGeometry = new SphereGeometry(1, SPHERE_WIDTH_SEGMENTS, SPHERE_HEIGHT_SEGMENTS);
     this.starGeometry = new CircleGeometry(1, STAR_SEGMENTS);
     this.starMaterial = new MeshBasicMaterial({ side: DoubleSide });
+    this.planetRingGeometry = new RingGeometry(RING_INNER_FRAC, 1, RING_SEGMENTS);
+    this.planetRingMaterial = createRingMaterial();
     this.glowTexture = makeGlowTexture();
     this.glowGeometry = new PlaneGeometry(1, 1);
     this.glowMaterial = new MeshBasicMaterial({ blending: AdditiveBlending, depthTest: false, depthWrite: false, map: this.glowTexture, side: DoubleSide, transparent: true });
@@ -244,6 +256,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.glowMaterial.dispose();
     this.glowTexture.dispose();
     this.sphereGeometry.dispose();
+    this.planetRingGeometry.dispose();
+    this.planetRingMaterial.dispose();
     this.ringMesh?.geometry.dispose();
     this.ringMaterial.dispose();
     this.renderer.dispose();
@@ -334,6 +348,18 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return Math.sqrt(nearestStar2) + maxApoapsis;
   }
 
+  /** Reuse a pooled ring mesh (shared geometry + material), creating one on first use. */
+  private obtainPlanetRing(index: number): Mesh {
+    let mesh = this.planetRingPool[index];
+    if (!mesh) {
+      mesh = new Mesh(this.planetRingGeometry, this.planetRingMaterial);
+      this.planetRingPool.push(mesh);
+      this.group.add(mesh);
+    }
+    mesh.visible = true;
+    return mesh;
+  }
+
   /** Reuse a pooled sphere mesh, creating one (with its own lit material) on first use. */
   private obtainSphere(index: number): Mesh {
     let mesh = this.pool[index];
@@ -379,12 +405,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * ride in, so a tilted planet and its moon disk visibly agree.
    */
   private orientPlanet(mesh: Mesh, planet: PlanetPhysical, orbit: OrbitElements, simSeconds: number): void {
-    const sinI = Math.sin(orbit.inclination);
-    const nx = sinI * Math.sin(orbit.longitudeAscendingNode);
-    const ny = -sinI * Math.cos(orbit.longitudeAscendingNode);
-    const nz = Math.cos(orbit.inclination);
-    const [sx, sy, sz] = tiltNormal(nx, ny, nz, planet.obliquity * DEG2RAD, planet.obliquityAzimuth);
-    this.tmpAxis.set(sx, sy, sz);
+    this.planetSpinAxis(planet, orbit, this.tmpAxis);
     this.tmpQuat.setFromUnitVectors(SPHERE_POLE, this.tmpAxis);
     const spin = (simSeconds / (planet.rotationPeriod * 3600)) * TAU;
     this.tmpQuat2.setFromAxisAngle(this.tmpAxis, spin);
@@ -400,12 +421,22 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       return null;
     this.tmpVec2.set((bx / this.viewW) * 2 - 1, -((by / this.viewH) * 2 - 1));
     this.raycaster.setFromCamera(this.tmpVec2, this.perspective);
-    const targets = this.group.children.filter(child => child.visible);
+    const targets = this.group.children.filter(child => child.visible && (child.userData as { kind?: BodyKind }).kind !== undefined);
     const hit = this.raycaster.intersectObjects(targets, false)[0];
     if (!hit)
       return null;
     const data = hit.object.userData as { id?: number; kind?: BodyKind };
     return data.id === undefined || data.kind === undefined ? null : { id: data.id, kind: data.kind };
+  }
+
+  /** The planet's spin axis: its orbit-plane normal tilted by obliquity around its azimuth. */
+  private planetSpinAxis(planet: PlanetPhysical, orbit: OrbitElements, out: Vector3): void {
+    const sinI = Math.sin(orbit.inclination);
+    const nx = sinI * Math.sin(orbit.longitudeAscendingNode);
+    const ny = -sinI * Math.cos(orbit.longitudeAscendingNode);
+    const nz = Math.cos(orbit.inclination);
+    const [sx, sy, sz] = tiltNormal(nx, ny, nz, planet.obliquity * DEG2RAD, planet.obliquityAzimuth);
+    out.set(sx, sy, sz);
   }
 
   /**
@@ -549,6 +580,29 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         this.orientPlanet(mesh, planet, orbit, simSeconds);
       else
         mesh.rotation.set(0, 0, 0);
+    }
+    // Rings: a translucent disc in each ringed planet's equatorial plane, scaled
+    // to the planet's drawn radius and oriented on its spin axis.
+    let ringsUsed = 0;
+    for (const [id] of world.query(PlanetPhysicalDef)) {
+      const planet = planets.get(id);
+      if (!planet || !planet.hasRings)
+        continue;
+      const renderable = renderables.get(id);
+      const position = positions.get(id);
+      const orbit = orbits.get(id);
+      if (!renderable || renderable.kind !== 'circle' || !position || !orbit)
+        continue;
+      const ring = this.obtainPlanetRing(ringsUsed++);
+      ring.position.set(position.x, position.y, positionsZ.get(id)?.z ?? 0);
+      ring.scale.setScalar(ringOuterRadius(renderable.radius, ringVariety(planet.mass, planet.equilibriumTemp)));
+      this.planetSpinAxis(planet, orbit, this.tmpAxis);
+      ring.quaternion.setFromUnitVectors(RING_POLE, this.tmpAxis);
+    }
+    for (let i = ringsUsed; i < this.planetRingPool.length; i++) {
+      const ring = this.planetRingPool[i];
+      if (ring)
+        ring.visible = false;
     }
     for (const [id] of world.query(MoonPhysicalDef))
       place(id, 'moon', null)?.rotation.set(0, 0, 0);
