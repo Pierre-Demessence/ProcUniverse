@@ -4,9 +4,10 @@ Workstream **G** of [system-visuals.md](system-visuals.md) and
 [planet-surfaces.md](planet-surfaces.md). A translucent, tilted ring disc around
 planets that have rings — **geometry first, appearance deliberately simple**.
 
-> Status: **iteration 1 committed** (`0df17ce`); **iteration 2 in progress** —
-> lit rings + planet-shadow band + colour-by-temperature. See the iteration
-> roadmap (§10). Knobs live in `planet-rings.ts`.
+> Status: **iterations 1–2 committed** (`0df17ce`, `4abbf6f`); **iteration 3
+> implemented** (per-planet diversity: varied gaps, inner/opacity variation,
+> static ringlets) — green + peer-reviewed, awaiting Pierre's browser check.
+> Iteration 4+ (edge-on Fresnel, backlit glow) queued. See §10.
 
 ## 1. Why rings next (out of the planned order)
 
@@ -139,26 +140,23 @@ each is buildable and verifiable. Grouped by theme:
 
 Flat translucent ring, one gap, subtle icy tan, honour `hasRings`.
 
-### Iteration 2 — lighting + identity (in progress)
+### Iteration 2 — lighting + identity (done)
 
-- [ ] **Lit rings.** The ring is star-lit (near-uniform bright, since ring
-      particles scatter light from any angle) rather than a flat constant fill.
-- [ ] **Planet-shadow band.** The dark band where the planet's shadow crosses
-      its rings — *the* iconic Saturn cue. Cheap cylindrical approximation:
-      a ring fragment is shadowed when it lies behind the planet (away from the
-      star) within the planet's radius of the shadow axis.
-- [ ] **Colour by temperature/composition.** Icy white/blue rings for cold
-      planets; dusty tan / brown / reddish for warmer or rocky ones — from
-      `equilibriumTemp` (+ `type`). Gives each ringed planet its own identity.
+- [x] **Lit rings** — star-lit (near-uniform, particles scatter).
+- [x] **Planet-shadow band** — cylindrical approximation from the star direction.
+- [x] **Colour by temperature** — icy blue-white cold → dusty tan/red warm.
 
-### Iteration 3+ — diversity & polish (later)
+### Iteration 3 — per-planet diversity (done)
 
-- **Varied gap structure** — gap count / positions / widths per planet from the
-  variety hash (Saturn has several: Cassini, Encke), not one fixed gap.
-- **Width / opacity / inner-radius variation** — broad-bright vs thin-faint rings
-  per planet from the hash.
-- **Static radial ringlets** — subtle radius-only (no-time) noise for fine
-  ringlet structure; safe from the grain problem because it never uses time.
+- [x] **Varied gap structure** — 1–3 gaps per planet at varied positions/widths
+      from the data hash (`ringDiversity`), not one fixed gap.
+- [x] **Inner-edge / opacity variation** — per-planet visible inner edge and peak
+      opacity from the hash (broad-bright vs thin-faint).
+- [x] **Static radial ringlets** — radius-only (no-time) fine structure; safe
+      from the grain problem because it never uses time.
+
+### Iteration 4+ — polish (later)
+
 - **Edge-on transparency (Fresnel)** — rings nearly vanish edge-on and brighten
   face-on, like real Saturn (view-angle-dependent opacity).
 - **Backlit glow / scattering** — rings brighter when backlit by the star.

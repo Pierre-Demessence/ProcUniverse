@@ -39,7 +39,7 @@ import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
-import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringColor, ringOuterRadius, ringVariety } from './planet-rings';
+import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringOuterRadius, ringVariety } from './planet-rings';
 import { createStarMaterial } from './star-material';
 import { starLightIntensity } from './star-surface';
 import { createStarfieldDome } from './starfield';
@@ -601,7 +601,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       mesh.scale.setScalar(ringOuterRadius(renderable.radius, ringVariety(planet.mass, planet.equilibriumTemp)));
       this.planetSpinAxis(planet, orbit, this.tmpAxis);
       mesh.quaternion.setFromUnitVectors(RING_POLE, this.tmpAxis);
-      handle.setRing(mesh.position, renderable.radius, ringStar ? ringStar.position : mesh.position, ringShadow, ringColor(planet.equilibriumTemp));
+      handle.setRing(mesh.position, renderable.radius, ringStar ? ringStar.position : mesh.position, ringShadow, planet.mass, planet.equilibriumTemp);
     }
     for (let i = ringsUsed; i < this.planetRingPool.length; i++) {
       const entry = this.planetRingPool[i];

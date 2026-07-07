@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ringColor, ringOuterRadius, ringVariety } from './planet-rings';
+import { ringColor, ringDiversity, ringOuterRadius, ringVariety } from './planet-rings';
 
 describe('ringVariety', () => {
   it('stays within [0, 1)', () => {
@@ -55,5 +55,43 @@ describe('ringColor', () => {
   it('clamps beyond the temperature anchors', () => {
     expect(ringColor(0)).toEqual(ringColor(80));
     expect(ringColor(5000)).toEqual(ringColor(500));
+  });
+});
+
+describe('ringDiversity', () => {
+  it('produces 3 gap slots with at least one active gap', () => {
+    const d = ringDiversity(30, 120);
+    expect(d.gapCenters).toHaveLength(3);
+    expect(d.gapWidths).toHaveLength(3);
+    // Slot 0 is always an active gap (gapCount is 1..3).
+    expect(d.gapCenters[0]).toBeGreaterThanOrEqual(0.2);
+    expect(d.gapCenters[0]).toBeLessThanOrEqual(0.8);
+    expect(d.gapWidths[0]).toBeGreaterThan(0);
+  });
+
+  it('keeps inner edge, opacity, and seed in range', () => {
+    for (const [m, temp] of [[1, 90], [317, 60], [0.5, 400], [95, 130]]) {
+      const d = ringDiversity(m, temp);
+      expect(d.innerStart).toBeGreaterThanOrEqual(0.4);
+      expect(d.innerStart).toBeLessThanOrEqual(0.6);
+      expect(d.opacity).toBeGreaterThanOrEqual(0.4);
+      expect(d.opacity).toBeLessThanOrEqual(0.7);
+      expect(d.seed).toBeGreaterThanOrEqual(0);
+      expect(d.seed).toBeLessThan(1);
+    }
+  });
+
+  it('marks unused gap slots with centre -1 and width 0', () => {
+    const d = ringDiversity(30, 120);
+    for (let i = 0; i < 3; i++) {
+      if (d.gapCenters[i] === -1)
+        expect(d.gapWidths[i]).toBe(0);
+      else
+        expect(d.gapCenters[i]).toBeGreaterThanOrEqual(0.2);
+    }
+  });
+
+  it('is deterministic for the same inputs', () => {
+    expect(ringDiversity(12.3, 45.6)).toEqual(ringDiversity(12.3, 45.6));
   });
 });
