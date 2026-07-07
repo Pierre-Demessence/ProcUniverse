@@ -18,6 +18,8 @@ export interface CameraController {
   dispose: () => void;
   /** Reset the 3D orbit/tilt (and focus height) to the default framing. */
   resetOrbit: () => void;
+  /** Restore the 3D orbit state from a persisted session (azimuth rad, tilt rad, focusZ AU). */
+  restoreOrbit: (azimuth: number, tilt: number, focusZ: number) => void;
   /**
    * Toggle the flat (top-down) view: reports a near-straight-down tilt (looking
    * down the focused system's plane, so orbits read as circles) and ignores
@@ -228,6 +230,11 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       azimuth = 0;
       tilt = TILT_DEFAULT;
       focusZ = 0;
+    },
+    restoreOrbit(az: number, ti: number, fz: number): void {
+      azimuth = az;
+      tilt = Number.isFinite(ti) ? clamp(ti, TILT_MIN, TILT_MAX) : TILT_DEFAULT;
+      focusZ = Number.isFinite(fz) ? fz : 0;
     },
     setFlat(next: boolean): void {
       flat = next;

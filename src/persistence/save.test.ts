@@ -39,11 +39,11 @@ describe('parseSave', () => {
   it('drops a malformed view but keeps a valid one', () => {
     expect(parseSave(JSON.stringify({ seed: 1, view: { x: 1, y: 2 } }))?.view).toBeNull();
     expect(parseSave(JSON.stringify({ seed: 1, view: { x: 1, y: 2, zoom: 0 } }))?.view).toBeNull();
-    expect(parseSave(JSON.stringify({ seed: 1, view: { x: 1, y: 2, zoom: 3 } }))?.view).toEqual({ x: 1, y: 2, zoom: 3 });
+    expect(parseSave(JSON.stringify({ seed: 1, view: { x: 1, y: 2, zoom: 3 } }))?.view).toEqual({ azimuth: 0, focusZ: 0, tilt: 0, x: 1, y: 2, zoom: 3 });
   });
 
   it('round-trips a full save', () => {
-    const save = { bookmarks: [], seed: 42, simSeconds: 123.5, speedIndex: 4, version: 1, view: { x: 10, y: -20, zoom: 0.5 } };
+    const save = { bookmarks: [], seed: 42, simSeconds: 123.5, speedIndex: 4, version: 1, view: { azimuth: 0, focusZ: 0, tilt: 0, x: 10, y: -20, zoom: 0.5 } };
     expect(parseSave(JSON.stringify(save))).toEqual(save);
   });
 

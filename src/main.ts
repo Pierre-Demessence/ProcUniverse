@@ -180,6 +180,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   // Resume the saved view from a previous visit, or frame the origin on a first
   // visit. The saved view is absolute; anchor the origin to it and store the
   // small offset. A persisted zoom is clamped in case the config bounds changed.
+  // The 3D orbit state (azimuth, tilt, focusZ) is also restored so the camera
+  // direction and focus height survive a reload.
   const savedView = save.view;
   if (savedView) {
     renderOriginX = Math.round(savedView.x / SECTOR_SIZE) * SECTOR_SIZE;
@@ -187,6 +189,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     controller.camera.x = savedView.x - renderOriginX;
     controller.camera.y = savedView.y - renderOriginY;
     controller.camera.zoom = clamp(savedView.zoom, MIN_ZOOM, MAX_ZOOM);
+    controller.restoreOrbit(savedView.azimuth, savedView.tilt, savedView.focusZ);
   }
   else {
     frameOrigin();
@@ -507,8 +510,10 @@ export function start(container: HTMLElement, save: Save): () => void {
 
     // Rendering backend: lazily stand up the Three.js renderer the first time it
     // is selected, keep its canvas behind the 2D HUD canvas, and show it only
-    // once it has finished initialising — until then the Canvas 2D path keeps
-    // drawing, so switching never flashes a blank frame.
+    // once it has finished initialising. While Three loads, the 2D canvas is
+    // kept transparent at the system tier (via threeMode) so the user sees the
+    // dark background rather than a flash of Canvas 2D content; non-system tiers
+    // still draw on Canvas 2D until Three is ready.
     const threeMode = renderBackend.value === 'three';
     if (threeMode && !threeRenderer && !threeLoading) {
       // Load the Three.js backend (and its large three bundle) on demand, so
@@ -653,7 +658,7 @@ export function start(container: HTMLElement, save: Save): () => void {
         range,
         renderer,
         seed,
-        threeMode: threeActive,
+        threeMode: threeMode || threeActive,
         tier,
         world,
       });
@@ -793,7 +798,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   return (): void => {
     // Persist the final session state (camera, clock, speed) so the next visit
     // resumes here; this teardown is wired to `beforeunload`.
-    writeSave({ ...save, simSeconds, speedIndex: timeControls.speedIndex, view: { x: cameraAbsolute(renderOriginX, camera.x), y: cameraAbsolute(renderOriginY, camera.y), zoom: camera.zoom } });
+    writeSave({ ...save, simSeconds, speedIndex: timeControls.speedIndex, view: { azimuth: controller.azimuth, focusZ: controller.focusZ, tilt: controller.tilt, x: cameraAbsolute(renderOriginX, camera.x), y: cameraAbsolute(renderOriginY, camera.y), zoom: camera.zoom } });
     renderSource.stop();
     unsubscribe();
     resizeObserver.disconnect();

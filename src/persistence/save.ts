@@ -17,8 +17,11 @@ import { DEFAULT_SPEED_INDEX, SPEED_STEPS } from '../config/render';
 const SAVE_KEY = 'procuniverse:save';
 const SAVE_VERSION = 1;
 
-/** A persisted camera view: world-space centre (AU) and zoom (pixels per AU). */
+/** A persisted camera view: world-space centre (AU), zoom (pixels per AU), and 3D orbit state. */
 export interface SavedView {
+  azimuth: number;
+  focusZ: number;
+  tilt: number;
   x: number;
   y: number;
   zoom: number;
@@ -49,13 +52,20 @@ function isSpeedIndex(value: unknown): value is number {
 function parseView(value: unknown): SavedView | null {
   if (typeof value !== 'object' || value === null)
     return null;
-  const { x, y, zoom } = value as Record<string, unknown>;
+  const { azimuth, focusZ, tilt, x, y, zoom } = value as Record<string, unknown>;
   if (
     typeof x === 'number' && Number.isFinite(x)
     && typeof y === 'number' && Number.isFinite(y)
     && typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0
   ) {
-    return { x, y, zoom };
+    return {
+      azimuth: typeof azimuth === 'number' && Number.isFinite(azimuth) ? azimuth : 0,
+      focusZ: typeof focusZ === 'number' && Number.isFinite(focusZ) ? focusZ : 0,
+      tilt: typeof tilt === 'number' && Number.isFinite(tilt) ? tilt : 0,
+      x,
+      y,
+      zoom,
+    };
   }
   return null;
 }
