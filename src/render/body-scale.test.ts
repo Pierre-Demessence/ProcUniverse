@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { BODY_FLOOR_MAX_PX, BODY_FLOOR_MIN_PX, MOON_FLOOR_MIN_PX } from '../config/render';
-import { bodyFloorPx, drawnBodyRadiusAu } from './body-scale';
+import { bodyFloorPx, drawnBodyRadiusAu, OBLATENESS_MAX, oblatePolarScale } from './body-scale';
 
 // Representative true radii in AU: a moon, Earth, Jupiter, the Sun, a giant star.
 const MOON_AU = 1.16e-5;
@@ -62,5 +62,21 @@ describe('drawnBodyRadiusAu', () => {
     // The Sun's floor (~6.9px) already exceeds MOON_FLOOR_MIN_PX, so applying the
     // moon floor leaves it unchanged; only sub-minimum bodies (moons) are raised.
     expect(drawnBodyRadiusAu(SUN_AU, 1, 'usable', MOON_FLOOR_MIN_PX)).toBe(drawnBodyRadiusAu(SUN_AU, 1, 'usable'));
+  });
+});
+
+describe('oblatePolarScale', () => {
+  it('is 1 (round) for a non-rotating / non-flattened body', () => {
+    expect(oblatePolarScale(0)).toBe(1);
+  });
+
+  it('shortens the polar axis by the flattening', () => {
+    expect(oblatePolarScale(0.1)).toBeCloseTo(0.9);
+  });
+
+  it('clamps extreme flattening so the body never collapses to a disc', () => {
+    expect(oblatePolarScale(0.9)).toBeCloseTo(1 - OBLATENESS_MAX);
+    // Negative (nonsensical) input never bulges the poles outward.
+    expect(oblatePolarScale(-1)).toBe(1);
   });
 });

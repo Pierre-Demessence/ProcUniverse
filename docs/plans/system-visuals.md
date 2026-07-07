@@ -56,8 +56,8 @@ column: **1 = first focus**, higher = later.
 | D | **Gas / ice giant surfaces** | `type`, `equilibriumTemp` | Horizontal banded atmosphere (Jupiter/Neptune stripes) coloured by temperature + type. Biggest single planet upgrade. | 2 |
 | E | **Rocky / terrestrial surfaces** | `type`, `equilibriumTemp`, `waterState`, `inHabitableZone` | Mottled rocky/cratered surface; colour ramps molten-red → brown/grey → ice-white by temperature; polar ice caps; blue oceans for liquid-water worlds. | 3 |
 | F | **Atmospheres (rim glow + clouds)** | `retainsAtmosphere`, `atmosphereType`, `equilibriumTemp` | Soft coloured limb halo ("airglow") on worlds that keep an atmosphere; a thin drifting cloud layer over them. | 3 |
-| G | **Rings** | `hasRings`, `obliquity`, plane normal | A translucent ring disc tilted with the planet. Data already exists; rings are (as far as we know) **not drawn yet**. High payoff. | 4 |
-| H | **Oblateness (equatorial bulge)** | `rotationPeriod`, oblateness calc | Squash fast-rotators slightly at the equator. Subtle; the sphere is currently perfectly round. | 4 |
+| G | **Rings** | `hasRings`, `obliquity`, plane normal | A translucent ring disc tilted with the planet. Data already exists; rings are (as far as we know) **not drawn yet**. High payoff. | 4 ✅ ([planet-rings.md](planet-rings.md)) |
+| H | **Oblateness (equatorial bulge)** | `rotationPeriod`, oblateness calc | Squash fast-rotators slightly at the equator. Subtle; the sphere is currently perfectly round. | 4 ✅ |
 | I | **Moon surfaces** | moon `density`, `radius`, host proximity | Small-body look (grey/icy cratered) so moons don't read as mini-planets. | 4 |
 | J | **Eclipses / cast shadows** *(advanced, optional)* | geometry | Shadow mapping so a moon dims behind a planet, or a planet shadows its rings. Real, but perf-costly and a subtle payoff at these scales. | 5 |
 

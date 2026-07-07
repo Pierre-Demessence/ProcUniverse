@@ -39,6 +39,21 @@ export function bodyFloorPx(trueAu: number): number {
   );
 }
 
+// Cap the equatorial bulge so extreme fast-rotators squash plausibly rather than
+// collapsing toward a disc. Saturn — the most oblate planet — is ~0.098; the cap
+// leaves headroom for a visible bulge while keeping the body a spheroid.
+export const OBLATENESS_MAX = 0.3;
+
+/**
+ * Polar-axis scale (relative to the equatorial radius) for a planet whose
+ * rotational flattening is `oblatenessFraction` = (R_eq − R_pol)/R_eq: the
+ * sphere is drawn squashed to this fraction along its spin axis. Clamped to
+ * `[1 − OBLATENESS_MAX, 1]` so a fast rotator stays a plausible spheroid.
+ */
+export function oblatePolarScale(oblatenessFraction: number): number {
+  return 1 - clamp(oblatenessFraction, 0, OBLATENESS_MAX);
+}
+
 /**
  * Drawn radius (AU) for a body of true radius `trueAu` at the given `zoom`.
  * `'true'` scale draws the real radius (bodies vanish to sub-pixels when zoomed

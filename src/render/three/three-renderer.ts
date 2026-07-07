@@ -35,9 +35,10 @@ import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, Canvas
 import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
 import { BlackHoleDef, galaxyAt } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
-import { PlanetPhysicalDef } from '../../generation/planets';
+import { oblateness, PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
+import { oblatePolarScale } from '../body-scale';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringOuterRadius, ringVariety } from './planet-rings';
 import { createStarMaterial } from './star-material';
@@ -576,6 +577,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         continue;
       const planet = planets.get(id);
       const orbit = orbits.get(id);
+      // Squash the sphere at its equator by its rotational flattening: the drawn
+      // radius is the equatorial radius, and the local +Y axis (which
+      // `orientPlanet` aligns to the spin axis) is shortened to the polar radius.
+      if (planet)
+        mesh.scale.y = mesh.scale.x * oblatePolarScale(oblateness(planet.rotationPeriod, planet.mass, planet.radius));
       if (planet && orbit)
         this.orientPlanet(mesh, planet, orbit, simSeconds);
       else
