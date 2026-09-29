@@ -1,6 +1,7 @@
 import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { makeCamera, viewToWorld } from '@pierre/ecs/modules/camera';
+import { projectPointer } from '@pierre/ecs/modules/input';
 import { clamp } from '@pierre/ecs/modules/math';
 
 import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, TILT_MAX, TILT_MIN, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
@@ -95,20 +96,10 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   let lastWheelMs = 0;
   let lastWheelDir = 0;
 
-  // Client (CSS-pixel) coords → canvas backing pixels, the space the camera
-  // transforms operate in.
-  const toBacking = (clientX: number, clientY: number): { bx: number; by: number } => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      bx: (clientX - rect.left) * (canvas.width / rect.width),
-      by: (clientY - rect.top) * (canvas.height / rect.height),
-    };
-  };
-
   const onPointerDown = (e: PointerEvent): void => {
     dragging = true;
     orbiting = e.button === 2;
-    const { bx, by } = toBacking(e.clientX, e.clientY);
+    const { x: bx, y: by } = projectPointer(e, canvas);
     lastX = bx;
     lastY = by;
     canvas.style.cursor = orbiting ? 'move' : 'grabbing';
@@ -118,7 +109,7 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   const onPointerMove = (e: PointerEvent): void => {
     if (!dragging)
       return;
-    const { bx, by } = toBacking(e.clientX, e.clientY);
+    const { x: bx, y: by } = projectPointer(e, canvas);
     if (orbiting) {
       // Horizontal drag spins the view (azimuth) in both modes; vertical drag
       // tilts only when NOT flat — flatten locks the top-down tilt while still
@@ -172,7 +163,7 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
 
   const onWheel = (e: WheelEvent): void => {
     e.preventDefault();
-    const { bx, by } = toBacking(e.clientX, e.clientY);
+    const { x: bx, y: by } = projectPointer(e, canvas);
     const before = viewToWorld(bx, by, camera);
 
     // Ramp the per-notch factor from ZOOM_STEP up to ZOOM_STEP_MAX as rapid

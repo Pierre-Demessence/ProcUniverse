@@ -11,6 +11,7 @@ import type { NavNode, NavState, NavSystem } from './ui/nav-tree';
 
 import { EcsWorld } from '@pierre/ecs';
 import { worldToView } from '@pierre/ecs/modules/camera';
+import { projectPointer } from '@pierre/ecs/modules/input';
 import { clamp } from '@pierre/ecs/modules/math';
 import { Canvas2DRenderer, RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { drawStatsOverlay, FrameStats } from '@pierre/ecs/modules/stats';
@@ -48,6 +49,7 @@ import { createNavTree } from './ui/nav-tree';
 import { createOptionsMenu } from './ui/options';
 import { createResetViewButton } from './ui/reset-view';
 import { createTimeControls } from './ui/time-controls';
+import { universePlugin } from './world-plugin';
 
 const TARGET_MS = 1000 / 60;
 const REBASE_DIST = SECTOR_SIZE * REBASE_SECTORS;
@@ -118,16 +120,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   const controller = createCameraController(canvas);
   const timeControls = createTimeControls(container, save.speedIndex);
 
-  const world = new EcsWorld();
-  world.registerComponent(PositionDef);
-  world.registerComponent(RenderableDef);
-  world.registerComponent(OrbitElementsDef);
-  world.registerComponent(PositionZDef);
-  world.registerComponent(StarPhysicalDef);
-  world.registerComponent(PlanetPhysicalDef);
-  world.registerComponent(MoonPhysicalDef);
-  world.registerComponent(NameDef);
-  world.registerComponent(BlackHoleDef);
+  const world = new EcsWorld().use(universePlugin);
 
   const positions = world.getStore(PositionDef);
   const renderables = world.getStore(RenderableDef);
@@ -232,14 +225,6 @@ export function start(container: HTMLElement, save: Save): () => void {
   // CLICK_SLOP_PX releases the lock so the re-centre doesn't fight the pan.
   let lockDragArmed = false;
 
-  const toBackingPx = (clientX: number, clientY: number): { bx: number; by: number } => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      bx: (clientX - rect.left) * (canvas.width / rect.width),
-      by: (clientY - rect.top) * (canvas.height / rect.height),
-    };
-  };
-
   let lockedId: EntityId | null = null;
   // When a bookmark-inspect targets a body that is not yet streamed, zoom there
   // first and retry findEntityByName each frame until the sector streams in.
@@ -322,7 +307,7 @@ export function start(container: HTMLElement, save: Save): () => void {
       return;
     if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX)
       return;
-    const { bx, by } = toBackingPx(e.clientX, e.clientY);
+    const { x: bx, y: by } = projectPointer(e, canvas);
     // `camera` is already in the render-origin frame, so it doubles as localCam.
     const localCam = { ...camera };
     if (currentTier === 'system') {

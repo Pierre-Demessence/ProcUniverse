@@ -8,6 +8,7 @@
 | `src/settings.ts` | User display settings as `@preact/signals` (units, naming style, body scale, renderer), persisted via `persistence/preferences.ts`. |
 | `src/scale.ts` | Spatial-scale source of truth: the AU world unit, light-years per sector, and the star visual-radius mapping. |
 | `src/bookmarks.ts` | Bookmark types and helpers: `Bookmark` identity, `bookmarkKey`, `isBookmarked`, and `selectionBookmarkKey`. |
+| `src/world-plugin.ts` | `universePlugin`: the engine plugin that registers every component a streamed body carries; `main.ts` installs it with `world.use`. |
 | `src/pick.ts` | Cursor-to-body picking: the nearest star or planet within the click tolerance, plus a by-name entity lookup for the location tree. |
 | `src/generation/` | Deterministic seed-driven sector generation (pure data — a galaxy field of many galaxies with central black holes that places and colours stars, plus stellar, orbital, and planetary physics) and entity spawning. |
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
