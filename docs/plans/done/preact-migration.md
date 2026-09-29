@@ -1,8 +1,8 @@
 # Plan — Migrate HUD overlays to Preact
 
 The canvas/ECS render loop stays imperative; only the DOM HUD overlays
-([time-controls](../../src/ui/time-controls.ts) and
-[inspector](../../src/ui/inspector.ts)) move to Preact so their markup is
+([time-controls](../../../src/ui/time-controls.tsx) and
+[inspector](../../../src/ui/inspector.tsx)) move to Preact so their markup is
 declarative instead of dozens of `createElement` + `cssText` calls. The win is
 maintainability (and it scales to Phase G, which extends the inspector to
 galaxies / black holes).

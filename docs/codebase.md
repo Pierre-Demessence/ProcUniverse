@@ -3,8 +3,9 @@
 | Path | Purpose |
 | ---- | ------- |
 | `index.html` | Mounts the app; loads or mints the universe save, then calls `start(root, save)`. |
-| `src/main.ts` | Entry: canvas, DPR/resize, ECS world, the LOD render loop, and the HUD. |
-| `src/config.ts` | Central tuning knobs in one place: density, camera/zoom, LOD tiers, orbit architecture, visual-disc sizing, and simulation time. |
+| `src/main.ts` | Entry: canvas, DPR/resize, ECS world, the LOD render loop, renderer selection (Three.js with Canvas 2D fallback), and the HUD. |
+| `src/config/` | Central tuning knobs: `data.ts` for generation (density, orbit architecture, physics parameters) and `render.ts` for camera/zoom, LOD tiers, visual sizing, and simulation time. |
+| `src/settings.ts` | User display settings as `@preact/signals` (units, naming style, body scale, renderer), persisted via `persistence/preferences.ts`. |
 | `src/scale.ts` | Spatial-scale source of truth: the AU world unit, light-years per sector, and the star visual-radius mapping. |
 | `src/bookmarks.ts` | Bookmark types and helpers: `Bookmark` identity, `bookmarkKey`, `isBookmarked`, and `selectionBookmarkKey`. |
 | `src/pick.ts` | Cursor-to-body picking: the nearest star or planet within the click tolerance, plus a by-name entity lookup for the location tree. |
@@ -12,7 +13,8 @@
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera. |
-| `src/render/` | Per-tier frame composition: reference grid, orbit rings, star dots, galaxy-density glow, galaxy-field sprites / labels, the cosmic-web universe glow, body name labels, the HUD scale bar + coordinate readout, and the selection reticle. |
+| `src/render/three/` | The primary Three.js renderer (`three/webgpu`, lazy-loaded): every tier, the 3D system view (spheres, star shading, rings, starfield dome, bloom), picking, and projection for labels. |
+| `src/render/` | Canvas 2D (frozen fallback) per-tier frame composition and the 2D HUD overlay drawn on top of either renderer: reference grid, orbit rings, star dots, galaxy-density glow, galaxy-field sprites / labels, the cosmic-web universe glow, body name labels, the HUD scale bar + coordinate readout, and the selection reticle. |
 | `src/ui/` | HUD overlays above the canvas: the simulation clock / time-scale slider, the body-inspector panel, the top-left location tree, the bookmark list panel, the options menu, and the "Return to origin" / "Flatten" buttons (Preact + signals). |
 | `src/persistence/` | Persistence: `save.ts` stores the universe save (seed + camera view + sim clock/speed); `preferences.ts` stores display settings (temperature unit) that outlive a seed reset. |
 | `docs/` | Project documentation and plans. |
@@ -28,6 +30,7 @@
 
 ## Where to add new code
 
+- New visuals → `src/render/three/` only; Canvas 2D is a frozen fallback.
 - New per-tier generators → `src/generation/` (the deterministic, pure-data
   layer; keep DOM/ECS side effects in the spawn step).
 - LOD tiers, streaming, and the sector cache → `src/lod/`.

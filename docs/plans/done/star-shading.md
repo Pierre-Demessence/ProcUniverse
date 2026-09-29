@@ -1,11 +1,11 @@
 # Procedural Star Shading — first slice of Stage 2
 
 The **first focused piece** of the system-visuals roadmap
-([system-visuals.md](system-visuals.md)): make stars look like stars instead of
+([system-visuals.md](../system-visuals.md)): make stars look like stars instead of
 flat "yellow circles", and light the system realistically from the star.
 
 Part of **Stage 2 (shader effects, R2)** in
-[rendering-backend.md](rendering-backend.md), system tier only.
+[rendering-backend.md](../rendering-backend.md), system tier only.
 
 > Status: **in progress.** Surface shader (limb darkening, blackbody colour,
 > granulation/starspots, flicker), realistic single point-light lighting, the
@@ -25,7 +25,7 @@ spilling onto the planets around it.
 
 The star is a real sphere, but it uses a **self-lit (emissive) material** that
 paints one uniform colour across the whole surface and ignores all lighting
-(see [three-renderer.ts](src/render/three/three-renderer.ts#L404)). A
+(see [three-renderer.ts](../../../src/render/three/three-renderer.ts#L404)). A
 uniformly coloured ball is indistinguishable from a flat disc at any angle —
 hence the "circle". A cast shadow can't fix this: a star makes its own light,
 so nothing lights it from outside. The roundness cue has to come from the
@@ -69,7 +69,7 @@ byte-identical (purely visual).
 The star *emits* the light; that emission is part of shading the star, so it
 belongs in this plan. **Planet materials are out of scope** — we only change the
 light source, not how planets react to it (planet surfaces are a later
-workstream in [system-visuals.md](system-visuals.md)).
+workstream in [system-visuals.md](../system-visuals.md)).
 
 - [x] **Point light at the star.** Replace the fixed directional key light with
       a **point light positioned at the star's location**, so planets/moons are
@@ -95,7 +95,7 @@ No new fields, no new RNG draws → universe unchanged.
 ## 5. Technical notes
 
 - Star spheres come from the pooled mesh in `obtainSphere` /
-  [three-renderer.ts](src/render/three/three-renderer.ts#L307); the star branch
+  [three-renderer.ts](../../../src/render/three/three-renderer.ts#L307); the star branch
   currently sets `emissive = fill`. The shader replaces that material for stars
   (planets/moons keep their lit `MeshStandardMaterial` for now).
 - Author in **TSL** so it runs on both WebGPU and the WebGL2 fallback from one

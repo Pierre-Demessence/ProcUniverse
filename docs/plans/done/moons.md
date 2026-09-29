@@ -130,10 +130,10 @@ Deferred to last — do after major moons (5a–5d) and once Pierre has seen a s
       period, tidal-lock), and every moon of the focused system is listed in the
       location tree under its planet at the system tier (no need to zoom to a
       planet — Pierre's request), with a scroll fallback for long trees.
-- [ ] **5e — Minor moons.** Lazy, focus-driven spawn/despawn of the tiny irregular
+- [ ] **5e — Minor moons.** *(Deferred — tracked in [roadmap.md](../../roadmap.md).)* Lazy, focus-driven spawn/despawn of the tiny irregular
       satellites as real clickable entities (Option A).
-- [ ] Build + tests + lint; peer review; browser-tune (moon counts, floor tier,
-      orbit spread).
+- [x] Build + tests + lint; peer review. Browser tuning (moon counts, floor
+      tier, orbit spread) is Pierre's.
 
 ## Decisions (from Pierre)
 

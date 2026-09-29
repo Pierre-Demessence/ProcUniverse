@@ -13,9 +13,11 @@ Covers workstreams **D, E, F, G, H, I** of
 and **Stage 4 (sphere surfaces, R3)** of
 [rendering-backend.md](rendering-backend.md), **system tier only**.
 
-> Status: **planned, ready to build.** Nothing implemented yet. Sequencing and
-> the key design calls are settled (see §10); Phase 1 (gas/ice giants) is the
-> next slice. Only the Phase 3 cloud-layer mechanism is deferred until reached.
+> Status: **shelved.** Surface looks are judged by taste and blind iteration
+> without seeing the output did not converge, so work moved to geometric
+> workstreams: rings (G, [planet-rings.md](done/planet-rings.md)) and oblateness
+> (H) have shipped. Surfaces (D, E, F, I) resume when there is a way to iterate
+> on the look with Pierre in the loop; tracked in [roadmap.md](../roadmap.md).
 
 ## 1. Strategy: split, gas giants first
 

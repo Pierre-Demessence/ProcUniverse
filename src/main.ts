@@ -95,6 +95,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   // sessions never download the three bundle), then kept for the session.
   let threeRenderer: ThreeRenderer | null = null;
   let threeLoading = false;
+  let threeLoadFailed = false;
 
   // Size the backing store to device pixels before the camera is created, so it
   // reads real dimensions rather than the canvas default (300x150).
@@ -511,10 +512,11 @@ export function start(container: HTMLElement, save: Save): () => void {
     // Rendering backend: lazily stand up the Three.js renderer the first time it
     // is selected, keep its canvas behind the 2D HUD canvas, and show it only
     // once it has finished initialising. While Three loads, the 2D canvas is
-    // kept transparent at the system tier (via threeMode) so the user sees the
-    // dark background rather than a flash of Canvas 2D content; non-system tiers
-    // still draw on Canvas 2D until Three is ready.
-    const threeMode = renderBackend.value === 'three';
+    // kept transparent (via threeMode) so the user sees the dark background
+    // rather than a flash of Canvas 2D content. If Three cannot load or
+    // initialise, Canvas 2D takes over every tier for the rest of the session.
+    const threeFailed = threeLoadFailed || (threeRenderer?.failed ?? false);
+    const threeMode = renderBackend.value === 'three' && !threeFailed;
     if (threeMode && !threeRenderer && !threeLoading) {
       // Load the Three.js backend (and its large three bundle) on demand, so
       // Canvas 2D sessions never pay for it. Canvas 2D keeps drawing until the
@@ -525,7 +527,9 @@ export function start(container: HTMLElement, save: Save): () => void {
         threeRenderer.resize(canvas.width, canvas.height);
         container.insertBefore(threeRenderer.canvas, canvas);
       }).catch((error: unknown) => {
-        // Allow a later retry if the chunk failed to load (e.g. transient network).
+        // Fall back to Canvas 2D rather than re-requesting the chunk every frame;
+        // a page reload retries.
+        threeLoadFailed = true;
         threeLoading = false;
         console.error('ProcUniverse: failed to load the Three.js backend.', error);
       });

@@ -3,7 +3,7 @@
 Focused implementation plan for the true-3D pivot, driven by Pierre's priority:
 **3D planetary systems — spherical bodies, axial rotation, and a tiltable /
 orbitable camera.** Detailed companion to
-[rendering-backend.md](rendering-backend.md) §6 (going full 3D) and §10
+[rendering-backend.md](../rendering-backend.md) §6 (going full 3D) and §10
 (decisions); those stay the high-level design, this is the staged build.
 
 > Status: **plan drafted, awaiting Pierre's confirmation.** No code yet.

@@ -8,10 +8,10 @@ shape.
 ## Goal & scope
 
 - Replace the `SUBGRID×SUBGRID` jittered-lattice placement in
-  [generateSectorData](../../src/generation/universe.ts) with points drawn from a seeded galaxy
+  [generateSectorData](../../../src/generation/universe.ts) with points drawn from a seeded galaxy
   **density field** (denser in core/arms, falling to empty beyond a finite radius).
 - Derive a galaxy **shape** (spiral or elliptical) + parameters as a pure function of the world seed.
-- Make the galaxy-tier glow ([draw-galaxy.ts](../../src/render/draw-galaxy.ts)) sample the **same**
+- Make the galaxy-tier glow ([draw-galaxy.ts](../../../src/render/draw-galaxy.ts)) sample the **same**
   density field, so zooming out reveals the actual galaxy structure rather than uniform noise.
 
 ### Non-goals (stay in Phase G / later)
@@ -44,7 +44,7 @@ stars per sector ≈ `STAR_DENSITY_PEAK × avg(rho)` — ~`STAR_DENSITY_PEAK` at
 
 ### Galaxy parameters + density field — new `generation/galaxies.ts`
 
-- `hashGalaxy(worldSeed)` (new in [hash.ts](../../src/generation/hash.ts)) → galaxy RNG.
+- `hashGalaxy(worldSeed)` (new in [hash.ts](../../../src/generation/hash.ts)) → galaxy RNG.
 - `GalaxyParams` (pure fn of the seed): `type: 'spiral' | 'elliptical'`, `scaleLength`, `radius`
   (finite cutoff), `arms`, `pitch`, `armStrength`, `phase`, `orientation`, `ellipticity`.
   Center fixed at the **world origin** for v1 (so the startup camera, framed on the origin sector,
@@ -60,7 +60,7 @@ stars per sector ≈ `STAR_DENSITY_PEAK × avg(rho)` — ~`STAR_DENSITY_PEAK` at
 
 ### Galaxy-tier glow consistency
 
-In [draw-galaxy.ts](../../src/render/draw-galaxy.ts), replace the random `hashSector(seed ^ SALT)`
+In [draw-galaxy.ts](../../../src/render/draw-galaxy.ts), replace the random `hashSector(seed ^ SALT)`
 per-cell value with `galaxyDensity(galaxy, cellCenterX, cellCenterY)` for the glow's brightness/size,
 keeping the existing power-of-two cell aggregation (bounded draw count). The zoomed-out view then
 shows the core + arms.

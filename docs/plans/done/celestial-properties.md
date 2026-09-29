@@ -1,7 +1,7 @@
 # Celestial Properties — Implementation Plan
 
 Add the data catalogued in
-[../research/celestial-properties-extensions.md](../research/celestial-properties-extensions.md)
+[../research/celestial-properties-extensions.md](../../research/celestial-properties-extensions.md)
 to the inspector, then (later, separately) use it to draw bodies differently.
 
 Source of truth for *what* each property is and *how* to compute it: the research
@@ -40,7 +40,7 @@ universe.
   an implementation tracker).
 - **Validation:** `npm run build` (tsc + vite) and `npm test` must pass.
   In-browser verification (does the panel read well, do values look sane) is
-  **Pierre's** job per [AGENTS.md](../../AGENTS.md). Each code phase gets a fast,
+  **Pierre's** job per [AGENTS.md](../../../AGENTS.md). Each code phase gets a fast,
   lightweight peer-review pass before it is considered done.
 
 ---
@@ -52,20 +52,20 @@ each sub-phase is independently shippable.
 
 ### 1.1 Planets ✅
 
-- [x] Add helpers in [src/generation/planets.ts](../../src/generation/planets.ts):
+- [x] Add helpers in [src/generation/planets.ts](../../../src/generation/planets.ts):
       `surfaceGravity`, `escapeVelocity`, `centralPressure` (Earth-anchored),
       `compositionClass`, `earthSimilarityIndex`. (`hillRadius` / `rocheLimit`
       deferred to the moons/rings work — satellite mechanics, awkward in isolation.)
 - [x] Store a derived `insolation` (S⊕) at gen time in `samplePlanet` — no new draw.
-- [x] Add the rows to `PlanetPanel` in [src/ui/inspector.tsx](../../src/ui/inspector.tsx).
-- [x] Tests in [src/generation/planets.test.ts](../../src/generation/planets.test.ts):
+- [x] Add the rows to `PlanetPanel` in [src/ui/inspector.tsx](../../../src/ui/inspector.tsx).
+- [x] Tests in [src/generation/planets.test.ts](../../../src/generation/planets.test.ts):
       Earth = 1 g⊕ / 11.19 km/s, ESI(Earth) = 1, composition bins, insolation.
 - [x] Mark each shipped property with ✅ in the research doc §3.1.
 - Status: build + 104 tests + lint green; not yet committed.
 
 ### 1.2 Stars ✅
 
-- [x] Add helpers in [src/generation/stars.ts](../../src/generation/stars.ts):
+- [x] Add helpers in [src/generation/stars.ts](../../../src/generation/stars.ts):
       `surfaceGravityLog`, `meanDensity`, `escapeVelocity`, `bolometricMagnitude`,
       `peakWavelength`. Expose `habitableZone` / `frostLine` in the panel.
       (`absoluteVisualMagnitude` via a BC(T) table deferred — keeps this cut exact.)
@@ -76,7 +76,7 @@ each sub-phase is independently shippable.
 
 ### 1.3 Orbits ✅
 
-- [x] Add helpers in [src/sim/orbits.ts](../../src/sim/orbits.ts): `periapsis`,
+- [x] Add helpers in [src/sim/orbits.ts](../../../src/sim/orbits.ts): `periapsis`,
       `apoapsis`, `meanOrbitalSpeed` (km/s), `insolationSwing`. (vis-viva peri/apo
       speeds, specific energy / angular momentum, mean motion, and the two-body
       synodic period deferred — technical, niche for the inspector.)
@@ -87,7 +87,7 @@ each sub-phase is independently shippable.
 
 ### 1.4 Black holes ✅
 
-- [x] Add helpers in [src/generation/galaxies.ts](../../src/generation/galaxies.ts):
+- [x] Add helpers in [src/generation/galaxies.ts](../../../src/generation/galaxies.ts):
       `hawkingTemperature`, `evaporationTime`, `photonSphere`,
       `innermostStableOrbit` (ISCO, Schwarzschild), `shadowDiameter`,
       `eddingtonLuminosity`. (`class` is always "supermassive" for our

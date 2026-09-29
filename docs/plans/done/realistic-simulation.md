@@ -7,7 +7,7 @@ habitability, and a true astronomical **distance scale** (AU within systems,
 light-years between them).
 
 Physics, formulas, constants, and the feasibility analysis live in the research
-reference: [../research/realistic-simulation.md](../research/realistic-simulation.md).
+reference: [../research/realistic-simulation.md](../../research/realistic-simulation.md).
 This document is the **design + phased checklist**.
 
 > **Sequencing:** this is scheduled **after**
@@ -84,7 +84,7 @@ already asserts.
 
 ### 2.4 Floating origin, extended
 
-The existing sector-rebasing ([src/main.ts](../../src/main.ts)) already keeps
+The existing sector-rebasing ([src/main.ts](../../../src/main.ts)) already keeps
 rendered coordinates small. Add a **star-local frame** at the system tier:
 rebase the render origin to the focused star so planet coordinates are ≤ tens of
 AU (nanometre precision). Between systems, continue rebasing on the sector grid.
@@ -148,7 +148,7 @@ Universe-layer pieces (Phase G; designed-for now, built later): `GalaxyData`
 (Phase F) reads `StarPhysical` / `PlanetPhysical` for the picked body.
 
 `SystemData` / `PlanetData` in
-[src/generation/universe.ts](../../src/generation/universe.ts) grow the physical
+[src/generation/universe.ts](../../../src/generation/universe.ts) grow the physical
 fields; `spawnSector` writes the new components.
 
 ---

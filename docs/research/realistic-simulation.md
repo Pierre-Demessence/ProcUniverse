@@ -13,7 +13,7 @@ This document answers two questions:
    which are genuinely out of reach?**
 
 It is a reference for the design and plan in
-[../plans/realistic-simulation.md](../plans/realistic-simulation.md). Every
+[../plans/realistic-simulation.md](../plans/done/realistic-simulation.md). Every
 quantitative claim cites a source (see [§9](#9-sources)).
 
 ---

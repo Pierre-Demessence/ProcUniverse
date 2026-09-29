@@ -3,15 +3,19 @@
 The **complete** picture for "prettifying" the system view now that the 3D
 foundation is done (perspective camera, spheres, Z axis, planet rotation/tilt,
 inclined orbits, flatten toggle). This is the umbrella roadmap; individual
-focused plans (starting with [star-shading.md](star-shading.md)) implement one
+focused plans (starting with [star-shading.md](done/star-shading.md)) implement one
 workstream at a time.
 
 This roadmap covers **Stage 2 (shader effects, R2)** and parts of **Stage 4
 (sphere surfaces, R3)** of [rendering-backend.md](rendering-backend.md),
 narrowed — per Pierre — to the **system tier only**.
 
-> Status: **planning.** Nothing here is implemented yet. The first slice is
-> stars ([star-shading.md](star-shading.md)).
+> Status: **in progress.** Shipped: A + B (star shading and point-light
+> lighting, [star-shading.md](done/star-shading.md)), C (galaxy-aware starfield,
+> [background-starfield.md](done/background-starfield.md)), G (rings,
+> [planet-rings.md](done/planet-rings.md)), H (oblateness). Open: D, E, F, I
+> (planet and moon surfaces — [planet-surfaces.md](planet-surfaces.md)) and J
+> (eclipses). Open items are tracked in [roadmap.md](../roadmap.md).
 
 ## 1. Intent
 
@@ -50,13 +54,13 @@ column: **1 = first focus**, higher = later.
 
 | # | Workstream | Reads | Approach (plain) | Priority |
 | - | ---------- | ----- | ---------------- | -------- |
-| A | **Star surface shading** | `temperature`, `colorHex`, `luminosity`, `radius` | Limb darkening + blackbody colour + granulation/spots noise + corona glow + gentle flicker. Kills the flat "yellow circle". | **1** ([star-shading.md](star-shading.md)) |
+| A | **Star surface shading** | `temperature`, `colorHex`, `luminosity`, `radius` | Limb darkening + blackbody colour + granulation/spots noise + corona glow + gentle flicker. Kills the flat "yellow circle". | **1** ✅ ([star-shading.md](done/star-shading.md)) |
 | B | **Realistic star lighting** | star position, `luminosity` | Replace the fixed directional light with a **point light at the star**, so planets/moons are lit on the star-facing hemisphere and the lit face tracks the orbit. Cheap, high value. | **1** (with A) |
-| C | **Galaxy-aware background starfield** | `galaxyDensityAt`, `galaxyActivityAt`, `cosmicDensity` | A far-dome procedural starfield whose density + colour follow the local galaxy (dense/bluer in core & arms, sparse in voids), plus a faint Milky-Way band inside a disk. | 2 ✅ ([background-starfield.md](background-starfield.md)) |
+| C | **Galaxy-aware background starfield** | `galaxyDensityAt`, `galaxyActivityAt`, `cosmicDensity` | A far-dome procedural starfield whose density + colour follow the local galaxy (dense/bluer in core & arms, sparse in voids), plus a faint Milky-Way band inside a disk. | 2 ✅ ([background-starfield.md](done/background-starfield.md)) |
 | D | **Gas / ice giant surfaces** | `type`, `equilibriumTemp` | Horizontal banded atmosphere (Jupiter/Neptune stripes) coloured by temperature + type. Biggest single planet upgrade. | 2 |
 | E | **Rocky / terrestrial surfaces** | `type`, `equilibriumTemp`, `waterState`, `inHabitableZone` | Mottled rocky/cratered surface; colour ramps molten-red → brown/grey → ice-white by temperature; polar ice caps; blue oceans for liquid-water worlds. | 3 |
 | F | **Atmospheres (rim glow + clouds)** | `retainsAtmosphere`, `atmosphereType`, `equilibriumTemp` | Soft coloured limb halo ("airglow") on worlds that keep an atmosphere; a thin drifting cloud layer over them. | 3 |
-| G | **Rings** | `hasRings`, `obliquity`, plane normal | A translucent ring disc tilted with the planet. Data already exists; rings are (as far as we know) **not drawn yet**. High payoff. | 4 ✅ ([planet-rings.md](planet-rings.md)) |
+| G | **Rings** | `hasRings`, `obliquity`, plane normal | A translucent ring disc tilted with the planet. High payoff. | 4 ✅ ([planet-rings.md](done/planet-rings.md)) |
 | H | **Oblateness (equatorial bulge)** | `rotationPeriod`, oblateness calc | Squash fast-rotators slightly at the equator. Subtle; the sphere is currently perfectly round. | 4 ✅ |
 | I | **Moon surfaces** | moon `density`, `radius`, host proximity | Small-body look (grey/icy cratered) so moons don't read as mini-planets. | 4 |
 | J | **Eclipses / cast shadows** *(advanced, optional)* | geometry | Shadow mapping so a moon dims behind a planet, or a planet shadows its rings. Real, but perf-costly and a subtle payoff at these scales. | 5 |
@@ -102,7 +106,7 @@ column: **1 = first focus**, higher = later.
 | ---- | -------- | -------- |
 | 2026-07-04 | Scope | System tier only; prettify existing 3D bodies. |
 | 2026-07-04 | Build approach | **Procedural TSL shaders**, no texture assets. |
-| 2026-07-04 | First focus | **Stars** (surface shading + glow) — see star-shading.md. |
+| 2026-07-04 | First focus | **Stars** (surface shading + glow) — see [star-shading.md](done/star-shading.md). |
 | 2026-07-04 | Star lighting | Realistic **point light at the star**; do it with the stars work. |
 | 2026-07-04 | Eclipses / cast shadows | Real but expensive; **roadmap/optional (J)**, not the first pass. |
 | 2026-07-04 | Background sky | **Procedural galaxy-aware starfield dome** (density/colour from galaxy field), not rendering every real neighbour. |

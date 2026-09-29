@@ -4,7 +4,7 @@ A procedural galaxy-aware background starfield behind all tiers, so the sky
 around a focused system reflects its local galaxy (dense + blue in arms,
 sparse + red in voids, with a faint disk band) instead of being flat black.
 
-> Parent: [system-visuals.md](system-visuals.md) workstream **C**.
+> Parent: [system-visuals.md](../system-visuals.md) workstream **C**.
 > Status: **planning.** Nothing here is implemented yet.
 
 ## 1. What we already have

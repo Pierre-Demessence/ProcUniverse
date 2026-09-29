@@ -1,15 +1,14 @@
 # ProcUniverse
 
-A procedurally generated 2D universe explorer — pan and zoom across a flat,
-effectively-infinite field of star systems with planets orbiting in real time.
-Built on the sibling `@pierre/ecs` engine (checked out at
-`../Entity-Cornponent-System-Engine`).
+[![CI](https://github.com/Pierre-Demessence/ProcUniverse/actions/workflows/ci.yml/badge.svg)](https://github.com/Pierre-Demessence/ProcUniverse/actions/workflows/ci.yml)
 
-## Status
+A procedurally generated universe explorer for the browser. Zoom from the
+cosmic web down through galaxies and star fields into individual planetary
+systems, rendered in 3D with Three.js — lit, rotating planets and moons on real
+Keplerian orbits. Everything regenerates from a single seed, backed by real
+astrophysics. Built on the sibling `@pierre/ecs` engine.
 
-Phase 0 (scaffold): a pannable, zoomable plane with an FPS HUD and a single
-placeholder star. Roadmap:
-[docs/plans/procedural-universe.md](docs/plans/procedural-universe.md).
+Play it on [itch.io](https://corniflex.itch.io/procuniverse).
 
 ## Requirements
 
@@ -24,12 +23,14 @@ npm install
 npm run dev      # http://localhost:5180
 ```
 
-Validate with `npm run typecheck`, `npm test`, or `npm run build`.
+Validate with `npm run build` (typecheck + bundle), `npm test`, and
+`npm run lint`.
 
 ## Controls
 
-- Drag to pan.
-- Scroll to zoom toward the cursor.
+- Left-drag to pan; scroll to zoom toward the cursor.
+- Right-drag to orbit and tilt the 3D system view; **Flatten** snaps it top-down.
+- Click a body to inspect it; Escape dismisses.
 
 ## Documentation
 

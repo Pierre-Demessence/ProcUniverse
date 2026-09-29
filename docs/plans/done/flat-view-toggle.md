@@ -1,8 +1,8 @@
 # Flat-view toggle (Stage 3 closeout)
 
-Completes the last of the [rendering-backend.md](rendering-backend.md) §7 Stage 3
+Completes the last of the [rendering-backend.md](../rendering-backend.md) §7 Stage 3
 follow-ups: a **"view as flat" toggle**. Wraps up the true-3D pivot
-([true-3d-systems.md](done/true-3d-systems.md)).
+([true-3d-systems.md](true-3d-systems.md)).
 
 > Status: **done** — Pierre browser-confirmed "works perfectly". Landed together
 > with the plane-anchored camera fix it depends on.

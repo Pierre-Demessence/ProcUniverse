@@ -41,7 +41,7 @@ const DEFAULT_DETAIL_LEVEL: DetailLevel = 'advanced';
 const DEFAULT_NUMBER_NOTATION: NumberNotation = 'auto';
 const DEFAULT_BODY_SCALE: BodyScale = 'usable';
 const DEFAULT_NAMING_STYLE: NamingStyle = 'human';
-const DEFAULT_RENDER_BACKEND: RenderBackend = 'canvas2d';
+const DEFAULT_RENDER_BACKEND: RenderBackend = 'three';
 
 function asTemperatureUnit(value: unknown): TemperatureUnit | null {
   return value === 'C' || value === 'F' || value === 'K' ? value : null;

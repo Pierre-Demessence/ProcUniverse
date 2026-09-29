@@ -4,8 +4,8 @@ A small, self-contained tweak to the background starfield so its star density
 **gradually** fades away from the galaxy plane, instead of the current "uniform
 sprinkle everywhere + an abrupt bright stripe" look.
 
-> Parent feature: [done/background-starfield.md](done/background-starfield.md)
-> (workstream C of [system-visuals.md](system-visuals.md)).
+> Parent feature: [done/background-starfield.md](background-starfield.md)
+> (workstream C of [system-visuals.md](../system-visuals.md)).
 > Independent of the 3D-galaxy work — operates on the current flat galaxy model.
 > Status: **planning.** Not implemented.
 
@@ -69,7 +69,7 @@ instanced sprites) unchanged.
 - **Scope:** this is the flat-galaxy polish only. The **direction-of-band /
   per-galaxy tilt / no-band-for-ellipticals / 3D-density** realism is a separate
   follow-up gated on the 3D-galaxy work, tracked in
-  [rendering-backend.md](rendering-backend.md) **Stage 3**.
+  [rendering-backend.md](../rendering-backend.md) **Stage 3**.
 
 ## 5. Steps
 

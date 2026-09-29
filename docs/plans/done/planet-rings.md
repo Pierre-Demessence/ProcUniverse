@@ -1,13 +1,12 @@
 # Planet Rings — a slice of the planet-surface overhaul
 
-Workstream **G** of [system-visuals.md](system-visuals.md) and
-[planet-surfaces.md](planet-surfaces.md). A translucent, tilted ring disc around
+Workstream **G** of [system-visuals.md](../system-visuals.md) and
+[planet-surfaces.md](../planet-surfaces.md). A translucent, tilted ring disc around
 planets that have rings — **geometry first, appearance deliberately simple**.
 
-> Status: **iterations 1–2 committed** (`0df17ce`, `4abbf6f`); **iteration 3
-> implemented** (per-planet diversity: varied gaps, inner/opacity variation,
-> static ringlets) — green + peer-reviewed, awaiting Pierre's browser check.
-> Iteration 4+ (edge-on Fresnel, backlit glow) queued. See §10.
+> Status: **done** — iterations 1–3 shipped (`0df17ce`, `4abbf6f`, `d778af0`).
+> Iteration 4+ polish (edge-on Fresnel, backlit glow) lives in
+> [roadmap.md](../../roadmap.md).
 
 ## 1. Why rings next (out of the planned order)
 
@@ -41,9 +40,9 @@ one clear gap (a Cassini-division cue). Subtle and tasteful, not flashy.
 
 - A flat annulus via three's `RingGeometry(inner, outer, segments)` (its own
   pooled mesh, like the sphere pools in
-  [three-renderer.ts](../../src/render/three/three-renderer.ts#L345)).
+  [three-renderer.ts](../../../src/render/three/three-renderer.ts#L345)).
 - **Orientation = the planet's spin axis.** Reuse exactly the axis
-  [`orientPlanet`](../../src/render/three/three-renderer.ts#L379) already
+  [`orientPlanet`](../../../src/render/three/three-renderer.ts#L379) already
   computes — orbit-plane normal (`inclination`, `longitudeAscendingNode`) tilted
   by `obliquity` around `obliquityAzimuth` via `tiltNormal`. `RingGeometry` lies
   in its local XY plane (normal +Z), so rotate +Z → that spin axis. The ring

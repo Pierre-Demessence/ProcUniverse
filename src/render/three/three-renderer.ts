@@ -143,6 +143,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   /** The WebGPU/WebGL canvas, positioned behind the 2D HUD canvas by the caller. */
   readonly canvas: HTMLCanvasElement;
   private readonly dummy = new Object3D();
+  /** True when `init()` rejected (no usable WebGPU / WebGL2); the renderer never becomes ready. */
+  failed = false;
   private glowCapacity = 0;
   private readonly glowGeometry: PlaneGeometry;
   private readonly glowMaterial: MeshBasicMaterial;
@@ -233,6 +235,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       pipeline.outputNode = scenePass.add(bloomPass);
       this.pipeline = pipeline;
     }).catch((error: unknown) => {
+      this.failed = true;
       console.error('ProcUniverse: Three.js renderer failed to initialise.', error);
     });
   }

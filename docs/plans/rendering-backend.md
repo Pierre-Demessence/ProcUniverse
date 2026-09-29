@@ -6,10 +6,14 @@ nebula effects, and (c) optionally show planets as textured spheres and/or go
 3D — all without throwing away the deterministic generation, physics, sim, and
 HUD layers already built.
 
-> Status: **work in progress.** Stages 0, 1 (partial — LOD retune remains), and
-> 3 (partial — system-tier camera, spheres, inclined orbits, and Z landed; see
-> [true-3d-systems.md](done/true-3d-systems.md)) are implemented. Stages 2, 4,
-> and 5 are not yet started. Decisions captured in §10; the stages in §7 reflect
+> Status: **work in progress.** Three.js is the default renderer; Canvas 2D is
+> frozen as the fallback when Three cannot load or initialise (see
+> [3d-default-and-docs-cleanup.md](done/3d-default-and-docs-cleanup.md)). Stages 0,
+> 1 (partial — LOD retune remains), 2 (partial — star corona and flicker via
+> [star-shading.md](done/star-shading.md)), and 3 (partial — system-tier camera,
+> spheres, inclined orbits, and Z; see [true-3d-systems.md](done/true-3d-systems.md))
+> are implemented. Stages 4 and 5 are not started. Open items are tracked in
+> [roadmap.md](../roadmap.md). Decisions captured in §10; the stages in §7 reflect
 > them (full 3D on Three.js, WebGPU-with-WebGL2-fallback, R1 + R2 first).
 
 ## 1. TL;DR recommendation
@@ -265,7 +269,8 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
 
 ### Stage 2 — Shader effects (R2)
 
-- [ ] Star corona / chromatic glow / subtle flicker, colour from blackbody T.
+- [x] Star corona / chromatic glow / subtle flicker, colour from blackbody T.
+      (See [star-shading.md](done/star-shading.md).)
 - [ ] Black-hole accretion disk (animated) + photon ring; optional screen-space
       gravitational lensing as a post-process. Driven by existing
       mass/spin/accretion data.
@@ -291,7 +296,7 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
         morphology (strong spiral/barred, faint/none elliptical), and (d) tie
         the sky to the galaxy the camera is *inside* vs. one viewed from
         outside. (The flat-galaxy density-falloff polish is separate and does
-        **not** wait on this — see `docs/plans/starfield-falloff.md`.)
+        **not** wait on this — see [starfield-falloff.md](done/starfield-falloff.md).)
 - [x] **Inclined orbits** (§6C): per-system disk plane + small per-planet
       inclination in `sim/orbits.ts`.
 - [x] Raycast picking; full camera tilt / fly; 3D floating-origin rebase.
@@ -300,7 +305,7 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
       system snaps the tilted 3D view straight top-down and back to the prior
       angle; **camera-only** (orbits keep their true projected shape — the
       inclinations are not re-flattened at draw time). See
-      [flat-view-toggle.md](flat-view-toggle.md).
+      [flat-view-toggle.md](done/flat-view-toggle.md).
 
 ### Stage 4 — Sphere planets + procedural textures (R3)
 
