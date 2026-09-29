@@ -32,9 +32,9 @@ remove it from here once it ships. Links point to the design context.
 - Move canvas / DPR sizing out of `main.ts` into its own module.
 - Bookmark panel re-renders every frame (`createBookmarkList.update` copies the
   array each tick); push only on change.
-- Split `ThreeRenderer.render()` (and the 959-line `three-renderer.ts`); adopting
-  the engine `Scene3DRenderer` for the system view fits here
-  ([engine-adoption.md](research/engine-adoption.md)).
+- Split the remaining 780-line `three-renderer.ts` (instanced star / glow tiers,
+  orbit rings, camera sync); the system-tier bodies already live in
+  `body-passes.ts`.
 - Tests for `camera-controller.ts`, `lod/streaming.ts`, and
   `lod/sector-cache.ts` (the source of most recent camera / reload fixes).
 - A performance budget: frame-time and star-count measurement per tier.

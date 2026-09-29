@@ -49,6 +49,11 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   `TickRunner`. Step order encodes past bug fixes and is pinned by
   `src/frame/pipeline.test.ts`. `world.endOfTick()` stays inside the `streaming`
   system because `orbits` reads what streaming just spawned.
+- System-tier body meshes come from `BodyPasses` (`src/render/three/body-passes.ts`).
+  Unused pooled meshes are detached from `group`, so `ThreeRenderer.pickAt` only
+  sees live bodies. Pass order in `render()` is stars → star light → planets,
+  rings, moons, black holes (rings read the star light). A world reset must call
+  `bodyPasses.releaseAll()` because entity ids restart.
 - No agent browser/E2E testing — hand in-browser verification to Pierre.
 - Planet surface looks are tuned by Pierre in the planet lab (`src/lab/`); the
   agent turns the copied lab JSON into `src/config/render.ts` defaults. The app

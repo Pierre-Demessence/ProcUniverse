@@ -14,15 +14,14 @@ transforms, `math` / `rng` helpers, `projectPointer`, `Canvas2DRenderer`,
 systems in `src/frame/` (lock, tier, origin rebase, streaming, orbits,
 rendering, HUD) driven by a `TickRunner`, with the step order pinned by a test.
 
+The Three.js system view uses `Scene3DRenderer`
+(`@pierre/ecs/modules/render-scene3d`): `src/render/three/body-passes.ts` runs
+one pass each for stars, planets, moons, black holes and planet rings. A pass
+creates a mesh when a body is first selected, syncs it every frame, and hands
+it back through the engine's `remove` callback to a `RecyclePool`, so meshes and
+their GPU materials are recycled as sectors stream in and out.
+
 ## Structural opportunities
-
-### `Scene3DRenderer` for the Three.js system view
-
-`@pierre/ecs/modules/render-scene3d` keeps one scene-graph object per selected
-entity: created on first selection, synced each frame, removed when the entity
-leaves. `ThreeRenderer` manages the same lifecycle by hand with index-based
-pools (`pool`, `starSpherePool`, `planetRingPool`). Adopting it fits the
-roadmap item "Split `ThreeRenderer.render()`".
 
 ### `Position3DDef` instead of `PositionZDef`
 
