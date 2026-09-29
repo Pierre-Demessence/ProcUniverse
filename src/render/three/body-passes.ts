@@ -158,7 +158,11 @@ function meshGraph(group: Group): SceneGraph<PooledMesh<unknown>> {
   };
 }
 
-/** Objects come from `pool` and return to it when the entity leaves the pass. */
+/**
+ * Objects come from `pool` and return to it when the entity leaves the pass.
+ * `Scene3DRenderer` calls `select` once per world and re-iterates the result
+ * every frame, so the one-shot generator is wrapped to restart on each pass.
+ */
 function makePass<THandle, TRow extends unknown[]>(
   pool: RecyclePool<Entry<THandle>>,
   select: (world: EcsWorld) => Iterable<Scene3DEntry<TRow>>,
@@ -168,7 +172,7 @@ function makePass<THandle, TRow extends unknown[]>(
     sync,
     create: () => pool.take(),
     remove: entry => pool.give(entry),
-    select,
+    select: world => ({ [Symbol.iterator]: () => select(world)[Symbol.iterator]() }),
   });
 }
 

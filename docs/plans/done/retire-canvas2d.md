@@ -76,7 +76,10 @@ engine's `Position3DDef`, and the 3D path stops borrowing the 2D renderer's
 
 ## Verification
 
-- [x] `npm run lint`, `npm run build`, `npm test` pass.
+- [x] `npm run lint`, `npm run build`, `npm test` pass. The engine's cached
+      query handles made `Scene3DRenderer` call `select` once and re-iterate
+      it, which emptied the one-shot body generators after the first frame;
+      `makePass` now wraps them in a re-iterable.
 - [x] Peer review (fast model).
 - [x] Hand off to Pierre for in-browser checks: every tier renders, labels /
       reticle / picking / bookmarks / lock work, the failure notice shows when

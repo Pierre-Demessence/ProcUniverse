@@ -56,7 +56,9 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   Unused pooled meshes are detached from `group`, so `ThreeRenderer.pickAt` only
   sees live bodies. Pass order in `render()` is stars → star light → planets,
   rings, moons, black holes (rings read the star light). A world reset must call
-  `bodyPasses.releaseAll()` because entity ids restart.
+  `bodyPasses.releaseAll()` because entity ids restart. `Scene3DRenderer` calls
+  a pass's `select` once per world and re-iterates the result every frame, so a
+  selection must be re-iterable (`makePass` wraps the generator selectors).
 - No agent browser/E2E testing — hand in-browser verification to Pierre.
 - Planet surface looks are tuned by Pierre in the planet lab (`src/lab/`); the
   agent turns the copied lab JSON into `src/config/render.ts` defaults. The app

@@ -139,6 +139,16 @@ describe('bodyPasses', () => {
     expect(mesh.userData).toMatchObject({ id, kind: 'planet' });
   });
 
+  it('keeps drawing a body on every frame, not just the first', () => {
+    const group = new Group();
+    const passes = new BodyPasses(makePools(), group);
+    const world = makeWorld();
+    addPlanet(world, 1, 2);
+    passes.renderBodies(world, FRAME, null);
+    passes.renderBodies(world, FRAME, null);
+    expect(meshes(group)).toHaveLength(1);
+  });
+
   it('places the mesh at the body 3D position', () => {
     const group = new Group();
     const passes = new BodyPasses(makePools(), group);
