@@ -1,9 +1,7 @@
 /**
- * Three-only glow-sprite iterators for the aggregate tiers, feeding the Three
- * renderer's instanced additive glow mesh. Each mirrors the corresponding
- * Canvas 2D `draw-*` tier's sprite computation but emits render-origin-relative
- * WORLD coordinates + a world radius (the GPU projects), leaving the Canvas 2D
- * files untouched. Keep these in sync with their `draw-*` counterparts.
+ * Glow-sprite iterators for the aggregate tiers, feeding the Three renderer's
+ * instanced additive glow mesh. Each emits render-origin-relative WORLD
+ * coordinates and a world radius; the GPU projects them.
  */
 
 import type { Camera } from '@pierre/ecs/modules/camera';
@@ -24,17 +22,17 @@ export type GlowSink = (x: number, y: number, radius: number, r: number, g: numb
 /** A tier's glow iterator: emits every visible sprite to `sink`. */
 export type GlowField = (cam: Camera, seed: number, originX: number, originY: number, sink: GlowSink) => void;
 
-/** Opacity of a galaxy-field sprite; mirrors `drawGalaxyField`. */
+/** Opacity of a galaxy-field sprite. */
 const GALAXY_FIELD_ALPHA = 0.9;
-/** Minimum on-screen sprite radius (px); mirrors `drawGalaxyField`. */
+/** Minimum on-screen sprite radius (px). */
 const MIN_SPRITE_PX = 2;
-/** Aggregate-cell target size (px); mirrors `drawGalaxy` / `drawUniverse`. */
+/** Aggregate-cell target size (px) for the galaxy and universe tiers. */
 const TARGET_CELL_PX = 34;
 
 /**
  * GALAXY-FIELD tier: one additive glow per galaxy in view — centre from the
  * galaxy, world radius from its size (min-floored on screen), colour from its
- * dominant population. Mirrors the sprite pass of `drawGalaxyField`.
+ * dominant population.
  */
 export const forEachGalaxyFieldGlow: GlowField = (cam, seed, originX, originY, sink) => {
   const rect = cameraViewRect(cam);
@@ -49,8 +47,8 @@ export const forEachGalaxyFieldGlow: GlowField = (cam, seed, originX, originY, s
 
 /**
  * GALAXY tier: a soft additive glow per aggregate cell — size and brightness from
- * the galaxy-density field, colour from star-formation activity. Mirrors
- * `drawGalaxy` (power-of-two cells sized to stay ≥ `TARGET_CELL_PX` on screen).
+ * the galaxy-density field, colour from star-formation activity. Power-of-two
+ * cells are sized to stay ≥ `TARGET_CELL_PX` on screen.
  */
 export const forEachGalaxyGlow: GlowField = (cam, seed, originX, originY, sink) => {
   const sectorPx = SECTOR_SIZE * cam.zoom;
@@ -78,8 +76,8 @@ export const forEachGalaxyGlow: GlowField = (cam, seed, originX, originY, sink) 
 
 /**
  * UNIVERSE tier: aggregate the cosmic-web density into a soft additive glow —
- * dense clusters bright and red, voids dim and blue. Mirrors `drawUniverse`
- * (super-cells sized in galaxy-cells to stay ≥ `TARGET_CELL_PX` on screen).
+ * dense clusters bright and red, voids dim and blue. Super-cells are sized in
+ * galaxy-cells to stay ≥ `TARGET_CELL_PX` on screen.
  */
 export const forEachUniverseGlow: GlowField = (cam, seed, originX, originY, sink) => {
   const galaxyCell = GALAXY_CELL_LY * AU_PER_LY;

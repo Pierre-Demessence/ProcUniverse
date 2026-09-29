@@ -1,11 +1,11 @@
 import type { OrbitElements } from './orbits';
 
 import { EcsWorld } from '@pierre/ecs';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
 import { SECONDS_PER_YEAR } from '../generation/units';
-import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, planeToElements, PositionZDef, ringSegmentCount, tiltNormal, updateOrbits, writeOrbitPosition } from './orbits';
+import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, planeToElements, ringSegmentCount, tiltNormal, updateOrbits, writeOrbitPosition } from './orbits';
 
 function makeOrbit(overrides: Partial<OrbitElements> = {}): OrbitElements {
   return { a: 100, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: -1, starMass: 1, ...overrides };
@@ -182,21 +182,20 @@ describe('orbit derived quantities', () => {
 describe('updateOrbits with moons', () => {
   it('keeps a moon centred on its planet as the planet moves along its own orbit', () => {
     const world = new EcsWorld();
-    world.registerComponent(PositionDef);
-    world.registerComponent(PositionZDef);
+    world.registerComponent(Position3DDef);
     world.registerComponent(OrbitElementsDef);
-    const positions = world.getStore(PositionDef);
+    const positions = world.getStore(Position3DDef);
     const orbits = world.getStore(OrbitElementsDef);
 
     // A planet on a 1 AU circular orbit around a star fixed at the origin.
     const planet = world.createEntity();
-    positions.set(planet, { x: 0, y: 0 });
+    positions.set(planet, { x: 0, y: 0, z: 0 });
     orbits.set(planet, { a: 1, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: -1, starMass: 1 });
 
     // A moon on a tight circular orbit around that planet (parent = planet id),
     // with the planet's mass (solar units) as its central mass.
     const moon = world.createEntity();
-    positions.set(moon, { x: 0, y: 0 });
+    positions.set(moon, { x: 0, y: 0, z: 0 });
     orbits.set(moon, { a: 0.01, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: planet, starMass: 3e-6 });
 
     // A quarter period in: the planet has swept away from its start, so a moon

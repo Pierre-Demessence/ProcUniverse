@@ -7,9 +7,8 @@ remove it from here once it ships. Links point to the design context.
 
 ## Direction
 
-- **3D is the primary view.** Three.js renders every tier and is the default.
-  Canvas 2D is frozen as the fallback when Three cannot load or initialise; it
-  gets no new features.
+- **3D is the only renderer.** Three.js renders every tier; a transparent 2D
+  overlay carries labels, the reticle and the HUD.
 - **The universe is deterministic.** Everything regenerates from the seed; only
   the seed and player state are saved.
 
@@ -24,8 +23,6 @@ remove it from here once it ships. Links point to the design context.
     true 3D density, inside-vs-outside a galaxy).
 - **Distance-based LOD** to replace zoom-level tier selection (depends on the
   item above).
-- **Retire the Canvas 2D renderer** once the fallback is no longer needed;
-  decide what to show when 3D cannot start.
 
 ## Engineering health
 

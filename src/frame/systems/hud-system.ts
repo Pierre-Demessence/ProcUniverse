@@ -48,8 +48,8 @@ export interface HudSystemDeps {
 }
 
 /**
- * Lightweight HUD overlays and DOM updates. Cheap enough to run every frame,
- * dirty or not, so the time display and frame-time sparkline stay live.
+ * Lightweight HUD overlays and DOM updates, run every frame so the time display
+ * and frame-time sparkline stay live.
  */
 export function makeHudSystem(deps: HudSystemDeps): SchedulableSystem<FrameCtx> {
   const { bookmarkList, bookmarks, cache, camera, canvas, ctx2d, frameStats, inspector, navTree, seed, selectionState, state, threeBackend, timeControls, world } = deps;
@@ -79,7 +79,7 @@ export function makeHudSystem(deps: HudSystemDeps): SchedulableSystem<FrameCtx> 
       const dpr = window.devicePixelRatio || 1;
       const statsX = canvas.width - (STATS_HUD_RIGHT_RESERVE_PX + STATS_HUD_GAP_PX) * dpr - STATS_HUD_WIDTH_PX;
       drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS, x: statsX, y: STATS_HUD_TOP_PX * dpr });
-      drawHint(ctx2d, canvas, ctx.tier, ctx.renderedByThree ? `Three (${threeBackend.renderer?.backendLabel ?? '…'})` : 'Canvas 2D');
+      drawHint(ctx2d, canvas, ctx.tier, `Three (${threeBackend.renderer?.backendLabel ?? '…'})`);
       drawScaleBar(ctx2d, camera);
       drawCoords(ctx2d, camAbs, seed);
       timeControls.update(state.simSeconds);

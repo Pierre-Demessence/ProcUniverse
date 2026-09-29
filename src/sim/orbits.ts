@@ -1,10 +1,8 @@
 import type { EcsWorld } from '@pierre/ecs';
 import type { ComponentDef } from '@pierre/ecs/component-store';
-import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { simpleComponent } from '@pierre/ecs/component-store';
-import { worldToView } from '@pierre/ecs/modules/camera';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
 import { KM_PER_AU, SECONDS_PER_YEAR } from '../generation/units';
 
@@ -60,20 +58,6 @@ export const OrbitElementsDef: ComponentDef<OrbitElements> = simpleComponent<Orb
   meanAnomaly0: 'number',
   parent: 'number',
   starMass: 'number',
-});
-
-/**
- * The z (out-of-plane) coordinate of a body, kept parallel to the engine's 2D
- * `PositionDef` {x, y}. `updateOrbits` writes it alongside x,y, so the Three (3D)
- * renderer, body labels and picking can read a full 3D position while the Canvas
- * 2D backend + HUD keep using PositionDef's x,y — the top-down projection.
- */
-export interface PositionZ {
-  z: number;
-}
-
-export const PositionZDef: ComponentDef<PositionZ> = simpleComponent<PositionZ>('positionZ', {
-  z: 'number',
 });
 
 /**
@@ -253,8 +237,7 @@ export function tiltNormal(nx: number, ny: number, nz: number, angle: number, az
  */
 export function updateOrbits(world: EcsWorld, simSeconds: number): void {
   const years = simSeconds / SECONDS_PER_YEAR;
-  const positions = world.getStore(PositionDef);
-  const positionsZ = world.getStore(PositionZDef);
+  const positions = world.getStore(Position3DDef);
   const out = { x: 0, y: 0, z: 0 };
   // Pass 1: bodies orbiting a fixed focus (planets around their star, parent < 0).
   for (const [id, orbit] of world.query(OrbitElementsDef)) {
@@ -266,9 +249,7 @@ export function updateOrbits(world: EcsWorld, simSeconds: number): void {
     writeOrbitPosition(orbit, years, out);
     pos.x = out.x;
     pos.y = out.y;
-    const posZ = positionsZ.get(id);
-    if (posZ)
-      posZ.z = out.z;
+    pos.z = out.z;
   }
   // Pass 2: bodies orbiting a moving parent (moons around a planet). The parent
   // was positioned in pass 1, so its current 3D position is the moon's focus.
@@ -281,18 +262,14 @@ export function updateOrbits(world: EcsWorld, simSeconds: number): void {
       continue;
     orbit.cx = parentPos.x;
     orbit.cy = parentPos.y;
-    orbit.cz = positionsZ.get(orbit.parent)?.z ?? 0;
+    orbit.cz = parentPos.z;
     writeOrbitPosition(orbit, years, out);
     pos.x = out.x;
     pos.y = out.y;
-    const posZ = positionsZ.get(id);
-    if (posZ)
-      posZ.z = out.z;
+    pos.z = out.z;
   }
 }
 
-const RING_STROKE = 'rgba(150, 180, 230, 0.14)';
-const MIN_RING_PX = 3;
 // Orbit-ring tessellation: the segment count adapts to the ring's on-screen size
 // so the polyline hugs the true curve at any zoom. A fixed count looks chunky
 // when a large orbit is zoomed right in — each straight chord spans many pixels,
@@ -311,38 +288,4 @@ const RING_CHORD_PX = 6;
 export function ringSegmentCount(radiusPx: number): number {
   const target = Math.ceil((TAU * radiusPx) / RING_CHORD_PX);
   return Math.min(RING_MAX_SEGMENTS, Math.max(RING_MIN_SEGMENTS, target));
-}
-
-/**
- * Draw each orbit as its true ellipse (star at a focus), in screen space,
- * culling off-screen ones. The ring is sampled as a polyline of the 3D ellipse
- * projected to x,y (`writeOrbitEllipsePoint`), so an inclined orbit is drawn as
- * the same foreshortened shape its body traces top-down. The reach test culls
- * orbits whose bounding circle is fully off-screen.
- */
-export function drawOrbitRings(ctx2d: CanvasRenderingContext2D, cam: Camera, world: EcsWorld): void {
-  ctx2d.save();
-  ctx2d.lineWidth = 1;
-  ctx2d.strokeStyle = RING_STROKE;
-  const point = { x: 0, y: 0, z: 0 };
-  for (const [, orbit] of world.query(OrbitElementsDef)) {
-    if (orbit.a * cam.zoom < MIN_RING_PX)
-      continue;
-    const focus = worldToView(orbit.cx, orbit.cy, cam);
-    const reach = orbit.a * (1 + orbit.e) * cam.zoom;
-    if (focus.vx + reach < 0 || focus.vx - reach > cam.viewportW || focus.vy + reach < 0 || focus.vy - reach > cam.viewportH)
-      continue;
-    ctx2d.beginPath();
-    const segments = ringSegmentCount(orbit.a * cam.zoom);
-    for (let k = 0; k <= segments; k++) {
-      writeOrbitEllipsePoint(orbit, ((k % segments) / segments) * TAU, point);
-      const v = worldToView(point.x, point.y, cam);
-      if (k === 0)
-        ctx2d.moveTo(v.vx, v.vy);
-      else
-        ctx2d.lineTo(v.vx, v.vy);
-    }
-    ctx2d.stroke();
-  }
-  ctx2d.restore();
 }

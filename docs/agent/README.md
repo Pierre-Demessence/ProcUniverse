@@ -42,8 +42,11 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
 - Camera and pointer math run in canvas backing pixels; keep
   `camera.viewportW/H == canvas.width/height`.
 - Renderers receive render-origin-relative coordinates, never raw absolutes.
-- Three.js (`src/render/three/`) is the primary renderer; new visuals target it
-  only. Canvas 2D is a frozen fallback: keep it working, add no features.
+- Three.js (`src/render/three/`) is the only scene renderer. The 2D canvas is a
+  transparent overlay for labels, the reticle and the HUD; it is cleared every
+  frame by the `overlay-clear` step.
+- Bodies carry the engine `Position3DDef` and the project `BodyVisualDef`
+  (colour + zoom-floored radius, rewritten each frame by `applyBodyScale`).
 - Generation and sim never import Three.js; render reads the ECS world one-way.
 - The frame loop is `src/frame/` systems on an engine `Scheduler`, driven by a
   `TickRunner`. Step order encodes past bug fixes and is pinned by

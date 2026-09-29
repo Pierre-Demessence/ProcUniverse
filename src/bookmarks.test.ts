@@ -6,7 +6,7 @@ import type { PlanetPhysical } from './generation/planets';
 import type { OrbitElements } from './sim/orbits';
 
 import { EcsWorld } from '@pierre/ecs';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
 import { bookmarkFromSelection, removeBookmark, toggleBookmark } from './bookmarks';
@@ -52,7 +52,7 @@ const ORBIT: OrbitElements = {
 
 function worldWithPlanet(x: number, y: number): { id: EntityId; world: EcsWorld } {
   const world = new EcsWorld();
-  world.registerComponent(PositionDef);
+  world.registerComponent(Position3DDef);
   world.registerComponent(OrbitElementsDef);
   world.registerComponent(NameDef);
   world.registerComponent(StarPhysicalDef);
@@ -60,7 +60,7 @@ function worldWithPlanet(x: number, y: number): { id: EntityId; world: EcsWorld 
   world.registerComponent(MoonPhysicalDef);
   world.registerComponent(BlackHoleDef);
   const id = world.createEntity();
-  world.getStore(PositionDef).set(id, { x, y });
+  world.getStore(Position3DDef).set(id, { x, y, z: 0 });
   world.getStore(PlanetPhysicalDef).set(id, PLANET);
   world.getStore(OrbitElementsDef).set(id, ORBIT);
   world.getStore(NameDef).set(id, { human: 'Aurelia', scientific: 'G2-ABC b' });

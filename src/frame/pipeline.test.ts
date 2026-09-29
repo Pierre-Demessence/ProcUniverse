@@ -20,6 +20,6 @@ describe('frame pipeline order', () => {
     expect(at('lock-recentre')).toBeLessThan(at('tier-select'));
     expect(at('streaming')).toBeLessThan(at('orbits'));
     expect(at('orbits')).toBeLessThan(at('pending-bookmark'));
-    expect(at('pending-bookmark')).toBeLessThan(at('render-scene'));
+    expect(at('pending-bookmark')).toBeLessThan(at('render-three'));
   });
 });

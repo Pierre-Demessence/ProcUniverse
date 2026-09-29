@@ -55,35 +55,8 @@ export function makeTierSelectSystem(camera: Camera, state: FrameState): Schedul
     name: 'tier-select',
     runAfter: after('tier-select'),
     run(ctx) {
-      const tier = selectTier(camera, state.currentTier);
-      ctx.tierChanged = tier !== state.currentTier;
-      ctx.tier = tier;
-      state.currentTier = tier;
-    },
-  };
-}
-
-/** Flags what moved since the last frame and snapshots the camera for the next one. */
-export function makeChangeDetectSystem(deps: {
-  camera: Camera;
-  selectionState: Pick<SelectionState, 'selection'>;
-  state: FrameState;
-}): SchedulableSystem<FrameCtx> {
-  const { camera, selectionState, state } = deps;
-  return {
-    name: 'change-detect',
-    runAfter: after('change-detect'),
-    run(ctx) {
-      ctx.camMoved = camera.x !== state.lastCamX || camera.y !== state.lastCamY || camera.zoom !== state.lastCamZoom;
-      state.lastCamX = camera.x;
-      state.lastCamY = camera.y;
-      state.lastCamZoom = camera.zoom;
-      ctx.vpChanged = camera.viewportW !== state.lastVpW || camera.viewportH !== state.lastVpH;
-      state.lastVpW = camera.viewportW;
-      state.lastVpH = camera.viewportH;
-      const selection = selectionState.selection;
-      ctx.selChanged = selection !== state.lastSelection;
-      state.lastSelection = selection;
+      ctx.tier = selectTier(camera, state.currentTier);
+      state.currentTier = ctx.tier;
     },
   };
 }

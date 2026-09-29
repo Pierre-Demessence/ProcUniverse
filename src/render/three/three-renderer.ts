@@ -1,14 +1,14 @@
 /**
- * Three.js renderer (WebGPU pipeline, WebGL2 auto-fallback) behind the engine
- * `Renderer` seam — the parallel rendering backend from
- * docs/plans/rendering-backend.md, selectable via the runtime toggle.
+ * Three.js renderer (WebGPU pipeline, WebGL2 auto-fallback): the only scene
+ * renderer (design: docs/plans/rendering-backend.md).
  *
- * It owns its own canvas (a canvas holds only one context type, so this cannot
- * share the 2D canvas). The system tier draws bodies as lit, rotating 3D spheres
- * viewed by an orbit/tilt perspective camera (orbits stay coplanar at z=0); the
- * star + galaxy / galaxy-field / universe tiers draw instanced points / additive
- * glow sprites under an orthographic top-down camera matching the Canvas 2D
- * mapping. The DOM/Preact HUD stays on Canvas 2D.
+ * It owns its own canvas, behind the transparent 2D overlay canvas that carries
+ * labels, the reticle and the HUD (a canvas holds only one context type). The
+ * system tier draws bodies as lit, rotating 3D spheres viewed by an orbit/tilt
+ * perspective camera; the star, galaxy, galaxy-field and universe tiers draw
+ * instanced points / additive glow sprites under an orthographic top-down camera
+ * that matches the camera module's `worldToView` mapping, so overlay labels line
+ * up with them.
  */
 
 import type { EcsWorld } from '@pierre/ecs';
@@ -24,7 +24,7 @@ import type { GlowField } from './glow-fields';
 import type { StarfieldDome } from './starfield';
 
 import { worldToView } from '@pierre/ecs/modules/camera';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { pass } from 'three/tsl';
 import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
@@ -43,7 +43,7 @@ import { createStarMaterial } from './star-material';
 import { starLightIntensity } from './star-surface';
 import { createStarfieldDome } from './starfield';
 
-/** Scene clear colour; matches the Canvas 2D background so the toggle is seamless. */
+/** Scene clear colour: near-black with a blue tint. */
 const BACKGROUND = 0x05060D;
 /**
  * Camera distance from the z=0 plane for the orthographic (non-system) tiers.
@@ -53,7 +53,7 @@ const BACKGROUND = 0x05060D;
 const CAMERA_DEPTH = 1000;
 const DEG2RAD = Math.PI / 180;
 const TAU = Math.PI * 2;
-/** Orbit-ring line resolution + faint styling; mirrors the 2D `drawOrbitRings`. */
+/** Orbit rings: skipped below this on-screen radius (px); faint styling below. */
 const RING_MIN_PX = 3;
 // Cull a ring whose bounding circle is more than this many viewport-spans from
 // the focus. Generous so a tilted perspective view (which sees further than the
@@ -64,13 +64,13 @@ const RING_COLOR = 0x96B4E6;
 const RING_OPACITY = 0.14;
 /** Initial merged-ring vertex capacity; grown on demand. */
 const RING_INITIAL_VERTS = 8192;
-/** Minimum on-screen star dot radius (px); mirrors the Canvas 2D star tier. */
+/** Minimum on-screen star dot radius (px). */
 const STAR_MIN_DOT_PX = 1.1;
 /** Low-poly disc for star dots — they are only a few pixels across. */
 const STAR_SEGMENTS = 8;
 /** Initial star instance capacity; grown (reallocated) on demand, never shrunk. */
 const STAR_INITIAL_CAPACITY = 8192;
-/** Off-screen cull padding (px) for star instances, matching `drawStars`. */
+/** Off-screen cull padding (px) for star instances. */
 const STAR_CULL_PAD_PX = 4;
 /** Initial glow-sprite instance capacity; grown on demand, never shrunk. */
 const GLOW_INITIAL_CAPACITY = 1024;
@@ -177,8 +177,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private viewW = 0;
 
   constructor() {
-    // Match Canvas 2D's raw-sRGB colours: skip three's linear working-space
-    // conversions so tints and additive blends read the same across backends.
+    // Use raw sRGB colours: skip three's linear working-space conversions so the
+    // CSS-style colour strings used across the project read as authored.
     ColorManagement.enabled = false;
     this.canvas = document.createElement('canvas');
     this.canvas.style.cssText = 'position:absolute; inset:0; display:none; width:100%; height:100%; pointer-events:none;';
@@ -325,7 +325,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * outer planet.
    */
   private focusedSystemReach(world: EcsWorld, focusX: number, focusY: number): number {
-    const positions = world.getStore(PositionDef);
+    const positions = world.getStore(Position3DDef);
     let nearestStar2 = Infinity;
     for (const [id] of world.query(StarPhysicalDef)) {
       const p = positions.get(id);
@@ -462,15 +462,15 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       this.renderer.render(this.scene, this.perspective);
   }
 
-  /** GALAXY tier: aggregate galaxy-density glow (one draw call). Mirrors `drawGalaxy`. */
+  /** GALAXY tier: aggregate galaxy-density glow (one draw call). */
   renderGalaxy(ctx: ThreeGlowContext): number {
     return this.renderGlowTier(ctx, forEachGalaxyGlow);
   }
 
   /**
    * GALAXY-FIELD tier: draw each galaxy as an additive glow sprite in one draw
-   * call. Mirrors the sprite pass of `drawGalaxyField` (the NGC labels stay on
-   * the 2D overlay). Returns the number of sprites drawn.
+   * call (the NGC labels are drawn on the 2D overlay). Returns the number of
+   * sprites drawn.
    */
   renderGalaxyField(ctx: ThreeGlowContext): number {
     return this.renderGlowTier(ctx, forEachGalaxyFieldGlow);
@@ -516,8 +516,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
 
   /**
    * STAR tier: draw each visible system as an instanced disc — one draw call for
-   * the whole field. Mirrors `drawStars` (same positions, per-star colour, and
-   * min-floored size). Returns the number of stars drawn.
+   * the whole field, with per-star colour and a min-floored size. Returns the
+   * number of stars drawn.
    */
   renderStars(ctx: ThreeStarContext): number {
     if (!this.ready)
@@ -567,7 +567,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return i;
   }
 
-  /** UNIVERSE tier: aggregate cosmic-web glow (one draw call). Mirrors `drawUniverse`. */
+  /** UNIVERSE tier: aggregate cosmic-web glow (one draw call). */
   renderUniverse(ctx: ThreeGlowContext): number {
     return this.renderGlowTier(ctx, forEachUniverseGlow);
   }
@@ -583,10 +583,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   }
 
   /**
-   * Configure the orthographic camera to reproduce the Canvas 2D `worldToView`
-   * mapping. The view spans `viewport / zoom` world units centred on the camera;
-   * inverting `top`/`bottom` flips the y axis so world +y renders downward, as in
-   * Canvas 2D. Looking straight down -Z needs no rotation, only a position.
+   * Configure the orthographic camera to reproduce the camera module's
+   * `worldToView` mapping, which the overlay labels and galaxy picking use. The
+   * view spans `viewport / zoom` world units centred on the camera; inverting
+   * `top`/`bottom` flips the y axis so world +y renders downward, as on screen.
+   * Looking straight down -Z needs no rotation, only a position.
    */
   private syncCamera(camera: Camera): void {
     const centerX = camera.x + camera.offsetX;
@@ -659,10 +660,10 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   /**
    * Rebuild every visible orbit ring into a single merged `LineSegments` — one
    * draw call and one buffer upload regardless of orbit count (individual line
-   * objects were per-object overhead that scaled with zoom). Mirrors the 2D
-   * `drawOrbitRings` ellipse (centre offset a·e away from periapsis, semi-minor
+   * objects were per-object overhead that scaled with zoom). Each ring is the
+   * true orbit ellipse (centre offset a·e away from periapsis, semi-minor
    * a·√(1−e²), rotated by argPeriapsis) in the z=0 plane. Rings whose bounding
-   * circle is fully off-screen are culled (as in the 2D path), and the per-orbit
+   * circle is fully off-screen are culled, and the per-orbit
    * orientation trig is hoisted out of the per-segment loop, so a system zoomed
    * right in (huge on-screen orbits, most off-screen) stays cheap.
    */

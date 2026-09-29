@@ -7,10 +7,9 @@ import type { NavNode } from './ui/nav-tree';
 import { EcsWorld } from '@pierre/ecs';
 import { projectPointer } from '@pierre/ecs/modules/input';
 import { clamp } from '@pierre/ecs/modules/math';
-import { Canvas2DRenderer } from '@pierre/ecs/modules/render-canvas2d';
 import { FrameStats } from '@pierre/ecs/modules/stats';
 import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { TickRunner } from '@pierre/ecs/tick-runner';
 
 import { removeBookmark, toggleBookmark } from './bookmarks';
@@ -24,32 +23,32 @@ import { FrameState } from './frame/frame-state';
 import { buildFramePipeline } from './frame/pipeline';
 import { makeBackendSelectSystem } from './frame/systems/backend-systems';
 import { makeHudSystem } from './frame/systems/hud-system';
-import { makeCrossFadeSystem, makeFadeCaptureSystem, makeRenderSceneSystem, makeRenderThreeSystem, makeReticleSystem, makeSceneCacheSystem } from './frame/systems/render-systems';
-import { makeChangeDetectSystem, makeLockRecentreSystem, makeSimClockSystem, makeTierSelectSystem } from './frame/systems/view-systems';
+import { makeOverlayClearSystem, makeRenderThreeSystem, makeReticleSystem } from './frame/systems/render-systems';
+import { makeLockRecentreSystem, makeSimClockSystem, makeTierSelectSystem } from './frame/systems/view-systems';
 import { makeOrbitsSystem, makeOriginRebaseSystem, makePendingBookmarkSystem, makeStreamingSystem } from './frame/systems/world-systems';
 import { galaxyAt } from './generation/galaxies';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier } from './lod/tier';
 import { writeSave } from './persistence/save';
-import { findEntityByName, pickBodyAt, pickGalaxyAt } from './pick';
+import { findEntityByName, pickGalaxyAt } from './pick';
 import { ThreeBackend } from './render/three-backend';
 import { SECTOR_SIZE } from './scale';
 import { SelectionState } from './selection-state';
-import { renderBackend } from './settings';
 import { createBookmarkList } from './ui/bookmark-list';
 import { createFlattenButton } from './ui/flatten-button';
 import { createInspector } from './ui/inspector';
 import { createNavTree } from './ui/nav-tree';
 import { createOptionsMenu } from './ui/options';
+import { showRenderFailure } from './ui/render-failure';
 import { createResetViewButton } from './ui/reset-view';
 import { createTimeControls } from './ui/time-controls';
 import { universePlugin } from './world-plugin';
 
 /**
  * App entry. Wires the ECS world, the LOD tier system (sector streaming at the
- * system tier; immediate-mode star dots and galaxy-density glows when zoomed
- * out), the camera, and the rAF render loop.
+ * system tier; instanced star points and galaxy-density glows when zoomed out),
+ * the camera, the Three.js renderer with its 2D overlay, and the rAF loop.
  */
 export function start(container: HTMLElement, save: Save): () => void {
   container.innerHTML = '';
@@ -61,6 +60,8 @@ export function start(container: HTMLElement, save: Save): () => void {
     writeSave(save);
   };
 
+  // Transparent overlay above the Three canvas: labels, reticle and HUD draw
+  // here, and it receives the pointer input.
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:absolute; inset:0; display:block; width:100%; height:100%; touch-action:none; cursor:grab;';
   container.append(canvas);
@@ -68,22 +69,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   if (!ctx2d)
     throw new Error('ProcUniverse: 2D canvas context is unavailable.');
 
-  // Offscreen snapshot used to cross-fade between LOD tiers.
-  const fadeCanvas = document.createElement('canvas');
-  const fadeCtx = fadeCanvas.getContext('2d');
-  if (!fadeCtx)
-    throw new Error('ProcUniverse: 2D canvas context is unavailable.');
-
-  // Offscreen copy of the last rendered scene (without HUD overlays).  On
-  // clean frames we blit this back so the cheap overlay pass always draws on
-  // a fresh copy of the scene without re-rendering the expensive content.
-  const sceneCache = document.createElement('canvas');
-  const sceneCacheCtx = sceneCache.getContext('2d');
-  if (!sceneCacheCtx)
-    throw new Error('ProcUniverse: 2D canvas context is unavailable.');
-
-  // Three.js renderer: loaded on first use (so Canvas 2D sessions never download
-  // the three bundle) and mounted behind the transparent 2D HUD canvas.
+  // Three.js renderer: a lazy chunk, so the page shell and HUD appear before it
+  // downloads; mounted behind the overlay canvas.
   const threeBackend = new ThreeBackend<ThreeRenderer>(
     () => import('./render/three/three-renderer').then(({ ThreeRenderer }) => {
       const r = new ThreeRenderer();
@@ -93,6 +80,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     (r) => {
       container.insertBefore(r.canvas, canvas);
     },
+    () => showRenderFailure(container),
   );
 
   // Size the backing store to device pixels before the camera is created, so it
@@ -103,13 +91,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     const h = container.clientHeight || window.innerHeight;
     canvas.width = Math.max(1, Math.round(w * dpr));
     canvas.height = Math.max(1, Math.round(h * dpr));
-    fadeCanvas.width = canvas.width;
-    fadeCanvas.height = canvas.height;
-    sceneCache.width = canvas.width;
-    sceneCache.height = canvas.height;
     threeBackend.resize(canvas.width, canvas.height);
-    state.fadeMsLeft = 0;
-    state.sceneCacheValid = false;
   };
   sizeCanvas();
 
@@ -118,7 +100,7 @@ export function start(container: HTMLElement, save: Save): () => void {
 
   const world = new EcsWorld().use(universePlugin);
 
-  const positions = world.getStore(PositionDef);
+  const positions = world.getStore(Position3DDef);
 
   // Deterministic universe: sectors are generated on demand and cached; the
   // streamer spawns/despawns full systems for the sectors in view at the system
@@ -126,11 +108,10 @@ export function start(container: HTMLElement, save: Save): () => void {
   const cache = new SectorCache(seed);
   const streamer = new SystemStreamer(world, cache);
 
-  const renderer = new Canvas2DRenderer();
   const frameStats = new FrameStats();
 
   // Keep the camera viewport equal to the canvas backing size so the renderer's
-  // cull rect and the pointer math share a single coordinate space.
+  // view and the pointer math share a single coordinate space.
   const syncViewport = (): void => {
     sizeCanvas();
     controller.camera.viewportW = canvas.width;
@@ -153,7 +134,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   // this origin (`camera.x/y`), not as an absolute coordinate, so pan/zoom deltas
   // never fall below the float64 ULP however far the camera travels; the absolute
   // position is `renderOrigin + camera.x`. The origin snaps to the focused star at
-  // the system tier (for canvas disc precision) and to the sector grid otherwise,
+  // the system tier (for GPU float32 precision) and to the sector grid otherwise,
   // rebased as the local offset grows.
 
   const frameOrigin = (): void => {
@@ -201,9 +182,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   watchDpr();
 
   const { camera } = controller;
-  // Initialise to the restored view's tier (not a hardcoded 'system') so the
-  // first frame doesn't register a spurious tier change and cross-fade from a
-  // blank canvas when resuming zoomed out.
+  // Initialise to the restored view's tier (not a hardcoded 'system') so tier
+  // hysteresis starts from where the view actually is.
   state.currentTier = selectTier(camera, 'system');
 
   // Body selection (system tier only). A pointer gesture is treated as a pick
@@ -274,8 +254,6 @@ export function start(container: HTMLElement, save: Save): () => void {
       const three = threeBackend.renderer;
       if (threeBackend.active && three)
         selectionState.select(three.pickAt(bx, by));
-      else
-        selectionState.select(pickBodyAt(world, localCam, bx, by));
     }
     else if (state.currentTier === 'galaxy-field') {
       const galaxy = pickGalaxyAt(seed, localCam, state.renderOriginX, state.renderOriginY, bx, by);
@@ -325,8 +303,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
   const resetViewButton = createResetViewButton(container, { onReset: onResetView });
 
-  // Contextual flatten toggle: only shown inside a system in the 3D renderer,
-  // where snapping the tilted orbit view straight down the disk is meaningful.
+  // Contextual flatten toggle: only shown inside a system, where snapping the tilted orbit view straight down the disk is meaningful.
   const flattenButton = createFlattenButton(container, { onToggle: isFlat => controller.setFlat(isFlat) });
 
   // Top-centre options menu for display preferences (units, etc.).
@@ -358,30 +335,18 @@ export function start(container: HTMLElement, save: Save): () => void {
     onRemove: onBookmarkRemove,
   });
 
-  // Dirty-frame tracking seeds: at non-system tiers nothing animates, so a still
-  // camera renders the same frame twice. `change-detect` compares against these.
-  state.lastCamX = camera.x;
-  state.lastCamY = camera.y;
-  state.lastCamZoom = camera.zoom;
-  state.lastVpW = camera.viewportW;
-  state.lastVpH = camera.viewportH;
-
   const scheduler = buildFramePipeline([
     makeSimClockSystem(state, timeControls, frameStats),
     makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
     makeTierSelectSystem(camera, state),
-    makeChangeDetectSystem({ camera, selectionState, state }),
-    makeBackendSelectSystem({ controller, flattenButton, state, threeBackend, wantThree: () => renderBackend.value === 'three' }),
+    makeBackendSelectSystem({ controller, flattenButton, state, threeBackend }),
     makeOriginRebaseSystem({ cache, camera, state, streamer }),
     makeStreamingSystem({ state, streamer, world }),
     makeOrbitsSystem(state, world),
     makePendingBookmarkSystem({ camera, selectionState, world }),
-    makeFadeCaptureSystem({ canvas, fadeCanvas, fadeCtx, state }),
-    makeRenderSceneSystem({ cache, camera, canvas, ctx2d, renderer, seed, state, world }),
-    makeRenderThreeSystem({ cache, controller, ctx2d, seed, state, threeBackend, world }),
-    makeCrossFadeSystem({ ctx2d, fadeCanvas, state }),
+    makeOverlayClearSystem({ canvas, ctx2d }),
+    makeRenderThreeSystem({ cache, camera, controller, ctx2d, seed, state, streamer, threeBackend, world }),
     makeReticleSystem({ camera, ctx2d, selectionState, state, threeBackend, world }),
-    makeSceneCacheSystem({ canvas, ctx2d, sceneCache, sceneCacheCtx, state, streamer }),
     makeHudSystem({ bookmarkList, bookmarks, cache, camera, canvas, ctx2d, frameStats, inspector, navTree, seed, selectionState, state, threeBackend, timeControls, world }),
   ]);
   const runner = new TickRunner<FrameCtx>({

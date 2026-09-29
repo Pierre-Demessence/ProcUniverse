@@ -2,19 +2,30 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { auToUnit, formatDistance, unitToAu } from '../distance';
 import { distanceUnit } from '../settings';
-import { niceStep, TARGET_PX } from './grid';
 
+// On-screen length the bar aims for before rounding to a nice value.
+const TARGET_PX = 90;
 const MARGIN_PX = 12;
 const TICK_PX = 5;
 const COLOR = 'rgba(170, 200, 245, 0.8)';
 
 /**
- * Draw a map-style scale bar in the bottom-left, exactly one reference-grid cell
- * wide and labelled with that cell's real length in the chosen distance unit.
- * Adaptive auto-selects km / AU / ly by magnitude; a fixed unit rounds the cell
- * to a nice value in that unit so the label reads cleanly. Reuses the grid's
- * `niceStep` so the bar and the visible grid agree. Screen-space backing pixels.
+ * Draw a map-style scale bar in the bottom-left, about `TARGET_PX` wide and
+ * labelled with its real length in the chosen distance unit. Adaptive
+ * auto-selects km / AU / ly by magnitude; a fixed unit rounds the length to a
+ * nice value in that unit so the label reads cleanly. Screen-space backing
+ * pixels.
  */
+/** Round a raw length up to the nearest 1/2/5 x 10^k. */
+export function niceStep(raw: number): number {
+  if (!(raw > 0))
+    return 1;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const frac = raw / pow;
+  const nice = frac < 2 ? 2 : frac < 5 ? 5 : 10;
+  return nice * pow;
+}
+
 export function drawScaleBar(ctx2d: CanvasRenderingContext2D, cam: Camera): void {
   const unit = distanceUnit.value;
   const targetAu = TARGET_PX / cam.zoom;

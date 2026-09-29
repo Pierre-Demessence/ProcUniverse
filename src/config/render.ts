@@ -115,13 +115,12 @@ export const CLICK_SLOP_PX = 5;
 // glow), galaxy-field (each galaxy a discrete sprite), universe (the cosmic
 // glow). `SYSTEM_TIER_MAX_AU` collapses a system to a dot; the `*_SECTORS`
 // thresholds switch tiers at that many sectors across. `TIER_HYSTERESIS` is the
-// dead-band that stops boundary thrash; `TIER_FADE_MS` is the tier cross-fade.
+// dead-band that stops boundary thrash.
 export const SYSTEM_TIER_MAX_AU = 300;
 export const GALAXY_TIER_SECTORS = 16;
 export const GALAXY_FIELD_SECTORS = 300000;
 export const UNIVERSE_SECTORS = 100000000;
 export const TIER_HYSTERESIS = 1.25;
-export const TIER_FADE_MS = 220;
 
 // ── Visual disc sizing (non-physical, AU) ─────────────────────────────
 // Bodies are currently drawn at their true physical radius (see `scale.ts`), so

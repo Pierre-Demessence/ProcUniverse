@@ -10,7 +10,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import type { Selection } from '../pick';
 
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
 import { DISC_FRAME_FACTOR, FRAME_MARGIN, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM } from '../config/render';
 import { BlackHoleDef } from '../generation/galaxies';
@@ -65,7 +65,7 @@ export function selectionFrame(sel: Selection, world: EcsWorld, originX: number,
     };
   }
 
-  const pos = world.getStore(PositionDef).get(sel.id);
+  const pos = world.getStore(Position3DDef).get(sel.id);
   if (!pos)
     return null;
 

@@ -10,16 +10,16 @@ import type { RingMaterialHandle } from './planet-rings';
 import type { StarMaterialHandle } from './star-material';
 
 import { EcsWorld } from '@pierre/ecs';
-import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { Group, Mesh, MeshStandardMaterial, Vector3 } from 'three/webgpu';
 import { describe, expect, it, vi } from 'vitest';
 
+import { BodyVisualDef } from '../../generation/body-visual';
 import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
 import { PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
-import { OrbitElementsDef, PositionZDef } from '../../sim/orbits';
+import { OrbitElementsDef } from '../../sim/orbits';
 import { BodyPasses } from './body-passes';
 import { RecyclePool } from './recycle-pool';
 
@@ -91,9 +91,8 @@ function makePools(): BodyPools {
 
 function makeWorld(): EcsWorld {
   const world = new EcsWorld();
-  world.registerComponent(PositionDef);
-  world.registerComponent(PositionZDef);
-  world.registerComponent(RenderableDef);
+  world.registerComponent(Position3DDef);
+  world.registerComponent(BodyVisualDef);
   world.registerComponent(OrbitElementsDef);
   world.registerComponent(StarPhysicalDef);
   world.registerComponent(PlanetPhysicalDef);
@@ -104,8 +103,8 @@ function makeWorld(): EcsWorld {
 
 function addBody(world: EcsWorld, x: number, y: number, radius = 0.5): EntityId {
   const id = world.createEntity();
-  world.getStore(PositionDef).set(id, { x, y });
-  world.getStore(RenderableDef).set(id, { fill: '#88f', kind: 'circle', radius });
+  world.getStore(Position3DDef).set(id, { x, y, z: 0 });
+  world.getStore(BodyVisualDef).set(id, { color: '#88f', radius });
   return id;
 }
 
@@ -140,12 +139,12 @@ describe('bodyPasses', () => {
     expect(mesh.userData).toMatchObject({ id, kind: 'planet' });
   });
 
-  it('uses PositionZDef for the mesh z when present', () => {
+  it('places the mesh at the body 3D position', () => {
     const group = new Group();
     const passes = new BodyPasses(makePools(), group);
     const world = makeWorld();
     const id = addPlanet(world, 1, 2);
-    world.getStore(PositionZDef).set(id, { z: 7 });
+    world.getStore(Position3DDef).get(id)!.z = 7;
     passes.renderBodies(world, FRAME, null);
     expect(meshes(group)[0]!.position.z).toBe(7);
   });
@@ -186,20 +185,16 @@ describe('bodyPasses', () => {
     expect(mesh.rotation.toArray().slice(0, 3)).toEqual([0, 0, 0]);
   });
 
-  it('skips entities without a renderable, position, or with a non-circle renderable', () => {
+  it('skips entities without a body visual or a position', () => {
     const group = new Group();
     const passes = new BodyPasses(makePools(), group);
     const world = makeWorld();
     const noRender = world.createEntity();
-    world.getStore(PositionDef).set(noRender, { x: 0, y: 0 });
+    world.getStore(Position3DDef).set(noRender, { x: 0, y: 0, z: 0 });
     world.getStore(PlanetPhysicalDef).set(noRender, PLANET);
     const noPosition = world.createEntity();
-    world.getStore(RenderableDef).set(noPosition, { fill: '#fff', kind: 'circle', radius: 1 });
+    world.getStore(BodyVisualDef).set(noPosition, { color: '#fff', radius: 1 });
     world.getStore(PlanetPhysicalDef).set(noPosition, PLANET);
-    const rect = world.createEntity();
-    world.getStore(PositionDef).set(rect, { x: 0, y: 0 });
-    world.getStore(RenderableDef).set(rect, { fill: '#fff', h: 1, kind: 'rect', w: 1 });
-    world.getStore(PlanetPhysicalDef).set(rect, PLANET);
     expect(() => passes.renderBodies(world, FRAME, null)).not.toThrow();
     expect(meshes(group)).toHaveLength(0);
   });

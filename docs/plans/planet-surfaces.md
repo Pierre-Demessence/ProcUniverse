@@ -262,8 +262,7 @@ ball read as a world.
   or RNG draws (§4).
 - Effects apply at the **system tier** to near planets; far tiers
   (points/sprites/glow) unchanged. Detail fades with on-screen size (§3.3).
-- Behind the `Renderer` seam; the Canvas 2D backend is untouched; all work lives
-  on the Three.js path.
+- Behind the `Renderer` seam; all work lives on the Three.js path.
 - WebGL2-capability baseline via TSL; any WebGPU-only trick is a progressive
   enhancement, never required.
 - Bounded work: a handful of planets per system; baked maps evicted on system

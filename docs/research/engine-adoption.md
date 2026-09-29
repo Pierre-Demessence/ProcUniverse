@@ -8,11 +8,13 @@ are also listed in [roadmap.md](../roadmap.md).
 ## Current usage
 
 The project uses the engine as a toolbox: `EcsWorld` and component stores,
-`simpleComponent`, the world plugin (`src/world-plugin.ts`), the 2D camera
-transforms, `math` / `rng` helpers, `projectPointer`, `Canvas2DRenderer`,
-`AnimationFrameTickSource`, `FrameStats`, and the frame loop itself: `Scheduler`
-systems in `src/frame/` (lock, tier, origin rebase, streaming, orbits,
-rendering, HUD) driven by a `TickRunner`, with the step order pinned by a test.
+`simpleComponent`, the world plugin (`src/world-plugin.ts`), `Position3DDef`
+(`modules/transform-3d`) for body positions, the 2D camera transforms, `math` /
+`rng` helpers, `projectPointer`, `AnimationFrameTickSource`, `FrameStats`, and
+the frame loop itself: `Scheduler` systems in `src/frame/` (lock, tier, origin
+rebase, streaming, orbits, rendering, HUD) driven by a `TickRunner`, with the
+step order pinned by a test. Systems that only apply at the system tier or once
+Three is ready declare it with the scheduler's `runIf` run condition.
 
 The Three.js system view uses `Scene3DRenderer`
 (`@pierre/ecs/modules/render-scene3d`): `src/render/three/body-passes.ts` runs
@@ -20,16 +22,6 @@ one pass each for stars, planets, moons, black holes and planet rings. A pass
 creates a mesh when a body is first selected, syncs it every frame, and hands
 it back through the engine's `remove` callback to a `RecyclePool`, so meshes and
 their GPU materials are recycled as sectors stream in and out.
-
-## Structural opportunities
-
-### `Position3DDef` instead of `PositionZDef`
-
-Bodies carry the engine's 2D `PositionDef` plus a project `PositionZDef`
-because the Canvas 2D renderer reads only `PositionDef`. The engine's
-`@pierre/ecs/modules/transform-3d` provides `Position3DDef` (and
-`Rotation3DDef`). Switch once Canvas 2D is retired; before that, both
-components would need keeping in sync.
 
 ## Feature-driven opportunities
 
@@ -39,7 +31,6 @@ components would need keeping in sync.
 | Cosmic-web / nebula visuals | `modules/noise`: `fbm2D`, `simplex2D`, `perlin2D`. |
 | Player deltas (persistence) | `modules/save`: `LocalStorageBackend` (tmp-write verification), `MigrationRegistry` (versioned save upgrades), checksummed envelopes. Its storage API is async, while the session save is written synchronously on `beforeunload`; keep that path synchronous. |
 | Performance budget | `modules/worker-pool` (`WorkerPool` / `handleJobs`) to move `generateSectorData` off the main thread if sector generation stutters; `SectorCache.get` is synchronous today, so this needs an async fill path. |
-| Tier cross-fade | `modules/timer` for the `fadeMsLeft` countdown (minor). |
 
 ## Deliberately not adopted
 

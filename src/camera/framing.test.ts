@@ -8,7 +8,7 @@ import type { OrbitElements } from '../sim/orbits';
 
 import { EcsWorld } from '@pierre/ecs';
 import { makeCamera } from '@pierre/ecs/modules/camera';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
 import { DISC_FRAME_FACTOR, FRAME_MARGIN, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM } from '../config/render';
@@ -75,7 +75,7 @@ const ORBIT: OrbitElements = {
 
 function makeWorld(): EcsWorld {
   const world = new EcsWorld();
-  world.registerComponent(PositionDef);
+  world.registerComponent(Position3DDef);
   world.registerComponent(OrbitElementsDef);
   world.registerComponent(NameDef);
   world.registerComponent(StarPhysicalDef);
@@ -87,14 +87,14 @@ function makeWorld(): EcsWorld {
 
 function addStar(world: EcsWorld, x: number, y: number): EntityId {
   const id = world.createEntity();
-  world.getStore(PositionDef).set(id, { x, y });
+  world.getStore(Position3DDef).set(id, { x, y, z: 0 });
   world.getStore(StarPhysicalDef).set(id, STAR);
   return id;
 }
 
 function addPlanet(world: EcsWorld, orbit: Partial<OrbitElements>, x = 0, y = 0): EntityId {
   const id = world.createEntity();
-  world.getStore(PositionDef).set(id, { x, y });
+  world.getStore(Position3DDef).set(id, { x, y, z: 0 });
   world.getStore(PlanetPhysicalDef).set(id, PLANET);
   world.getStore(OrbitElementsDef).set(id, { ...ORBIT, ...orbit });
   return id;
@@ -102,7 +102,7 @@ function addPlanet(world: EcsWorld, orbit: Partial<OrbitElements>, x = 0, y = 0)
 
 function addMoon(world: EcsWorld, parent: EntityId, orbit: Partial<OrbitElements> = {}): EntityId {
   const id = world.createEntity();
-  world.getStore(PositionDef).set(id, { x: 0, y: 0 });
+  world.getStore(Position3DDef).set(id, { x: 0, y: 0, z: 0 });
   world.getStore(MoonPhysicalDef).set(id, MOON);
   world.getStore(OrbitElementsDef).set(id, { ...ORBIT, a: 0.002, parent, ...orbit });
   return id;

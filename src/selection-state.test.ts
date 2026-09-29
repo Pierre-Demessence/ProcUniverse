@@ -4,7 +4,7 @@ import type { Bookmark } from './bookmarks';
 import type { OrbitElements } from './sim/orbits';
 
 import { EcsWorld } from '@pierre/ecs';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
 import { lockedBodyLocalPos } from './camera/framing';
@@ -29,7 +29,7 @@ const ORBIT: OrbitElements = {
 
 function makeWorld(): EcsWorld {
   const world = new EcsWorld();
-  world.registerComponent(PositionDef);
+  world.registerComponent(Position3DDef);
   world.registerComponent(OrbitElementsDef);
   world.registerComponent(NameDef);
   return world;
@@ -37,7 +37,7 @@ function makeWorld(): EcsWorld {
 
 function addBody(world: EcsWorld, scientific: string, orbiting = true): EntityId {
   const id = world.createEntity();
-  world.getStore(PositionDef).set(id, { x: 1, y: 2 });
+  world.getStore(Position3DDef).set(id, { x: 1, y: 2, z: 0 });
   world.getStore(NameDef).set(id, { human: scientific, scientific });
   if (orbiting)
     world.getStore(OrbitElementsDef).set(id, ORBIT);

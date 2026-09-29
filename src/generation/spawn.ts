@@ -3,10 +3,10 @@ import type { EntityId } from '@pierre/ecs/entity-id';
 
 import type { SectorData } from './universe';
 
-import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
-import { OrbitElementsDef, PositionZDef } from '../sim/orbits';
+import { OrbitElementsDef } from '../sim/orbits';
+import { BodyVisualDef } from './body-visual';
 import { BlackHoleDef } from './galaxies';
 import { MoonPhysicalDef } from './moons';
 import { NameDef } from './naming';
@@ -14,11 +14,9 @@ import { PlanetPhysicalDef } from './planets';
 import { StarPhysicalDef } from './stars';
 import { EARTH_MASS_SOLAR } from './units';
 
-const STAR_STROKE = 'rgba(255, 255, 255, 0.65)';
-// A true-black core rimmed by a bright accretion glow. The fill must NOT match
-// the scene background (#05060d) or the disc is invisible against it.
-const BLACK_HOLE_FILL = '#000000';
-const BLACK_HOLE_RING = 'rgba(255, 170, 90, 0.95)';
+// Dark grey, not black, so the black-hole sphere reads as a shaded body against
+// the black sky.
+const BLACK_HOLE_COLOR = '#15151c';
 
 /**
  * Spawn ECS entities for a generated sector: one star per system, plus one
@@ -34,9 +32,8 @@ export function spawnSector(
   originX: number,
   originY: number,
 ): EntityId[] {
-  const positions = world.getStore(PositionDef);
-  const positionsZ = world.getStore(PositionZDef);
-  const renderables = world.getStore(RenderableDef);
+  const positions = world.getStore(Position3DDef);
+  const visuals = world.getStore(BodyVisualDef);
   const orbits = world.getStore(OrbitElementsDef);
   const starPhysicals = world.getStore(StarPhysicalDef);
   const planetPhysicals = world.getStore(PlanetPhysicalDef);
@@ -49,27 +46,16 @@ export function spawnSector(
     const cx = sys.x - originX;
     const cy = sys.y - originY;
     const starId = world.createEntity();
-    positions.set(starId, { x: cx, y: cy });
-    renderables.set(starId, {
-      fill: sys.star.colorHex,
-      kind: 'circle',
-      lineWidth: sys.radius * 0.08,
-      radius: sys.radius,
-      stroke: STAR_STROKE,
-    });
+    positions.set(starId, { x: cx, y: cy, z: 0 });
+    visuals.set(starId, { color: sys.star.colorHex, radius: sys.radius });
     starPhysicals.set(starId, sys.star);
     names.set(starId, { human: sys.name.human, scientific: sys.name.scientific });
     ids.push(starId);
 
     for (const planet of sys.planets) {
       const id = world.createEntity();
-      positions.set(id, { x: cx + planet.a, y: cy });
-      positionsZ.set(id, { z: 0 });
-      renderables.set(id, {
-        fill: planet.color,
-        kind: 'circle',
-        radius: planet.radius,
-      });
+      positions.set(id, { x: cx + planet.a, y: cy, z: 0 });
+      visuals.set(id, { color: planet.color, radius: planet.radius });
       orbits.set(id, {
         a: planet.a,
         argPeriapsis: planet.argPeriapsis,
@@ -93,9 +79,8 @@ export function spawnSector(
       const planetMassSolar = planet.physical.mass * EARTH_MASS_SOLAR;
       for (const moon of planet.moons) {
         const moonId = world.createEntity();
-        positions.set(moonId, { x: planetX + moon.a, y: cy });
-        positionsZ.set(moonId, { z: 0 });
-        renderables.set(moonId, { fill: moon.color, kind: 'circle', radius: moon.radius });
+        positions.set(moonId, { x: planetX + moon.a, y: cy, z: 0 });
+        visuals.set(moonId, { color: moon.color, radius: moon.radius });
         orbits.set(moonId, {
           a: moon.a,
           argPeriapsis: moon.argPeriapsis,
@@ -116,18 +101,12 @@ export function spawnSector(
     }
   }
 
-  // A galaxy's central black hole: a dark disc ringed by an accretion glow,
+  // A galaxy's central black hole,
   // positioned at the galaxy centre in the floating render frame.
   for (const bh of data.blackHoles) {
     const id = world.createEntity();
-    positions.set(id, { x: bh.x - originX, y: bh.y - originY });
-    renderables.set(id, {
-      fill: BLACK_HOLE_FILL,
-      kind: 'circle',
-      lineWidth: bh.radius * 0.4,
-      radius: bh.radius,
-      stroke: BLACK_HOLE_RING,
-    });
+    positions.set(id, { x: bh.x - originX, y: bh.y - originY, z: 0 });
+    visuals.set(id, { color: BLACK_HOLE_COLOR, radius: bh.radius });
     blackHoles.set(id, { eddingtonRatio: bh.eddingtonRatio, mass: bh.mass, schwarzschildRadius: bh.schwarzschildRadius, spin: bh.spin });
     names.set(id, { human: bh.name.human, scientific: bh.name.scientific });
     ids.push(id);

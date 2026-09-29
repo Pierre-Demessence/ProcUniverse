@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createFrameCtx } from '../frame-context';
 import { FrameState } from '../frame-state';
-import { makeChangeDetectSystem, makeLockRecentreSystem, makeSimClockSystem, makeTierSelectSystem } from './view-systems';
+import { makeLockRecentreSystem, makeSimClockSystem, makeTierSelectSystem } from './view-systems';
 
 const cam = (zoom: number) => makeCamera({ viewportH: 1000, viewportW: 1000, x: 0, y: 0, zoom });
 
@@ -42,7 +42,7 @@ describe('lock-recentre system', () => {
 });
 
 describe('tier-select system', () => {
-  it('reports a tier change once and stores the new tier', () => {
+  it('selects the tier for the zoom and stores it', () => {
     const camera = cam(1e12);
     const state = new FrameState({ simSeconds: 0, tier: 'universe' });
     const system = makeTierSelectSystem(camera, state);
@@ -50,40 +50,6 @@ describe('tier-select system', () => {
     const first = createFrameCtx(16, 'universe');
     system.run(first);
     expect(first.tier).toBe('system');
-    expect(first.tierChanged).toBe(true);
     expect(state.currentTier).toBe('system');
-
-    const second = createFrameCtx(16, 'system');
-    system.run(second);
-    expect(second.tierChanged).toBe(false);
-  });
-});
-
-describe('change-detect system', () => {
-  it('flags camera, viewport, and selection changes and snapshots them', () => {
-    const camera = cam(2);
-    const state = new FrameState({ simSeconds: 0, tier: 'system' });
-    state.lastCamZoom = 2;
-    state.lastVpH = 1000;
-    state.lastVpW = 1000;
-    const selectionState = { selection: null as unknown as ReturnType<() => null> };
-    const system = makeChangeDetectSystem({ camera, selectionState, state });
-
-    const still = createFrameCtx(16, 'system');
-    system.run(still);
-    expect([still.camMoved, still.vpChanged, still.selChanged]).toEqual([false, false, false]);
-
-    camera.x = 5;
-    camera.viewportW = 800;
-    selectionState.selection = { kind: 'universe', seed: 1 } as never;
-    const moved = createFrameCtx(16, 'system');
-    system.run(moved);
-    expect([moved.camMoved, moved.vpChanged, moved.selChanged]).toEqual([true, true, true]);
-    expect(state.lastCamX).toBe(5);
-    expect(state.lastVpW).toBe(800);
-
-    const settled = createFrameCtx(16, 'system');
-    system.run(settled);
-    expect([settled.camMoved, settled.vpChanged, settled.selChanged]).toEqual([false, false, false]);
   });
 });

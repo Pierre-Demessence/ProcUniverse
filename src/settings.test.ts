@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { detailLevel, distanceUnit, numberNotation, renderBackend, resetSettings, setDetailLevel, setDistanceUnit, setNumberNotation, setRenderBackend, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from './settings';
+import { detailLevel, distanceUnit, numberNotation, resetSettings, setDetailLevel, setDistanceUnit, setNumberNotation, setTemperatureUnit, setValueMode, temperatureUnit, valueMode } from './settings';
 
 afterEach(() => {
   resetSettings();
@@ -78,18 +78,5 @@ describe('resetSettings', () => {
     expect(valueMode.value).toBe('relative');
     expect(detailLevel.value).toBe('advanced');
     expect(numberNotation.value).toBe('auto');
-  });
-});
-
-describe('render backend setting', () => {
-  it('defaults to three', () => {
-    expect(renderBackend.value).toBe('three');
-  });
-
-  it('resets to three after choosing canvas 2D', () => {
-    setRenderBackend('canvas2d');
-    expect(renderBackend.value).toBe('canvas2d');
-    resetSettings();
-    expect(renderBackend.value).toBe('three');
   });
 });

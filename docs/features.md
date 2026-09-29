@@ -8,8 +8,8 @@ Shipped features. Planned work is in [roadmap.md](roadmap.md).
 | ------- | ----------- |
 | Pan and zoom camera | Left-drag pans; scroll zooms toward the cursor, with rapid scrolls accelerating so the full zoom range is a quick flick. |
 | 3D system view | Three.js (WebGPU with WebGL2 fallback) draws each planetary system in 3D — lit rotating spheres and inclined orbits; right-drag orbits and tilts the view. A contextual "Flatten" button snaps straight top-down and back to the prior angle. |
-| Renderer choice | Three.js renders every tier and is the default; Canvas 2D is a frozen fallback, used automatically when Three cannot load or initialise and selectable in Options. |
-| LOD streaming | Zoom-bounded tiers (systems → star dots → galaxy glow → galaxy field → cosmic web) with sector streaming, a floating render origin, and tier cross-fades. |
+| Renderer | Three.js renders every tier; labels, the selection reticle and the HUD draw on a transparent 2D overlay. If neither WebGPU nor WebGL is available, a notice says so. |
+| LOD streaming | Zoom-bounded tiers (systems → star dots → galaxy glow → galaxy field → cosmic web) with sector streaming and a floating render origin. |
 | Reference grid | Adaptive world grid and axes for spatial feedback. |
 | Scale bar | A map-style bar one grid-cell wide labels the current view scale, auto-selecting km / AU / ly. |
 | Coordinate readout | Bottom-left readout of the view-centre world position (auto-scaled AU / ly / kly / Mly) plus the current galaxy and the offset from its centre. |

@@ -3,7 +3,6 @@ import type { EcsWorld } from '@pierre/ecs';
 import type { BodyScale } from '../settings';
 
 import { clamp } from '@pierre/ecs/modules/math';
-import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 
 import {
   BODY_FLOOR_BASE_PX,
@@ -12,17 +11,13 @@ import {
   BODY_FLOOR_PER_DECADE_PX,
   MOON_FLOOR_MIN_PX,
 } from '../config/render';
+import { BodyVisualDef } from '../generation/body-visual';
 import { BlackHoleDef } from '../generation/galaxies';
 import { MoonPhysicalDef } from '../generation/moons';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { blackHoleVisualRadius, planetVisualRadius, starVisualRadius } from '../scale';
 import { bodyScale } from '../settings';
-
-// Stroke widths as a fraction of the drawn radius, mirroring `spawn.ts` so the
-// outline / accretion ring stays proportional however the disc is floored.
-const STAR_STROKE_FRAC = 0.08;
-const BLACK_HOLE_RING_FRAC = 0.4;
 
 /**
  * Minimum on-screen radius (px) for a body of true radius `trueAu`. A gentle
@@ -70,54 +65,38 @@ export function drawnBodyRadiusAu(trueAu: number, zoom: number, mode: BodyScale,
 }
 
 /**
- * Update every system-tier body's drawn `RenderableDef` radius (and proportional
- * stroke) from the current `zoom` and the `bodyScale` setting, so the shared
- * renderer draws floored-but-still-true-underneath markers. Runs each frame
- * before the entity pass; the true radius is re-derived from each body's physical
- * data, so the data itself is never overwritten. Counts are bounded by the system
- * tier, so a per-body update is cheap.
+ * Update every system-tier body's drawn `BodyVisualDef` radius from the current
+ * `zoom` and the `bodyScale` setting, so the 3D passes draw
+ * floored-but-still-true-underneath markers. Runs each frame before the body
+ * passes; the true radius is re-derived from each body's physical data, so the
+ * data itself is never overwritten. Counts are bounded by the system tier, so a
+ * per-body update is cheap.
  */
 export function applyBodyScale(world: EcsWorld, zoom: number): void {
   const mode = bodyScale.value;
-  const renderables = world.getStore(RenderableDef);
-  const stars = world.getStore(StarPhysicalDef);
-  const planets = world.getStore(PlanetPhysicalDef);
-  const moons = world.getStore(MoonPhysicalDef);
-  const blackHoles = world.getStore(BlackHoleDef);
+  const visuals = world.getStore(BodyVisualDef);
 
-  for (const [id] of world.query(StarPhysicalDef)) {
-    const renderable = renderables.get(id);
-    const star = stars.get(id);
-    if (!renderable || renderable.kind !== 'circle' || !star)
-      continue;
-    const radius = drawnBodyRadiusAu(starVisualRadius(star.radius), zoom, mode);
-    renderable.radius = radius;
-    renderable.lineWidth = radius * STAR_STROKE_FRAC;
+  for (const [id, star] of world.query(StarPhysicalDef)) {
+    const visual = visuals.get(id);
+    if (visual)
+      visual.radius = drawnBodyRadiusAu(starVisualRadius(star.radius), zoom, mode);
   }
 
-  for (const [id] of world.query(PlanetPhysicalDef)) {
-    const renderable = renderables.get(id);
-    const planet = planets.get(id);
-    if (!renderable || renderable.kind !== 'circle' || !planet)
-      continue;
-    renderable.radius = drawnBodyRadiusAu(planetVisualRadius(planet.radius), zoom, mode);
+  for (const [id, planet] of world.query(PlanetPhysicalDef)) {
+    const visual = visuals.get(id);
+    if (visual)
+      visual.radius = drawnBodyRadiusAu(planetVisualRadius(planet.radius), zoom, mode);
   }
 
-  for (const [id] of world.query(BlackHoleDef)) {
-    const renderable = renderables.get(id);
-    const blackHole = blackHoles.get(id);
-    if (!renderable || renderable.kind !== 'circle' || !blackHole)
-      continue;
-    const radius = drawnBodyRadiusAu(blackHoleVisualRadius(blackHole.mass), zoom, mode);
-    renderable.radius = radius;
-    renderable.lineWidth = radius * BLACK_HOLE_RING_FRAC;
+  for (const [id, blackHole] of world.query(BlackHoleDef)) {
+    const visual = visuals.get(id);
+    if (visual)
+      visual.radius = drawnBodyRadiusAu(blackHoleVisualRadius(blackHole.mass), zoom, mode);
   }
 
-  for (const [id] of world.query(MoonPhysicalDef)) {
-    const renderable = renderables.get(id);
-    const moon = moons.get(id);
-    if (!renderable || renderable.kind !== 'circle' || !moon)
-      continue;
-    renderable.radius = drawnBodyRadiusAu(planetVisualRadius(moon.radius), zoom, mode, MOON_FLOOR_MIN_PX);
+  for (const [id, moon] of world.query(MoonPhysicalDef)) {
+    const visual = visuals.get(id);
+    if (visual)
+      visual.radius = drawnBodyRadiusAu(planetVisualRadius(moon.radius), zoom, mode, MOON_FLOOR_MIN_PX);
   }
 }

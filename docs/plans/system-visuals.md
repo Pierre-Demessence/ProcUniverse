@@ -83,8 +83,7 @@ column: **1 = first focus**, higher = later.
   explicitly samples a field, appended to preserve the stream).
 - Bounded on-screen work: shaders/spheres for near bodies; far tiers stay
   cheap points/sprites.
-- Behind the engine `Renderer` seam; Canvas 2D backend unaffected; effects live
-  on the Three.js path.
+- Behind the engine `Renderer` seam; effects live on the Three.js path.
 - WebGL2-capability baseline; any WebGPU-compute-only trick is a progressive
   enhancement (per rendering-backend.md §4).
 

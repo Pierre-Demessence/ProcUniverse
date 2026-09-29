@@ -6,9 +6,8 @@ nebula effects, and (c) optionally show planets as textured spheres and/or go
 3D — all without throwing away the deterministic generation, physics, sim, and
 HUD layers already built.
 
-> Status: **work in progress.** Three.js is the default renderer; Canvas 2D is
-> frozen as the fallback when Three cannot load or initialise (see
-> [3d-default-and-docs-cleanup.md](done/3d-default-and-docs-cleanup.md)). Stages 0,
+> Status: **work in progress.** Three.js is the only renderer; the Canvas 2D
+> backend is retired (see [retire-canvas2d.md](done/retire-canvas2d.md)). Stages 0,
 > 1 (partial — LOD retune remains), 2 (partial — star corona and flicker via
 > [star-shading.md](done/star-shading.md)), and 3 (partial — system-tier camera,
 > spheres, inclined orbits, and Z; see [true-3d-systems.md](done/true-3d-systems.md))

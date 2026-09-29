@@ -8,7 +8,7 @@ import type { SelectionState } from '../../selection-state';
 import type { FrameCtx } from '../frame-context';
 import type { FrameState } from '../frame-state';
 
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
 import { cameraAbsolute, rebaseLocal } from '../../camera/origin';
 import { REBASE_SECTORS } from '../../config/render';
@@ -20,11 +20,13 @@ import { after } from '../pipeline';
 
 const REBASE_DIST = SECTOR_SIZE * REBASE_SECTORS;
 
+export const atSystemTier = (ctx: FrameCtx): boolean => ctx.tier === 'system';
+
 /**
  * Rebases the render origin so the renderer always draws small, precise local
  * coordinates. At the system tier the origin snaps to the focused star,
- * dropping planet coords to tens of AU (at ~10^5 AU local, canvas discs lose
- * path precision and render jagged). Zoomed out it snaps to the sector grid and
+ * dropping planet coords to tens of AU (at ~10^5 AU local, the GPU's float32
+ * vertex positions jitter visibly). Zoomed out it snaps to the sector grid and
  * rebases only once the local offset grows large. When the origin moves,
  * `camera.x/y` shift by the same amount so the absolute position is unchanged,
  * and streamed systems are dropped to respawn against the new origin.
@@ -40,8 +42,6 @@ export function makeOriginRebaseSystem(deps: {
     name: 'origin-rebase',
     runAfter: after('origin-rebase'),
     run(ctx) {
-      if (!ctx.dirty)
-        return;
       // Absolute camera position, reconstructed only for sector indexing and the
       // origin decision (both tolerate the ~ULP error); the precise render path
       // keeps using the small local `camera.x/y`.
@@ -85,8 +85,6 @@ export function makeStreamingSystem(deps: {
     name: 'streaming',
     runAfter: after('streaming'),
     run(ctx) {
-      if (!ctx.dirty)
-        return;
       if (ctx.tier === 'system')
         streamer.update(ctx.range, state.renderOriginX, state.renderOriginY);
       else
@@ -103,9 +101,9 @@ export function makeOrbitsSystem(state: FrameState, world: EcsWorld): Schedulabl
   return {
     name: 'orbits',
     runAfter: after('orbits'),
-    run(ctx) {
-      if (ctx.dirty && ctx.tier === 'system')
-        updateOrbits(world, state.simSeconds);
+    runIf: atSystemTier,
+    run() {
+      updateOrbits(world, state.simSeconds);
     },
   };
 }
@@ -122,13 +120,12 @@ export function makePendingBookmarkSystem(deps: {
   world: EcsWorld;
 }): SchedulableSystem<FrameCtx> {
   const { camera, selectionState, world } = deps;
-  const positions = world.getStore(PositionDef);
+  const positions = world.getStore(Position3DDef);
   return {
     name: 'pending-bookmark',
     runAfter: after('pending-bookmark'),
-    run(ctx) {
-      if (!ctx.dirty || ctx.tier !== 'system')
-        return;
+    runIf: atSystemTier,
+    run() {
       const resolved = selectionState.resolvePending(world);
       const pos = resolved === null ? undefined : positions.get(resolved);
       if (pos) {

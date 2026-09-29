@@ -6,7 +6,7 @@
 | Build / dev server | Vite | 8 |
 | Test runner | Vitest | 4 |
 | HUD overlays | Preact + `@preact/signals` | 10 / 2 |
-| Runtime | Evergreen browsers with WebGPU or WebGL2 (Canvas 2D fallback) | current |
+| Runtime | Evergreen browsers with WebGPU or WebGL2 | current |
 | Engine | `@pierre/ecs` (sibling `file:` dependency; CI pins a commit) | 0.0.0 |
 | Renderer | Three.js `three/webgpu` (WebGPU + WebGL2 fallback) | 0.184 |
 | Package manager | npm | 10 |
@@ -20,10 +20,9 @@
   so engine changes only reach CI when that ref is bumped.
 - CI (lint, test, build) runs on pushes and PRs to `main`; the itch.io publish
   runs only after CI succeeds for a push to `main`.
-- Three.js (`three/webgpu`, WebGPU with automatic WebGL2 fallback) is the
-  default renderer for every tier, lazy-loaded as a separate chunk. The engine's
-  `Canvas2DRenderer` path is a frozen fallback, used when Three cannot load or
-  initialise, or when chosen in Options. See
+- Three.js (`three/webgpu`, WebGPU with automatic WebGL2 fallback) is the only
+  scene renderer, for every tier, lazy-loaded as a separate chunk. If it cannot
+  load or initialise, the page shows a notice. See
   [plans/rendering-backend.md](plans/rendering-backend.md).
 - The DOM HUD overlays are Preact components (JSX via `@preact/preset-vite`,
   `jsxImportSource: preact`); the canvas / ECS render loop stays imperative.

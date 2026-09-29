@@ -5,22 +5,22 @@
 | `index.html` | Mounts the app; loads or mints the universe save, then calls `start(root, save)`. |
 | `lab.html` | Dev-only planet lab page (served by `npm run dev` at `/lab.html`, not part of the production build); loads `src/lab/planet-lab.ts`. |
 | `src/main.ts` | Entry: canvas and DPR sizing, ECS world, input handlers, and the wiring that builds the frame pipeline and starts its `TickRunner`. |
-| `src/frame/` | The per-frame loop as engine `Scheduler` systems. `frame-state.ts` (`FrameState`) holds cross-frame state shared with the input handlers; `frame-context.ts` (`FrameCtx`) carries per-tick values between systems; `pipeline.ts` declares the step order (`FRAME_SYSTEM_ORDER`); `systems/` holds the steps: view (clock, lock, tier, change detection), backend, world (origin rebase, streaming, orbits, pending bookmark), render (fade, scene, Three, reticle, scene cache), and HUD. |
+| `src/frame/` | The per-frame loop as engine `Scheduler` systems. `frame-state.ts` (`FrameState`) holds cross-frame state shared with the input handlers; `frame-context.ts` (`FrameCtx`) carries per-tick values between systems; `pipeline.ts` declares the step order (`FRAME_SYSTEM_ORDER`); `systems/` holds the steps: view (clock, lock, tier), backend, world (origin rebase, streaming, orbits, pending bookmark), render (overlay clear, Three, reticle), and HUD. Steps that only apply in some frames declare it with the scheduler's `runIf`. |
 | `src/selection-state.ts` | Selection, camera lock, and pending-bookmark state (`SelectionState`): one place for the rules that tie them together. |
 | `src/config/` | Central tuning knobs: `data.ts` for generation (density, orbit architecture, physics parameters) and `render.ts` for camera/zoom, LOD tiers, visual sizing, and simulation time. |
-| `src/settings.ts` | User display settings as `@preact/signals` (units, naming style, body scale, renderer), persisted via `persistence/preferences.ts`. |
+| `src/settings.ts` | User display settings as `@preact/signals` (units, naming style, body scale), persisted via `persistence/preferences.ts`. |
 | `src/scale.ts` | Spatial-scale source of truth: the AU world unit, light-years per sector, and the star visual-radius mapping. |
 | `src/bookmarks.ts` | Bookmark types and helpers: `Bookmark` identity, `bookmarkKey`, `isBookmarked`, and `selectionBookmarkKey`, plus creation (`bookmarkFromSelection`), toggle, and removal. |
 | `src/world-plugin.ts` | `universePlugin`: the engine plugin that registers every component a streamed body carries; `main.ts` installs it with `world.use`. |
-| `src/pick.ts` | Cursor-to-body picking: the nearest star or planet within the click tolerance, plus a by-name entity lookup for the location tree. |
-| `src/generation/` | Deterministic seed-driven sector generation (pure data — a galaxy field of many galaxies with central black holes that places and colours stars, plus stellar, orbital, and planetary physics) and entity spawning. |
+| `src/pick.ts` | Selection types, galaxy picking at the galaxy-field tier, and a by-name entity lookup for the location tree. System-tier body picking is `ThreeRenderer.pickAt`. |
+| `src/generation/` | Deterministic seed-driven sector generation (pure data — a galaxy field of many galaxies with central black holes that places and colours stars, plus stellar, orbital, and planetary physics) and entity spawning. `body-visual.ts` (`BodyVisualDef`) is the drawn colour and radius of a streamed body; bodies are positioned with the engine `Position3DDef`. |
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming, and `nearestSystem`. |
-| `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
+| `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring tessellation. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera, and framing (`selectionFrame`, `frameSelection`, the locked body's live position). |
-| `src/render/three/` | The primary Three.js renderer (`three/webgpu`, lazy-loaded): every tier, the 3D system view (spheres, star shading, rings, starfield dome, bloom), picking, and projection for labels. Planet spheres use the shared lit `planet-material.ts` (flat fill, or a procedural surface baked once via `surface-bake.ts` or evaluated per pixel); `planet-surface.ts` holds the pure, tested helpers. `body-passes.ts` (`BodyPasses`) manages the system-tier body meshes as engine `Scene3DRenderer` passes; `recycle-pool.ts` (`RecyclePool`) recycles the meshes and materials they hand back. |
+| `src/render/three/` | The Three.js renderer (`three/webgpu`, lazy-loaded): every tier, the 3D system view (spheres, star shading, rings, starfield dome, bloom), picking, and projection for labels. Planet spheres use the shared lit `planet-material.ts` (flat fill, or a procedural surface baked once via `surface-bake.ts` or evaluated per pixel); `planet-surface.ts` holds the pure, tested helpers. `body-passes.ts` (`BodyPasses`) manages the system-tier body meshes as engine `Scene3DRenderer` passes; `recycle-pool.ts` (`RecyclePool`) recycles the meshes and materials they hand back. |
 | `src/lab/` | The dev-only planet lab: one large lit planet with `lil-gui` sliders driving the same planet material, a real-planet picker (`lab-planets.ts`), a size preview (`lab-view.ts`), and a test surface (`probe-surface.ts`). Never imported by the app. |
-| `src/render/` | Canvas 2D (frozen fallback) per-tier frame composition and the 2D HUD overlay drawn on top of either renderer: reference grid, orbit rings, star dots, galaxy-density glow, galaxy-field sprites / labels, the cosmic-web universe glow, body name labels, the HUD scale bar + coordinate readout, and the selection reticle. `three-backend.ts` (`ThreeBackend`) owns the lazy Three load, activation, and Canvas 2D fallback. |
-| `src/ui/` | HUD overlays above the canvas: the simulation clock / time-scale slider, the body-inspector panel, the top-left location tree, the bookmark list panel, the options menu, `nav-state.ts` (location-tree state), and the "Return to origin" / "Flatten" buttons (Preact + signals). |
+| `src/render/` | The transparent 2D overlay drawn over the Three canvas: body and galaxy name labels, the HUD scale bar + coordinate readout, and the selection reticle; plus shared helpers (`body-scale.ts` zoom-floored body radii, `galaxy-sprites.ts` population colours). `three-backend.ts` (`ThreeBackend`) owns the lazy Three load, activation, and failure reporting. |
+| `src/ui/` | HUD overlays above the canvas: the simulation clock / time-scale slider, the body-inspector panel, the top-left location tree, the bookmark list panel, the options menu, `nav-state.ts` (location-tree state), and the "Return to origin" / "Flatten" buttons (Preact + signals), and the notice shown when 3D cannot start (`render-failure.ts`). |
 | `src/persistence/` | Persistence: `save.ts` stores the universe save (seed + camera view + sim clock/speed); `preferences.ts` stores display settings (temperature unit) that outlive a seed reset. |
 | `docs/` | Project documentation and plans. |
 
@@ -35,7 +35,7 @@
 
 ## Where to add new code
 
-- New visuals → `src/render/three/` only; Canvas 2D is a frozen fallback.
+- New visuals → `src/render/three/`; screen-space text and markers → the overlay in `src/render/`.
 - New per-frame step → a `SchedulableSystem<FrameCtx>` in `src/frame/systems/`, its name added to `FRAME_SYSTEM_ORDER` in `src/frame/pipeline.ts` and to the order asserted in `pipeline.test.ts`.
 - New per-tier generators → `src/generation/` (the deterministic, pure-data
   layer; keep DOM/ECS side effects in the spawn step).

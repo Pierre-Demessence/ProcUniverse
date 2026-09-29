@@ -1,6 +1,6 @@
 import { EcsWorld } from '@pierre/ecs';
 import { makeCamera } from '@pierre/ecs/modules/camera';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
 import { bookmarkFromSelection } from '../bookmarks';
@@ -17,7 +17,7 @@ import { FrameState } from './frame-state';
 import { after, buildFramePipeline } from './pipeline';
 import { makeBackendSelectSystem } from './systems/backend-systems';
 import { makeReticleSystem } from './systems/render-systems';
-import { makeChangeDetectSystem, makeLockRecentreSystem, makeSimClockSystem, makeTierSelectSystem } from './systems/view-systems';
+import { makeLockRecentreSystem, makeSimClockSystem, makeTierSelectSystem } from './systems/view-systems';
 import { makeOrbitsSystem, makeOriginRebaseSystem, makePendingBookmarkSystem, makeStreamingSystem } from './systems/world-systems';
 
 // The reticle draws with a handful of 2D calls; none matter to this test.
@@ -37,17 +37,14 @@ describe('bookmark inspect across systems', () => {
       makeSimClockSystem(state, { timeScale: 1 }, { sample() {} }),
       makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
       makeTierSelectSystem(camera, state),
-      makeChangeDetectSystem({ camera, selectionState, state }),
-      makeBackendSelectSystem({ controller, flattenButton: { setVisible() {} }, state, threeBackend: { update: () => ({ active: false, changed: false, threeMode: false }) }, wantThree: () => false }),
+      makeBackendSelectSystem({ controller, flattenButton: { setVisible() {} }, state, threeBackend: { update: () => false } }),
       makeOriginRebaseSystem({ cache, camera, state, streamer }),
       makeStreamingSystem({ state, streamer, world }),
       makeOrbitsSystem(state, world),
       makePendingBookmarkSystem({ camera, selectionState, world }),
       // Render steps are stubs; the reticle is the real system because it can clear the selection.
-      { name: 'fade-capture', runAfter: after('fade-capture'), run() {} },
-      { name: 'render-scene', runAfter: after('render-scene'), run(ctx) { ctx.localCam = { ...camera }; } },
+      { name: 'overlay-clear', runAfter: after('overlay-clear'), run() {} },
       { name: 'render-three', runAfter: after('render-three'), run() {} },
-      { name: 'cross-fade', runAfter: after('cross-fade'), run() {} },
       makeReticleSystem({ camera, ctx2d: noopCtx2d, selectionState, state, threeBackend: { renderer: null }, world }),
     ]);
     const tick = (n = 1): void => {
@@ -99,7 +96,7 @@ describe('bookmark inspect across systems', () => {
     for (let i = 0; i < 4; i++) {
       tick();
       const sel = selectionState.selection;
-      const pos = sel && 'id' in sel ? world.getStore(PositionDef).get(sel.id) : undefined;
+      const pos = sel && 'id' in sel ? world.getStore(Position3DDef).get(sel.id) : undefined;
       expect(sel?.kind).toBe('planet');
       expect(sel && 'id' in sel ? world.getStore(NameDef).get(sel.id)?.scientific : null).toBe(bm.name);
       expect(selectionState.lockedId).not.toBeNull();

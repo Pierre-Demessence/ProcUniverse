@@ -22,17 +22,17 @@ import type { RingMaterialHandle } from './planet-rings';
 import type { RecyclePool } from './recycle-pool';
 import type { StarMaterialHandle } from './star-material';
 
-import { RenderableDef } from '@pierre/ecs/modules/render-canvas2d';
 import { Scene3DRenderer } from '@pierre/ecs/modules/render-scene3d';
-import { PositionDef } from '@pierre/ecs/modules/transform';
+import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { Quaternion, Vector3 } from 'three/webgpu';
 
 import { STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
+import { BodyVisualDef } from '../../generation/body-visual';
 import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
 import { oblateness, PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
-import { OrbitElementsDef, PositionZDef, tiltNormal } from '../../sim/orbits';
+import { OrbitElementsDef, tiltNormal } from '../../sim/orbits';
 import { oblatePolarScale } from '../body-scale';
 import { ringOuterRadius, ringVariety } from './planet-rings';
 
@@ -43,8 +43,6 @@ const TAU = Math.PI * 2;
 const SPHERE_POLE = new Vector3(0, 1, 0);
 /** A ring lies in its local XY plane (normal +Z); it is re-oriented so +Z points along the planet's spin axis. */
 const RING_POLE = new Vector3(0, 0, 1);
-/** Dark grey for the black-hole sphere so it reads as a shaded body, not black-on-black. */
-const BLACK_HOLE_COLOR = '#15151c';
 
 const tmpAxis = new Vector3();
 const tmpQuat = new Quaternion();
@@ -94,22 +92,21 @@ interface BodyPose {
 type Posed<TPhysical> = Scene3DEntry<[BodyPose, TPhysical]>;
 type Entry<THandle> = PooledMesh<THandle>;
 
-/** Yields every entity with `physicalDef` that also has a circle renderable and a position. */
+/** Yields every entity with `physicalDef` that also has a body visual and a position. */
 function* selectPosed<TPhysical>(world: EcsWorld, physicalDef: ComponentDef<TPhysical>): Generator<Posed<TPhysical>> {
-  const renderables = world.getStore(RenderableDef);
-  const positions = world.getStore(PositionDef);
-  const positionsZ = world.getStore(PositionZDef);
+  const visuals = world.getStore(BodyVisualDef);
+  const positions = world.getStore(Position3DDef);
   for (const [id, physical] of world.query(physicalDef)) {
-    const renderable = renderables.get(id);
+    const visual = visuals.get(id);
     const position = positions.get(id);
-    if (!renderable || renderable.kind !== 'circle' || !position)
+    if (!visual || !position)
       continue;
     yield [id, {
-      fill: renderable.fill ?? DEFAULT_FILL,
-      radius: renderable.radius,
+      fill: visual.color,
+      radius: visual.radius,
       x: position.x,
       y: position.y,
-      z: positionsZ.get(id)?.z ?? 0,
+      z: position.z,
     }, physical];
   }
 }
@@ -168,10 +165,10 @@ function makePass<THandle, TRow extends unknown[]>(
   sync: (entry: Entry<THandle>, row: Scene3DEntry<TRow>, world: EcsWorld) => void,
 ): Scene3DRenderer<Entry<THandle>, TRow> {
   return new Scene3DRenderer<Entry<THandle>, TRow>({
-    select,
     sync,
     create: () => pool.take(),
     remove: entry => pool.give(entry),
+    select,
   });
 }
 
@@ -202,8 +199,8 @@ export class BodyPasses {
     this.stars = makePass(pools.star, world => selectPosed(world, StarPhysicalDef), (entry, row) => this.syncStar(entry, row));
     this.planets = makePass(pools.planet, world => selectPosed(world, PlanetPhysicalDef), (entry, row, world) => this.syncPlanet(entry, row, world));
     this.rings = makePass(pools.ring, selectRinged, (entry, row) => this.syncRing(entry, row));
-    this.moons = makePass(pools.generic, world => selectPosed(world, MoonPhysicalDef), (entry, row) => this.syncGeneric(entry, row, 'moon', null));
-    this.blackHoles = makePass(pools.generic, world => selectPosed(world, BlackHoleDef), (entry, row) => this.syncGeneric(entry, row, 'black-hole', BLACK_HOLE_COLOR));
+    this.moons = makePass(pools.generic, world => selectPosed(world, MoonPhysicalDef), (entry, row) => this.syncGeneric(entry, row, 'moon'));
+    this.blackHoles = makePass(pools.generic, world => selectPosed(world, BlackHoleDef), (entry, row) => this.syncGeneric(entry, row, 'black-hole'));
   }
 
   /** Release every mesh, then free the GPU materials of everything ever built. */
@@ -245,8 +242,8 @@ export class BodyPasses {
     return nearest;
   }
 
-  private syncGeneric({ handle, mesh }: Entry<MeshStandardMaterial>, [id, pose]: Scene3DEntry<[BodyPose, unknown]>, kind: BodyKind, colorOverride: string | null): void {
-    handle.color.set(colorOverride ?? pose.fill);
+  private syncGeneric({ handle, mesh }: Entry<MeshStandardMaterial>, [id, pose]: Scene3DEntry<[BodyPose, unknown]>, kind: BodyKind): void {
+    handle.color.set(pose.fill);
     mesh.position.set(pose.x, pose.y, pose.z);
     mesh.scale.setScalar(pose.radius);
     mesh.rotation.set(0, 0, 0);
