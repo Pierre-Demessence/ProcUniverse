@@ -40,6 +40,7 @@ import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
 import { oblatePolarScale } from '../body-scale';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
+import { perspectiveClipPlanes } from './clip-planes';
 import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringOuterRadius, ringVariety } from './planet-rings';
 import { createStarMaterial } from './star-material';
 import { starLightIntensity } from './star-surface';
@@ -827,11 +828,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const p = this.perspective;
     p.fov = CAMERA_FOV_DEG;
     p.aspect = camera.viewportW / Math.max(1, camera.viewportH);
-    p.near = Math.max(distance * 1e-3, 1e-9);
-    // Extend the far plane to enclose the whole system: zoomed in on an outer
-    // body the central star sits `sceneRadius` away and would otherwise fall
-    // beyond a far plane tied only to the (small) focus distance.
-    p.far = Math.max(distance * 4 + halfHeightWorld * 4, distance + sceneRadius * 1.5 + halfHeightWorld * 4);
+    const { far, near } = perspectiveClipPlanes(distance, halfHeightWorld, sceneRadius);
+    p.near = near;
+    p.far = far;
     p.position.set(focusX + distance * ox, focusY + distance * oy, focusZ + distance * oz);
     p.up.set(nx, ny, nz);
     p.lookAt(focusX, focusY, focusZ);

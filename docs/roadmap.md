@@ -21,13 +21,6 @@ remove it from here once it ships. Links point to the design context.
   resolve) is covered by `src/frame/bookmark-inspect.test.ts` and passes, so the
   cause is likely in the 3D camera or renderer on the first frame after the
   jump.
-- **Hole in the skybox when zoomed close to a planet.** At a certain zoom a
-  circle of empty "space" appears at the screen centre, on the starfield dome
-  only (bodies still draw). It is view-fixed and disappears at higher zoom.
-  Suspected depth-buffer precision: `syncPerspective` sets `near = distance·1e-3`
-  while `far` stays a system's reach, so the dome (at `far·0.95`) loses its depth
-  test at screen centre. Candidate fixes: a tighter near/far range or a
-  logarithmic depth buffer.
 
 ## Architecture decisions to make
 
