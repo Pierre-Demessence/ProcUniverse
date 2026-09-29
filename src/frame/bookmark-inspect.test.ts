@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { bookmarkFromSelection } from '../bookmarks';
 import { frameZoom } from '../camera/focus';
 import { FRAME_MARGIN, MAX_ZOOM, MIN_ZOOM, SYSTEM_VIEW_AU } from '../config/render';
+import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { SectorCache } from '../lod/sector-cache';
 import { SystemStreamer } from '../lod/streaming';
@@ -13,10 +14,14 @@ import { SelectionState } from '../selection-state';
 import { universePlugin } from '../world-plugin';
 import { createFrameCtx } from './frame-context';
 import { FrameState } from './frame-state';
-import { buildFramePipeline } from './pipeline';
+import { after, buildFramePipeline } from './pipeline';
 import { makeBackendSelectSystem } from './systems/backend-systems';
+import { makeReticleSystem } from './systems/render-systems';
 import { makeChangeDetectSystem, makeLockRecentreSystem, makeSimClockSystem, makeTierSelectSystem } from './systems/view-systems';
 import { makeOrbitsSystem, makeOriginRebaseSystem, makePendingBookmarkSystem, makeStreamingSystem } from './systems/world-systems';
+
+// The reticle draws with a handful of 2D calls; none matter to this test.
+const noopCtx2d = new Proxy({}, { get: () => () => {}, set: () => true }) as unknown as CanvasRenderingContext2D;
 
 describe('bookmark inspect across systems', () => {
   it.each([['from the system tier', 1000 / SYSTEM_VIEW_AU], ['from the star tier', 1e-3]])('keeps the framing zoom and centres on the live planet %s', (_label, startZoom) => {
@@ -38,7 +43,13 @@ describe('bookmark inspect across systems', () => {
       makeStreamingSystem({ state, streamer, world }),
       makeOrbitsSystem(state, world),
       makePendingBookmarkSystem({ camera, selectionState, world }),
-    ].map(s => ({ ...s, runAfter: s.runAfter })));
+      // Render steps are stubs; the reticle is the real system because it can clear the selection.
+      { name: 'fade-capture', runAfter: after('fade-capture'), run() {} },
+      { name: 'render-scene', runAfter: after('render-scene'), run(ctx) { ctx.localCam = { ...camera }; } },
+      { name: 'render-three', runAfter: after('render-three'), run() {} },
+      { name: 'cross-fade', runAfter: after('cross-fade'), run() {} },
+      makeReticleSystem({ camera, ctx2d: noopCtx2d, selectionState, state, threeBackend: { renderer: null }, world }),
+    ]);
     const tick = (n = 1): void => {
       for (let i = 0; i < n; i++)
         scheduler.run(createFrameCtx(16, state.currentTier));
@@ -72,6 +83,10 @@ describe('bookmark inspect across systems', () => {
     tick(3);
     camera.zoom = startZoom;
     tick(4);
+    // The user has a body selected in the current system when they click Inspect.
+    const current = [...world.query(PlanetPhysicalDef)][0]?.[0];
+    if (current !== undefined)
+      selectionState.select({ id: current, kind: 'planet' });
 
     // ---- inspect (same logic as main.ts onBookmarkInspect)
     camera.x = bm.x - state.renderOriginX;
@@ -86,6 +101,8 @@ describe('bookmark inspect across systems', () => {
       const sel = selectionState.selection;
       const pos = sel && 'id' in sel ? world.getStore(PositionDef).get(sel.id) : undefined;
       expect(sel?.kind).toBe('planet');
+      expect(sel && 'id' in sel ? world.getStore(NameDef).get(sel.id)?.scientific : null).toBe(bm.name);
+      expect(selectionState.lockedId).not.toBeNull();
       expect(camera.zoom).toBeCloseTo(zoomSet);
       // Within a millionth of an AU: the view spans ~1e-3 AU at this zoom.
       expect(camera.x).toBeCloseTo(pos?.x ?? Number.NaN, 6);

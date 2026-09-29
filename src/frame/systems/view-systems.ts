@@ -81,9 +81,9 @@ export function makeChangeDetectSystem(deps: {
       ctx.vpChanged = camera.viewportW !== state.lastVpW || camera.viewportH !== state.lastVpH;
       state.lastVpW = camera.viewportW;
       state.lastVpH = camera.viewportH;
-      ctx.selection = selectionState.selection;
-      ctx.selChanged = ctx.selection !== state.lastSelection;
-      state.lastSelection = ctx.selection;
+      const selection = selectionState.selection;
+      ctx.selChanged = selection !== state.lastSelection;
+      state.lastSelection = selection;
     },
   };
 }

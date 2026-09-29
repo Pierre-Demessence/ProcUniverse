@@ -2,7 +2,6 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import type { SystemData } from '../generation/universe';
 import type { SectorRange, Tier } from '../lod/tier';
-import type { Selection } from '../pick';
 
 /** Per-frame values produced by earlier systems and read by later ones. */
 export interface FrameCtx {
@@ -21,8 +20,6 @@ export interface FrameCtx {
   /** Objects drawn, or -1 at the system tier where the streamer reports it. */
   renderResult: number;
   selChanged: boolean;
-  /** Selection as of the start of the frame; the reticle draws this one. */
-  selection: Selection | null;
   threeActive: boolean;
   threeMode: boolean;
   tier: Tier;
@@ -44,7 +41,6 @@ export function createFrameCtx(dtMs: number, tier: Tier): FrameCtx {
     renderedByThree: false,
     renderResult: -1,
     selChanged: false,
-    selection: null,
     threeActive: false,
     threeMode: false,
     tier,

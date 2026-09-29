@@ -39,7 +39,7 @@ export interface RenderSystemDeps {
   sceneCache: HTMLCanvasElement;
   sceneCacheCtx: CanvasRenderingContext2D;
   seed: number;
-  selectionState: Pick<SelectionState, 'select'>;
+  selectionState: Pick<SelectionState, 'select' | 'selection'>;
   state: FrameState;
   streamer: Pick<SystemStreamer, 'status'>;
   threeBackend: Pick<ThreeBackend<ThreeRenderer>, 'renderer'>;
@@ -179,7 +179,10 @@ export function makeReticleSystem(deps: Pick<RenderSystemDeps, 'camera' | 'ctx2d
     name: 'reticle',
     runAfter: after('reticle'),
     run(ctx) {
-      const selection = ctx.selection;
+      // Read live, not the frame-start selection: a bookmark can resolve earlier
+      // in this frame, and a stale selection whose body just streamed out would
+      // clear the new one (and its lock).
+      const selection = selectionState.selection;
       const localCam = ctx.localCam;
       if (!ctx.dirty || !selection || !localCam)
         return;

@@ -13,15 +13,6 @@ remove it from here once it ships. Links point to the design context.
 - **The universe is deterministic.** Everything regenerates from the seed; only
   the seed and player state are saved.
 
-## Known bugs
-
-- **Bookmark inspect needs two clicks across systems.** Inspecting a bookmark
-  whose system is not the current one shows the system but does not zoom to the
-  planet; a second click does. The state logic (zoom, streaming, pending
-  resolve) is covered by `src/frame/bookmark-inspect.test.ts` and passes, so the
-  cause is likely in the 3D camera or renderer on the first frame after the
-  jump.
-
 ## Architecture decisions to make
 
 - **3D beyond the system tier.** Systems are 3D; sectors, galaxies, and the
