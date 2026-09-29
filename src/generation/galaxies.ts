@@ -400,6 +400,17 @@ export function galaxyActivityAt(worldSeed: number, x: number, y: number): numbe
 }
 
 /**
+ * `galaxyDensityAt` and `galaxyActivityAt` from a single dominant-galaxy scan,
+ * for hot loops that need both (the starfield samples ~10⁵ points per rebuild).
+ */
+export function galaxySampleAt(worldSeed: number, x: number, y: number): { activity: number; density: number } {
+  const dom = dominantGalaxy(worldSeed, x, y);
+  if (!dom)
+    return { activity: POP_ACTIVITY_OLD, density: 0 };
+  return { activity: galaxyActivityOf(dom.galaxy, x, y), density: dom.density };
+}
+
+/**
  * The galaxy whose centre lies within the box `[minX, maxX) × [minY, maxY)`, or
  * `null`. Used to place a galaxy's central black hole in the one sector that
  * contains its centre. A sector is far smaller than a galaxy cell, so only that

@@ -59,6 +59,10 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   `bodyPasses.releaseAll()` because entity ids restart. `Scene3DRenderer` calls
   a pass's `select` once per world and re-iterates the result every frame, so a
   selection must be re-iterable (`makePass` wraps the generator selectors).
+- `ThreeRenderer.updateStarfield` runs at the system tier only, with absolute
+  coordinates. A starfield rebuild samples ~10⁵ galaxy lookups (hundreds of
+  ms), and the zoomed-out tiers would cross its ~50,000 AU cache buckets every
+  frame.
 - No agent browser/E2E testing — hand in-browser verification to Pierre.
 - Planet surface looks are tuned by Pierre in the planet lab (`src/lab/`); the
   agent turns the copied lab JSON into `src/config/render.ts` defaults. The app

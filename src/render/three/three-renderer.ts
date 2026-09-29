@@ -750,13 +750,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   }
 
   /**
-   * Update the background starfield dome for the current galaxy context.
-   * Called once per frame before any tier-specific render.
-   *
-   * `renderOriginX`, `renderOriginY` — the floating render origin (AU).
-   * `camAbsX`, `camAbsY` — absolute camera position (AU), for galaxy lookup.
+   * Update the background starfield dome for the current galaxy context, from
+   * the absolute camera position (AU). The dome is only drawn at the system
+   * tier, so call it only there: a regeneration costs hundreds of ms, and the
+   * zoomed-out tiers would cross its position buckets every frame.
    */
-  updateStarfield(seed: number, renderOriginX: number, renderOriginY: number, camAbsX: number, camAbsY: number): void {
+  updateStarfield(seed: number, camAbsX: number, camAbsY: number): void {
     if (!this.ready)
       return;
     if (!this.starfieldDome) {
@@ -768,8 +767,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       seed,
       g
         ? {
-            centerX: g.centerX - renderOriginX,
-            centerY: g.centerY - renderOriginY,
+            centerX: g.centerX,
+            centerY: g.centerY,
             orientation: g.orientation,
             void: false,
           }

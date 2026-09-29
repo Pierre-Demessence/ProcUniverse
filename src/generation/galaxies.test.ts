@@ -12,6 +12,7 @@ import {
   estimatedStarCount,
   evaporationTime,
   galaxiesInRect,
+  galaxyActivityAt,
   galaxyActivityOf,
   galaxyAt,
   galaxyCenteredIn,
@@ -19,6 +20,7 @@ import {
   galaxyDensityOf,
   galaxyDiameterLy,
   galaxyRepresentativeActivity,
+  galaxySampleAt,
   galaxyStellarMass,
   gasFraction,
   hawkingTemperature,
@@ -193,6 +195,14 @@ describe('galaxyAt / galaxyDensityAt / galaxyCenteredIn', () => {
   it('reports a galaxy centre inside its own sector box only', () => {
     expect(galaxyCenteredIn(SEED, 0, 0, SECTOR_SIZE, SECTOR_SIZE)?.centerX).toBe(0);
     expect(galaxyCenteredIn(SEED, 7 * SECTOR_SIZE, 0, 8 * SECTOR_SIZE, SECTOR_SIZE)).toBeNull();
+  });
+
+  it('galaxySampleAt matches galaxyDensityAt and galaxyActivityAt, including the void', () => {
+    const cell = GALAXY_CELL_LY * AU_PER_LY;
+    const points: [number, number][] = [[0, 0], [5000 * AU_PER_LY, 2000 * AU_PER_LY], [30000 * AU_PER_LY, -12000 * AU_PER_LY], [0.5 * cell, 0.5 * cell]];
+    for (const [x, y] of points) {
+      expect(galaxySampleAt(SEED, x, y)).toEqual({ activity: galaxyActivityAt(SEED, x, y), density: galaxyDensityAt(SEED, x, y) });
+    }
   });
 });
 

@@ -70,8 +70,8 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
       ctx.localCam = localCam;
       const originX = state.renderOriginX;
       const originY = state.renderOriginY;
-      three.updateStarfield(seed, originX, originY, ctx.camAbsX, ctx.camAbsY);
       if (ctx.tier === 'system') {
+        three.updateStarfield(seed, ctx.camAbsX, ctx.camAbsY);
         // Floor the body radii for this zoom before the passes read them.
         applyBodyScale(world, localCam.zoom);
         // Anchor the 3D camera + pan to the focused system's orbital plane, so a

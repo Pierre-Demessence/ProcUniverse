@@ -14,7 +14,7 @@
 
 import { AdditiveBlending, CanvasTexture, Color, DoubleSide, Group, InstancedMesh, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, SphereGeometry, Vector3 } from 'three';
 
-import { galaxyActivityAt, galaxyDensityAt } from '../../generation/galaxies';
+import { galaxySampleAt } from '../../generation/galaxies';
 import { populationColor } from '../galaxy-sprites';
 
 // ── Dome geometry ───────────────────────────────────────────────────────────
@@ -63,6 +63,7 @@ const BAND_BRIGHTNESS = 0.05;
 // ── Public interface ────────────────────────────────────────────────────────
 
 export interface StarfieldGalaxy {
+  /** Absolute galaxy centre (AU), in the same frame as the camera position. */
   centerX: number;
   centerY: number;
   orientation: number;
@@ -256,12 +257,11 @@ function generateStars(
       activity = 0.5;
     }
     else {
-      const rawDensity = galaxyDensityAt(seed, probeX, probeY);
+      const sample = galaxySampleAt(seed, probeX, probeY);
       // Gradient from the plane outward + a small ambient floor (no hard clip),
       // so there is no uniform sprinkle competing with the band.
-      density = Math.min(0.95, STAR_AMBIENT + rawDensity * coreFactor * diskFactor);
-      const rawActivity = galaxyActivityAt(seed, probeX, probeY);
-      activity = rawActivity * 0.3 + coreFactor * 0.7;
+      density = Math.min(0.95, STAR_AMBIENT + sample.density * coreFactor * diskFactor);
+      activity = sample.activity * 0.3 + coreFactor * 0.7;
     }
 
     // Rejection sampling: keep the star with probability proportional to density.
