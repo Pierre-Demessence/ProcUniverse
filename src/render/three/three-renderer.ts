@@ -21,6 +21,7 @@ import type { SectorRange } from '../../lod/tier';
 import type { BodyKind, PickResult } from '../../pick';
 import type { OrbitElements } from '../../sim/orbits';
 import type { GlowField } from './glow-fields';
+import type { PlanetMaterialHandle } from './planet-material';
 import type { RingMaterialHandle } from './planet-rings';
 import type { StarMaterialHandle } from './star-material';
 import type { StarfieldDome } from './starfield';
@@ -39,8 +40,9 @@ import { oblateness, PlanetPhysicalDef } from '../../generation/planets';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, PositionZDef, ringSegmentCount, tiltNormal } from '../../sim/orbits';
 import { oblatePolarScale } from '../body-scale';
-import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 import { perspectiveClipPlanes } from './clip-planes';
+import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
+import { createPlanetMaterial } from './planet-material';
 import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS, ringOuterRadius, ringVariety } from './planet-rings';
 import { createStarMaterial } from './star-material';
 import { starLightIntensity } from './star-surface';
@@ -159,6 +161,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly planetRingGeometry: RingGeometry;
   /** Pooled ring materials + meshes for planets with rings; surplus hidden each frame. */
   private readonly planetRingPool: { handle: RingMaterialHandle; mesh: Mesh }[] = [];
+  /** Planet spheres get the shared planet-surface material (not the generic lit pool). */
+  private readonly planetSpherePool: { handle: PlanetMaterialHandle; mesh: Mesh }[] = [];
   private readonly pool: Mesh[] = [];
   private readonly raycaster = new Raycaster();
   /** True once `init()` has resolved; `render` is a no-op before then. */
@@ -247,6 +251,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     for (const mesh of this.pool)
       (mesh.material as MeshStandardMaterial).dispose();
     for (const entry of this.starSpherePool)
+      entry.handle.dispose();
+    for (const entry of this.planetSpherePool)
       entry.handle.dispose();
     if (this.starLight)
       this.scene.remove(this.starLight);
@@ -359,6 +365,20 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       const mesh = new Mesh(this.planetRingGeometry, handle.material);
       entry = { handle, mesh };
       this.planetRingPool.push(entry);
+      this.group.add(mesh);
+    }
+    entry.mesh.visible = true;
+    return entry;
+  }
+
+  /** Reuse a pooled planet sphere (shared planet material), creating one on first use. */
+  private obtainPlanetSphere(index: number): { handle: PlanetMaterialHandle; mesh: Mesh } {
+    let entry = this.planetSpherePool[index];
+    if (!entry) {
+      const handle = createPlanetMaterial();
+      const mesh = new Mesh(this.sphereGeometry, handle.material);
+      entry = { handle, mesh };
+      this.planetSpherePool.push(entry);
       this.group.add(mesh);
     }
     entry.mesh.visible = true;
@@ -506,6 +526,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // star's on-screen size so a distant star never shrinks to nothing.
     const pxFactor = this.viewH / (2 * Math.tan((CAMERA_FOV_DEG * DEG2RAD) / 2));
     let used = 0;
+    let planetsUsed = 0;
 
     const place = (id: number, kind: BodyKind, colorOverride: string | null): Mesh | null => {
       const renderable = renderables.get(id);
@@ -513,10 +534,18 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       if (!renderable || renderable.kind !== 'circle' || !position)
         return null;
       const fill = colorOverride ?? renderable.fill ?? DEFAULT_FILL;
-      const mesh = this.obtainSphere(used++);
+      let mesh: Mesh;
+      if (kind === 'planet') {
+        const entry = this.obtainPlanetSphere(planetsUsed++);
+        entry.handle.setFill(fill);
+        mesh = entry.mesh;
+      }
+      else {
+        mesh = this.obtainSphere(used++);
+        (mesh.material as MeshStandardMaterial).color.set(fill);
+      }
       mesh.position.set(position.x, position.y, positionsZ.get(id)?.z ?? 0);
       mesh.scale.setScalar(renderable.radius);
-      (mesh.material as MeshStandardMaterial).color.set(fill);
       const data = mesh.userData as { id: number; kind: BodyKind };
       data.id = id;
       data.kind = kind;
@@ -630,6 +659,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     }
     for (let i = starsUsed; i < this.starSpherePool.length; i++) {
       const entry = this.starSpherePool[i];
+      if (entry)
+        entry.mesh.visible = false;
+    }
+    for (let i = planetsUsed; i < this.planetSpherePool.length; i++) {
+      const entry = this.planetSpherePool[i];
       if (entry)
         entry.mesh.visible = false;
     }

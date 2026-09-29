@@ -13,6 +13,7 @@ the system tier is 3D (Three.js). There is no planet-surface landing view.
 
 - `npm install` — install dependencies (links the sibling `@pierre/ecs`).
 - `npm run dev` — Vite dev server on port 5180 (Pierre's browser testing only).
+  The planet lab is at `/lab.html` (dev only; Pierre tunes surface looks there).
 - `npm run build` — `tsc --noEmit` then Vite production build.
 - `npm test` — Vitest suite.
 - `npm run lint` / `npm run lint:fix` — ESLint (antfu config).
@@ -49,3 +50,6 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   `src/frame/pipeline.test.ts`. `world.endOfTick()` stays inside the `streaming`
   system because `orbits` reads what streaming just spawned.
 - No agent browser/E2E testing — hand in-browser verification to Pierre.
+- Planet surface looks are tuned by Pierre in the planet lab (`src/lab/`); the
+  agent turns the copied lab JSON into `src/config/render.ts` defaults. The app
+  never imports `src/lab/`, and the lab stays out of the production build.

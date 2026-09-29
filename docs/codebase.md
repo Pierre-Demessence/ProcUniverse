@@ -3,6 +3,7 @@
 | Path | Purpose |
 | ---- | ------- |
 | `index.html` | Mounts the app; loads or mints the universe save, then calls `start(root, save)`. |
+| `lab.html` | Dev-only planet lab page (served by `npm run dev` at `/lab.html`, not part of the production build); loads `src/lab/planet-lab.ts`. |
 | `src/main.ts` | Entry: canvas and DPR sizing, ECS world, input handlers, and the wiring that builds the frame pipeline and starts its `TickRunner`. |
 | `src/frame/` | The per-frame loop as engine `Scheduler` systems. `frame-state.ts` (`FrameState`) holds cross-frame state shared with the input handlers; `frame-context.ts` (`FrameCtx`) carries per-tick values between systems; `pipeline.ts` declares the step order (`FRAME_SYSTEM_ORDER`); `systems/` holds the steps: view (clock, lock, tier, change detection), backend, world (origin rebase, streaming, orbits, pending bookmark), render (fade, scene, Three, reticle, scene cache), and HUD. |
 | `src/selection-state.ts` | Selection, camera lock, and pending-bookmark state (`SelectionState`): one place for the rules that tie them together. |
@@ -16,7 +17,8 @@
 | `src/lod/` | LOD tier selection, the generate-on-demand sector cache, and system-tier streaming, and `nearestSystem`. |
 | `src/sim/` | Keplerian orbital-elements component, per-frame elliptical orbit update, and orbit-ring drawing. |
 | `src/camera/` | Free-floating pan/zoom controller over the engine camera, and framing (`selectionFrame`, `frameSelection`, the locked body's live position). |
-| `src/render/three/` | The primary Three.js renderer (`three/webgpu`, lazy-loaded): every tier, the 3D system view (spheres, star shading, rings, starfield dome, bloom), picking, and projection for labels. |
+| `src/render/three/` | The primary Three.js renderer (`three/webgpu`, lazy-loaded): every tier, the 3D system view (spheres, star shading, rings, starfield dome, bloom), picking, and projection for labels. Planet spheres use the shared lit `planet-material.ts` (flat fill, or a procedural surface baked once via `surface-bake.ts` or evaluated per pixel); `planet-surface.ts` holds the pure, tested helpers. |
+| `src/lab/` | The dev-only planet lab: one large lit planet with `lil-gui` sliders driving the same planet material, a real-planet picker (`lab-planets.ts`), a size preview (`lab-view.ts`), and a test surface (`probe-surface.ts`). Never imported by the app. |
 | `src/render/` | Canvas 2D (frozen fallback) per-tier frame composition and the 2D HUD overlay drawn on top of either renderer: reference grid, orbit rings, star dots, galaxy-density glow, galaxy-field sprites / labels, the cosmic-web universe glow, body name labels, the HUD scale bar + coordinate readout, and the selection reticle. `three-backend.ts` (`ThreeBackend`) owns the lazy Three load, activation, and Canvas 2D fallback. |
 | `src/ui/` | HUD overlays above the canvas: the simulation clock / time-scale slider, the body-inspector panel, the top-left location tree, the bookmark list panel, the options menu, `nav-state.ts` (location-tree state), and the "Return to origin" / "Flatten" buttons (Preact + signals). |
 | `src/persistence/` | Persistence: `save.ts` stores the universe save (seed + camera view + sim clock/speed); `preferences.ts` stores display settings (temperature unit) that outlive a seed reset. |

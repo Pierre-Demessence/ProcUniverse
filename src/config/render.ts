@@ -52,6 +52,9 @@ export const TILT_DEFAULT = 0.35;
 export const FLAT_TILT = 0.02;
 export const SPHERE_WIDTH_SEGMENTS = 32;
 export const SPHERE_HEIGHT_SEGMENTS = 24;
+// Width (px) of a planet's baked equirectangular surface map (height = width/2);
+// see docs/plans/planet-surfaces.md §3.2.
+export const PLANET_SURFACE_MAP_WIDTH = 1024;
 export const STAR_SPIN_RATE = 5e-8;
 export const LIGHT_AMBIENT = 0.15;
 export const LIGHT_STAR_BASE = 3;

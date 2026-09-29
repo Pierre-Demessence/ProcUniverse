@@ -73,7 +73,7 @@ planet's **albedo** (surface colour/pattern), not its lighting model:
   the lit albedo, not a switch to a self-lit material; the terminator still
   shows, the night side glows faintly.
 
-### 3.2 Baked surface maps vs per-pixel procedural (decided in Phase 0)
+### 3.2 Baked surface maps vs per-pixel procedural
 
 Two ways to produce the albedo:
 
@@ -84,7 +84,7 @@ Two ways to produce the albedo:
   mipmaps, and sample it on the sphere. Regenerated only when the planet or its
   tuning changes.
 
-Baked maps are the **recommended default**:
+Baked maps are the **default** (decided in Phase 0):
 
 - **No shimmer when small.** Planets are often only tens of pixels wide.
   Per-pixel noise with fine detail aliases and sparkles at that size (a likely
@@ -113,10 +113,17 @@ motion) needs an explicit size-based fade.
 ### 3.4 Shared modules
 
 - **`src/render/three/planet-material.ts`** — `createPlanetMaterial()`
-  returning a handle `{ material, setPlanet(...), setTime(seconds), dispose() }`,
-  mirroring [star-material.ts](../../src/render/three/star-material.ts). One
-  handle per planet mesh via a **`planetSpherePool`** analogous to
+  returning a handle `{ material, setFill(hex), setSurface(albedo, source),
+  refreshSurface(), dispose() }`, mirroring
+  [star-material.ts](../../src/render/three/star-material.ts). A surface is an
+  `AlbedoFn` (sphere direction → albedo), installed either baked or per pixel.
+  Later slices extend the handle (e.g. per-planet data, time) as they need it.
+  One handle per planet mesh via a **`planetSpherePool`** analogous to
   `starSpherePool` (a system holds only a handful of planets).
+- **`src/render/three/surface-bake.ts`** — `createSurfaceBake(albedo, width)`:
+  renders an `AlbedoFn` once into a mipmapped, anisotropic equirectangular map
+  laid out on the sphere's own UVs (no seam), re-rendered only on
+  `invalidate()`.
 - **`src/render/three/planet-surface.ts`** — pure, unit-testable helpers
   mapping physical data → surface parameters (regime selection, palette stops,
   cap/ocean thresholds, band count), mirroring
@@ -150,31 +157,37 @@ later phase reuses.
 
 ### 5.1 Checklist
 
-- [ ] **Lab entry point.** Dev-only (e.g. a separate Vite HTML entry or a
-      `?lab=planet` URL flag), excluded from the production build or unreachable
-      from the UI. Renders **one planet large**, lit by a single point light
+- [x] **Lab entry point.** Dev-only `lab.html` (served by `npm run dev` at
+      `/lab.html`; Vite builds only `index.html`, so it never ships). Renders **one planet large**, lit by a single point light
       that can be orbited around it (to check the terminator), on a dark
       background.
-- [ ] **Planet picker.** Choose a real generated planet (seed + planet) or a
+- [x] **Planet picker.** Choose a real generated planet (seed + planet) or a
       synthetic one (type, temperature, rotation period, water state sliders),
       so looks are tuned against the data they will actually receive.
-- [ ] **Live sliders** for every parameter of the active surface type, driving
-      the same parameter object the renderer uses. Slider UI via a small
-      standard library (`lil-gui`, the de-facto three.js tuning panel) as a dev
-      dependency, or a minimal Preact panel if a dependency is unwanted.
-- [ ] **Export / import.** A "copy parameters" button that yields the exact
-      object to paste into `config/render`, and a paste-to-load for sharing
-      values between Pierre and the agent.
-- [ ] **Size preview.** A toggle to render the planet at typical in-app sizes
-      (e.g. 16 / 48 / 150 px wide) to judge shimmer and detail fade.
-- [ ] **Map view.** Show the baked equirectangular map flat beside the sphere.
-- [ ] **Reference strip.** Space for reference images (Pierre supplies/links
-      them; nothing copyrighted is committed).
-- [ ] **Shared material infra** (§3.4): `planet-material.ts`,
+- [x] **Live sliders** for every parameter of the active surface type, driving
+      the same material the renderer uses. Slider UI via `lil-gui` (the
+      de-facto three.js tuning panel) as a dev dependency. Lab state persists in
+      `localStorage` across reloads.
+- [x] **Export / import.** "Copy all as JSON" and "paste JSON from clipboard"
+      (unknown keys / wrong types ignored) for sharing values between Pierre
+      and the agent; the agent turns them into `config/render` defaults.
+- [x] **Size preview.** Render the planet at typical in-app sizes
+      (16 / 48 / 150 px wide) plus a ×2/×4/×8 pixel zoom (lower render
+      resolution, upscaled blocky) to judge shimmer and detail fade.
+- [x] **Map view.** Show the surface as a flat equirectangular map beside the
+      sphere (north up).
+- [x] **Reference strip.** Local reference images added via a file picker
+      (object URLs; nothing uploaded or committed).
+- [x] **Shared material infra** (§3.4): `planet-material.ts`,
       `planet-surface.ts`, `planetSpherePool`, wired into the renderer with the
       current flat colour as the only "surface" — no visual change in-app.
-- [ ] **Decide §3.2** (baked vs per-pixel) using the lab: a quick noise test
-      at small sizes on both paths. Record the decision in §12.
+- [x] **Probe surface** for the §3.2 comparison: mottled noise + polar caps
+      with detail frequency / octaves / colours as sliders, switchable between
+      baked and per-pixel.
+- [x] **Backend switch.** A button reloads the lab on forced WebGL2 (and back)
+      to compare against WebGPU.
+- [x] **Decide §3.2** (baked vs per-pixel) using the lab: Pierre compared the
+      probe on both paths at small sizes — **baked** (§12).
 
 ## 6. Phase 1 — Atmosphere rim glow
 
@@ -207,6 +220,11 @@ ball read as a world.
 - [ ] Polar ice caps by latitude + temperature (larger when colder; none when
       hot).
 - [ ] Per-planet variety from the entity hash (§4).
+- [ ] Craters (impact basins on airless / thin-atmosphere worlds), shared with
+      the moon surfaces of Phase 3.
+- [ ] Relief shading: a height field from the same noise baked alongside the
+      albedo and fed to the lit material as a bump / normal map, so terrain
+      catches the star light and the terminator looks rugged.
 - [ ] Tuned in the lab against real generated planets of each regime.
 
 ## 8. Later phases (sketch — expanded when reached)
@@ -267,8 +285,6 @@ ball read as a world.
 
 ## 11. Open questions
 
-- **§3.2 baked vs per-pixel** — decided in Phase 0 (baked recommended).
-- **Lab UI** — `lil-gui` dev dependency vs a minimal Preact panel.
 - **Rim glow implementation** — Fresnel term vs shell mesh (Phase 1).
 - **Cloud layer** — shell mesh vs material layer (Phase 4).
 - **Gas-giant hybrid** — only if procedural falls short (Phase 5).
@@ -286,4 +302,5 @@ ball read as a world.
 | 2026-09-29 | Sequencing | Lab → rim glow → rocky → moons → clouds → static giants → optional giant motion. Gas giants last (hardest look), not first. Rings and oblateness already shipped. |
 | 2026-09-29 | Animation | **Static first.** Band motion is a separate, optional final phase with bounded time inputs. |
 | 2026-09-29 | Thermal glow | Hottest worlds add an `emissiveNode` on top of the lit albedo; the material stays lit. |
-| 2026-09-29 | Albedo source | **Baked per-planet maps recommended** (mipmapped, no small-size shimmer); confirmed or overturned in Phase 0. |
+| 2026-09-29 | Lab form | Separate dev-only `lab.html` entry (never in the build); `lil-gui` devDependency for sliders. |
+| 2026-09-29 | Albedo source | **Baked per-planet maps** (mipmapped). Lab comparison: neither path flickered at 16–48 px, baked was smoother; octave-8 detail at 1024-wide maps looks good even close up. |

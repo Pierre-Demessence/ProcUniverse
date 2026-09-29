@@ -31,6 +31,7 @@
     "eslint-plugin-import-x": "^4.16.2",
     "jiti": "^2.6.1",
     "jsdom": "^29.0.1",
+    "lil-gui": "^0.21.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.10",
     "vitest": "^4.1.2"

@@ -14,7 +14,7 @@ import type { Bookmark } from '../bookmarks';
 
 import { DEFAULT_SPEED_INDEX, SPEED_STEPS } from '../config/render';
 
-const SAVE_KEY = 'procuniverse:save';
+export const SAVE_KEY = 'procuniverse:save';
 const SAVE_VERSION = 1;
 
 /** A persisted camera view: world-space centre (AU), zoom (pixels per AU), and 3D orbit state. */

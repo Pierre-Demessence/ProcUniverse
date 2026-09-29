@@ -10,6 +10,7 @@
 | Engine | `@pierre/ecs` (sibling `file:` dependency; CI pins a commit) | 0.0.0 |
 | Renderer | Three.js `three/webgpu` (WebGPU + WebGL2 fallback) | 0.184 |
 | Package manager | npm | 10 |
+| Dev tuning panel (planet lab only) | `lil-gui` (devDependency) | 0.21 |
 
 ## Notes
 
