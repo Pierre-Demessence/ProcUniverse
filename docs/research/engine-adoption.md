@@ -10,25 +10,11 @@ are also listed in [roadmap.md](../roadmap.md).
 The project uses the engine as a toolbox: `EcsWorld` and component stores,
 `simpleComponent`, the world plugin (`src/world-plugin.ts`), the 2D camera
 transforms, `math` / `rng` helpers, `projectPointer`, `Canvas2DRenderer`,
-`AnimationFrameTickSource`, and `FrameStats`. The per-frame logic (lock,
-tier, origin rebase, streaming, orbits, rendering) is one hand-written callback
-in `src/main.ts`, not engine systems.
+`AnimationFrameTickSource`, `FrameStats`, and the frame loop itself: `Scheduler`
+systems in `src/frame/` (lock, tier, origin rebase, streaming, orbits,
+rendering, HUD) driven by a `TickRunner`, with the step order pinned by a test.
 
 ## Structural opportunities
-
-### Scheduler systems for the frame loop
-
-`Scheduler` + `TickRunner` (`@pierre/ecs/scheduler`, `@pierre/ecs/tick-runner`) run
-named `SchedulableSystem`s in dependency order against a per-tick context.
-Candidate systems from the `main.ts` frame callback: lock re-centre → tier
-selection → origin rebase → streaming (+ `endOfTick`) → orbit update →
-pending-bookmark resolve → render → HUD.
-
-- Makes each step unit-testable and the ordering explicit (`runAfter`).
-- Follows the [main-ts-split plan](../plans/main-ts-split.md), which extracts
-  selection state and the Three backend first.
-- Risk: the current step order encodes several past bug fixes (lock before
-  tier, bookmark resolve after streaming + orbits). Port the order verbatim.
 
 ### `Scene3DRenderer` for the Three.js system view
 

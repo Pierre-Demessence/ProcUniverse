@@ -3,7 +3,8 @@
 | Path | Purpose |
 | ---- | ------- |
 | `index.html` | Mounts the app; loads or mints the universe save, then calls `start(root, save)`. |
-| `src/main.ts` | Entry: canvas and DPR sizing, ECS world, input handlers, and the per-frame loop (origin rebase, streaming, render dispatch, HUD) wiring the modules below. |
+| `src/main.ts` | Entry: canvas and DPR sizing, ECS world, input handlers, and the wiring that builds the frame pipeline and starts its `TickRunner`. |
+| `src/frame/` | The per-frame loop as engine `Scheduler` systems. `frame-state.ts` (`FrameState`) holds cross-frame state shared with the input handlers; `frame-context.ts` (`FrameCtx`) carries per-tick values between systems; `pipeline.ts` declares the step order (`FRAME_SYSTEM_ORDER`); `systems/` holds the steps: view (clock, lock, tier, change detection), backend, world (origin rebase, streaming, orbits, pending bookmark), render (fade, scene, Three, reticle, scene cache), and HUD. |
 | `src/selection-state.ts` | Selection, camera lock, and pending-bookmark state (`SelectionState`): one place for the rules that tie them together. |
 | `src/config/` | Central tuning knobs: `data.ts` for generation (density, orbit architecture, physics parameters) and `render.ts` for camera/zoom, LOD tiers, visual sizing, and simulation time. |
 | `src/settings.ts` | User display settings as `@preact/signals` (units, naming style, body scale, renderer), persisted via `persistence/preferences.ts`. |
@@ -33,6 +34,7 @@
 ## Where to add new code
 
 - New visuals → `src/render/three/` only; Canvas 2D is a frozen fallback.
+- New per-frame step → a `SchedulableSystem<FrameCtx>` in `src/frame/systems/`, its name added to `FRAME_SYSTEM_ORDER` in `src/frame/pipeline.ts` and to the order asserted in `pipeline.test.ts`.
 - New per-tier generators → `src/generation/` (the deterministic, pure-data
   layer; keep DOM/ECS side effects in the spawn step).
 - LOD tiers, streaming, and the sector cache → `src/lod/`.

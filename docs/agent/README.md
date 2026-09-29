@@ -44,4 +44,8 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
 - Three.js (`src/render/three/`) is the primary renderer; new visuals target it
   only. Canvas 2D is a frozen fallback: keep it working, add no features.
 - Generation and sim never import Three.js; render reads the ECS world one-way.
+- The frame loop is `src/frame/` systems on an engine `Scheduler`, driven by a
+  `TickRunner`. Step order encodes past bug fixes and is pinned by
+  `src/frame/pipeline.test.ts`. `world.endOfTick()` stays inside the `streaming`
+  system because `orbits` reads what streaming just spawned.
 - No agent browser/E2E testing — hand in-browser verification to Pierre.
