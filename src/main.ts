@@ -1,13 +1,9 @@
-import type { EntityId } from '@pierre/ecs/entity-id';
-import type { Camera } from '@pierre/ecs/modules/camera';
-
 import type { Bookmark } from './bookmarks';
-import type { SystemData } from './generation/universe';
 import type { Tier } from './lod/tier';
 import type { Save } from './persistence/save';
 import type { Selection } from './pick';
 import type { ThreeRenderer } from './render/three/three-renderer';
-import type { NavNode, NavState, NavSystem } from './ui/nav-tree';
+import type { NavNode } from './ui/nav-tree';
 
 import { EcsWorld } from '@pierre/ecs';
 import { worldToView } from '@pierre/ecs/modules/camera';
@@ -18,17 +14,14 @@ import { drawStatsOverlay, FrameStats } from '@pierre/ecs/modules/stats';
 import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { PositionDef } from '@pierre/ecs/modules/transform';
 
-import { bookmarkKey, selectionBookmarkKey } from './bookmarks';
+import { bookmarkKey, removeBookmark, selectionBookmarkKey, toggleBookmark } from './bookmarks';
 import { createCameraController } from './camera/camera-controller';
 import { frameZoom } from './camera/focus';
+import { frameSelection } from './camera/framing';
 import { cameraAbsolute, rebaseLocal } from './camera/origin';
-import { CLICK_SLOP_PX, DISC_FRAME_FACTOR, FRAME_MARGIN, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config/render';
-import { BlackHoleDef, galaxyAt } from './generation/galaxies';
-import { MoonPhysicalDef } from './generation/moons';
-import { NameDef } from './generation/naming';
-import { PlanetPhysicalDef } from './generation/planets';
-import { StarPhysicalDef } from './generation/stars';
-import { SECONDS_PER_YEAR } from './generation/units';
+import { CLICK_SLOP_PX, FRAME_MARGIN, GALAXY_SPRITE_SCALE, MAX_ZOOM, MIN_ZOOM, REBASE_SECTORS, STATS_HUD_GAP_PX, STATS_HUD_RIGHT_RESERVE_PX, STATS_HUD_TOP_PX, STATS_HUD_WIDTH_PX, SYSTEM_VIEW_AU, TIER_FADE_MS } from './config/render';
+import { galaxyAt } from './generation/galaxies';
+import { nearestSystem } from './lod/nearest-system';
 import { SectorCache } from './lod/sector-cache';
 import { SystemStreamer } from './lod/streaming';
 import { selectTier, visibleSectors } from './lod/tier';
@@ -39,12 +32,15 @@ import { drawBodyLabels3D } from './render/draw-labels';
 import { drawScaleBar } from './render/scale-bar';
 import { renderFrame } from './render/scene';
 import { drawSelectReticle } from './render/select-reticle';
-import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from './scale';
+import { ThreeBackend } from './render/three-backend';
+import { SECTOR_SIZE } from './scale';
+import { SelectionState } from './selection-state';
 import { renderBackend } from './settings';
-import { OrbitElementsDef, PositionZDef, updateOrbits, writeOrbitPosition } from './sim/orbits';
+import { PositionZDef, updateOrbits } from './sim/orbits';
 import { createBookmarkList } from './ui/bookmark-list';
 import { createFlattenButton } from './ui/flatten-button';
 import { createInspector } from './ui/inspector';
+import { buildNavState } from './ui/nav-state';
 import { createNavTree } from './ui/nav-tree';
 import { createOptionsMenu } from './ui/options';
 import { createResetViewButton } from './ui/reset-view';
@@ -92,12 +88,18 @@ export function start(container: HTMLElement, save: Save): () => void {
     throw new Error('ProcUniverse: 2D canvas context is unavailable.');
   let sceneCacheValid = false;
 
-  // Three.js (WebGPU) renderer for the parallel rendering backend. Loaded and
-  // created lazily the first time the backend is switched to Three (so Canvas 2D
-  // sessions never download the three bundle), then kept for the session.
-  let threeRenderer: ThreeRenderer | null = null;
-  let threeLoading = false;
-  let threeLoadFailed = false;
+  // Three.js renderer: loaded on first use (so Canvas 2D sessions never download
+  // the three bundle) and mounted behind the transparent 2D HUD canvas.
+  const threeBackend = new ThreeBackend<ThreeRenderer>(
+    () => import('./render/three/three-renderer').then(({ ThreeRenderer }) => {
+      const r = new ThreeRenderer();
+      r.resize(canvas.width, canvas.height);
+      return r;
+    }),
+    (r) => {
+      container.insertBefore(r.canvas, canvas);
+    },
+  );
 
   // Size the backing store to device pixels before the camera is created, so it
   // reads real dimensions rather than the canvas default (300x150).
@@ -111,7 +113,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     fadeCanvas.height = canvas.height;
     sceneCache.width = canvas.width;
     sceneCache.height = canvas.height;
-    threeRenderer?.resize(canvas.width, canvas.height);
+    threeBackend.resize(canvas.width, canvas.height);
     fadeMsLeft = 0;
     sceneCacheValid = false;
   };
@@ -218,39 +220,20 @@ export function start(container: HTMLElement, save: Save): () => void {
   // only when it barely moved — a real drag pans the view and never selects.
   // Escape and empty-space clicks clear the selection; the render loop clears it
   // when the body streams out or the tier changes.
-  let selection: Selection | null = null;
+  const selectionState = new SelectionState();
   let pointerDownX = 0;
   let pointerDownY = 0;
   // Armed when a pointerdown starts while locked — the first move beyond
   // CLICK_SLOP_PX releases the lock so the re-centre doesn't fight the pan.
   let lockDragArmed = false;
 
-  let lockedId: EntityId | null = null;
-  // When a bookmark-inspect targets a body that is not yet streamed, zoom there
-  // first and retry findEntityByName each frame until the sector streams in.
-  let pendingBookmark: Bookmark | null = null;
-  // Whether the pending bookmark should also select the body once it streams in
-  // (inspect) or only re-centre the camera on its live position (zoom).
-  let pendingBookmarkSelect = false;
-  // The 3D camera's look-at height (z) now lives in the controller
+  // The 3D camera's look-at height (z) lives in the controller
   // (`controller.focusZ`): the 3D pan moves it, locking sets it to the body's
   // out-of-plane z, and Return-to-origin resets it. It is retained on unlock so
   // the view never snaps back to the ground plane and loses the body.
 
-  const setSelection = (next: Selection | null): void => {
-    selection = next;
-    lockedId = null;
-    pendingBookmark = null;
-    pendingBookmarkSelect = false;
-  };
-
-  const toggleLock = (): void => {
-    if (!selection || (selection.kind !== 'planet' && selection.kind !== 'moon'))
-      return;
-    lockedId = lockedId === selection.id ? null : selection.id;
-  };
-
   const onZoomTo = (): void => {
+    const selection = selectionState.selection;
     if (!selection)
       return;
     frameSelection(selection, world, camera, renderOriginX, renderOriginY);
@@ -258,41 +241,28 @@ export function start(container: HTMLElement, save: Save): () => void {
     // it orbits; static bodies (star / galaxy / black hole) need no lock. The
     // per-frame lock re-centre also supplies the 3D camera's focus height, so a
     // tilted view frames the body itself rather than its z=0 projection.
-    if (selection.kind === 'planet' || selection.kind === 'moon')
-      lockedId = selection.id;
+    selectionState.lockSelectedOrbiter();
   };
 
   const onToggleBookmark = (): void => {
-    if (!selection)
-      return;
-    const selKey = selectionBookmarkKey(selection, world);
-    if (!selKey)
-      return;
-    const idx = bookmarks.findIndex(b => bookmarkKey(b.kind, b.name) === selKey);
-    if (idx >= 0) {
-      bookmarks.splice(idx, 1);
-    }
-    else {
-      const bm = createBookmarkFromSelection(selection, world, renderOriginX, renderOriginY);
-      if (bm)
-        bookmarks.push(bm);
-    }
-    persistBookmarks();
+    const selection = selectionState.selection;
+    if (selection && toggleBookmark(bookmarks, selection, world, renderOriginX, renderOriginY))
+      persistBookmarks();
   };
 
-  const inspector = createInspector(container, { onToggleBookmark, onToggleLock: toggleLock, onZoomTo });
+  const inspector = createInspector(container, { onToggleBookmark, onZoomTo, onToggleLock: () => selectionState.toggleLock() });
 
   const onPickDown = (e: PointerEvent): void => {
     pointerDownX = e.clientX;
     pointerDownY = e.clientY;
     // Only a left-button (pan) drag breaks a lock; right-drag orbits around it.
-    lockDragArmed = lockedId !== null && e.button === 0;
+    lockDragArmed = selectionState.lockedId !== null && e.button === 0;
   };
   const onLockPointerMove = (e: PointerEvent): void => {
-    if (!lockDragArmed || lockedId === null)
+    if (!lockDragArmed || selectionState.lockedId === null)
       return;
     if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX) {
-      lockedId = null;
+      selectionState.unlock();
       lockDragArmed = false;
     }
   };
@@ -311,19 +281,20 @@ export function start(container: HTMLElement, save: Save): () => void {
     // `camera` is already in the render-origin frame, so it doubles as localCam.
     const localCam = { ...camera };
     if (currentTier === 'system') {
-      if (renderBackend.value === 'three' && threeRenderer?.ready)
-        setSelection(threeRenderer.pickAt(bx, by));
+      const three = threeBackend.renderer;
+      if (threeBackend.active && three)
+        selectionState.select(three.pickAt(bx, by));
       else
-        setSelection(pickBodyAt(world, localCam, bx, by));
+        selectionState.select(pickBodyAt(world, localCam, bx, by));
     }
     else if (currentTier === 'galaxy-field') {
       const galaxy = pickGalaxyAt(seed, localCam, renderOriginX, renderOriginY, bx, by);
-      setSelection(galaxy ? { galaxy, kind: 'galaxy' } : null);
+      selectionState.select(galaxy ? { galaxy, kind: 'galaxy' } : null);
     }
   };
   const onPickKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape')
-      setSelection(null);
+      selectionState.select(null);
   };
   canvas.addEventListener('pointerdown', onPickDown);
   window.addEventListener('pointermove', onLockPointerMove);
@@ -340,16 +311,16 @@ export function start(container: HTMLElement, save: Save): () => void {
     },
     onSelect(node: NavNode): void {
       if (node.kind === 'universe') {
-        setSelection({ kind: 'universe', seed });
+        selectionState.select({ kind: 'universe', seed });
       }
       else if (node.kind === 'galaxy') {
         const g = galaxyAt(seed, cameraAbsolute(renderOriginX, camera.x), cameraAbsolute(renderOriginY, camera.y));
-        setSelection(g ? { galaxy: g, kind: 'galaxy' } : null);
+        selectionState.select(g ? { galaxy: g, kind: 'galaxy' } : null);
       }
       else if (node.kind === 'star' || node.kind === 'planet' || node.kind === 'moon') {
         const id = findEntityByName(world, node.name);
         if (id !== null)
-          setSelection({ id, kind: node.kind });
+          selectionState.select({ id, kind: node.kind });
       }
     },
   });
@@ -357,9 +328,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   // Bottom-centre control to snap the camera back to the origin framing after
   // panning far across the universe.
   const onResetView = (): void => {
-    lockedId = null;
-    pendingBookmark = null;
-    pendingBookmarkSelect = false;
+    selectionState.unlock();
+    selectionState.cancelPending();
     controller.resetOrbit();
     frameOrigin();
   };
@@ -372,68 +342,25 @@ export function start(container: HTMLElement, save: Save): () => void {
   // Top-centre options menu for display preferences (units, etc.).
   const optionsMenu = createOptionsMenu(container);
 
-  // Bookmark zoom helper: move the camera to the bookmarked system so the
-  // sector streams in.  For orbiting bodies (planets, moons) the bookmarked
-  // position is stale — the pending resolution corrects to the live position
-  // once the entity appears.
-  const bookmarkZoomTo = (bm: Bookmark): void => {
+  // Inspect a bookmarked body: zoom to its system (so it streams in if needed)
+  // and open the inspector. For orbiting bodies (planets, moons) the bookmarked
+  // position is stale, so the camera re-centres on the live position once the
+  // entity is streamed (immediately, or via the pending resolution).
+  const onBookmarkInspect = (bm: Bookmark): void => {
     camera.x = bm.x - renderOriginX;
     camera.y = bm.y - renderOriginY;
     camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
-    lockedId = null;
-    pendingBookmark = null;
-    pendingBookmarkSelect = false;
-    if (bm.kind !== 'universe' && bm.kind !== 'galaxy') {
-      const id = findEntityByName(world, bm.name);
-      if (id !== null) {
-        const pos = world.getStore(PositionDef).get(id);
-        if (pos) {
-          camera.x = pos.x;
-          camera.y = pos.y;
-        }
-      }
-      else {
-        pendingBookmark = bm;
-      }
-    }
-  };
-
-  // Inspect a bookmarked body: zoom to its system (so it streams in if needed)
-  // and open the inspector.  Uses the inspector's Zoom-to for re-framing.
-  const onBookmarkInspect = (bm: Bookmark): void => {
-    pendingBookmark = null;
-    pendingBookmarkSelect = false;
-    bookmarkZoomTo(bm);
-
-    if (bm.kind === 'universe') {
-      setSelection({ kind: 'universe', seed });
-      return;
-    }
-    if (bm.kind === 'galaxy') {
-      const g = galaxyAt(seed, bm.x, bm.y);
-      if (g)
-        setSelection({ galaxy: g, kind: 'galaxy' });
-      return;
-    }
-
-    const id = findEntityByName(world, bm.name);
-    if (id !== null) {
-      setSelection({ id, kind: bm.kind as 'black-hole' | 'moon' | 'planet' | 'star' });
-      if (bm.kind === 'planet' || bm.kind === 'moon')
-        lockedId = id;
-    }
-    else {
-      pendingBookmark = bm;
-      pendingBookmarkSelect = true;
+    const id = selectionState.openBookmark(bm, world, seed);
+    const pos = id === null ? undefined : positions.get(id);
+    if (pos) {
+      camera.x = pos.x;
+      camera.y = pos.y;
     }
   };
 
   const onBookmarkRemove = (bm: Bookmark): void => {
-    const idx = bookmarks.findIndex(b => bookmarkKey(b.kind, b.name) === bookmarkKey(bm.kind, bm.name));
-    if (idx >= 0) {
-      bookmarks.splice(idx, 1);
+    if (removeBookmark(bookmarks, bm))
       persistBookmarks();
-    }
   };
 
   const bookmarkList = createBookmarkList(container, {
@@ -451,7 +378,6 @@ export function start(container: HTMLElement, save: Save): () => void {
   let lastVpH = camera.viewportH;
   let lastSelection: Selection | null = null;
   let lastDrawnCount = 0;
-  let lastThreeActive = false;
   let lastFlattenVisible = false;
   // Fallback orbital-plane normal (world +z) when no system is focused.
   const WORLD_PLANE_NORMAL = [0, 0, 1] as const;
@@ -468,16 +394,11 @@ export function start(container: HTMLElement, save: Save): () => void {
     // zooms, only pins the body. `controller.focusZ` carries the body's
     // out-of-plane height so the 3D camera looks at its true position, not its
     // z=0 projection; it is retained on unlock so the view doesn't jump.
-    if (lockedId !== null) {
-      const p = lockedBodyLocalPos(world, lockedId, simSeconds);
-      if (p) {
-        camera.x = p.x;
-        camera.y = p.y;
-        controller.setFocusZ(p.z);
-      }
-      else {
-        lockedId = null;
-      }
+    const lockedPos = selectionState.lockedPosition(world, simSeconds);
+    if (lockedPos) {
+      camera.x = lockedPos.x;
+      camera.y = lockedPos.y;
+      controller.setFocusZ(lockedPos.z);
     }
 
     const tier = selectTier(camera, currentTier);
@@ -491,39 +412,19 @@ export function start(container: HTMLElement, save: Save): () => void {
     const vpChanged = camera.viewportW !== lastVpW || camera.viewportH !== lastVpH;
     lastVpW = camera.viewportW;
     lastVpH = camera.viewportH;
+    const selection = selectionState.selection;
     const selChanged = selection !== lastSelection;
     lastSelection = selection;
 
-    // Rendering backend: lazily stand up the Three.js renderer the first time it
-    // is selected, keep its canvas behind the 2D HUD canvas, and show it only
-    // once it has finished initialising. While Three loads, the 2D canvas is
-    // kept transparent (via threeMode) so the user sees the dark background
-    // rather than a flash of Canvas 2D content. If Three cannot load or
-    // initialise, Canvas 2D takes over every tier for the rest of the session.
-    const threeFailed = threeLoadFailed || (threeRenderer?.failed ?? false);
-    const threeMode = renderBackend.value === 'three' && !threeFailed;
-    if (threeMode && !threeRenderer && !threeLoading) {
-      // Load the Three.js backend (and its large three bundle) on demand, so
-      // Canvas 2D sessions never pay for it. Canvas 2D keeps drawing until the
-      // module has loaded and the renderer has initialised.
-      threeLoading = true;
-      void import('./render/three/three-renderer').then(({ ThreeRenderer }) => {
-        threeRenderer = new ThreeRenderer();
-        threeRenderer.resize(canvas.width, canvas.height);
-        container.insertBefore(threeRenderer.canvas, canvas);
-      }).catch((error: unknown) => {
-        // Fall back to Canvas 2D rather than re-requesting the chunk every frame;
-        // a page reload retries.
-        threeLoadFailed = true;
-        threeLoading = false;
-        console.error('ProcUniverse: failed to load the Three.js backend.', error);
-      });
-    }
-    const threeActive = threeMode && threeRenderer !== null && threeRenderer.ready;
-    if (threeRenderer)
-      threeRenderer.canvas.style.display = threeActive ? 'block' : 'none';
-    const backendChanged = threeActive !== lastThreeActive;
-    lastThreeActive = threeActive;
+    // Rendering backend: Three shows its canvas only once ready; while it loads,
+    // the 2D canvas stays transparent (threeMode) so there is no flash of Canvas
+    // 2D content. If Three cannot load or initialise, Canvas 2D takes over every
+    // tier for the rest of the session.
+    const backend = threeBackend.update(renderBackend.value === 'three');
+    const { threeMode } = backend;
+    const threeActive = backend.active;
+    const backendChanged = backend.changed;
+    const threeRenderer = threeBackend.renderer;
     // Left-drag panning follows the tilted/orbited ground plane only in the 3D
     // perspective system view; every other tier keeps the raw 2D pan.
     controller.setThreeSystemActive(threeActive && tier === 'system');
@@ -568,7 +469,7 @@ export function start(container: HTMLElement, save: Save): () => void {
       let originY = renderOriginY;
       // The system the camera is over (system tier only): its star anchors the
       // render origin and its disk normal anchors the 3D camera + pan.
-      const focusedSystem = tier === 'system' ? nearestStar(cache, camAbsX, camAbsY) : null;
+      const focusedSystem = tier === 'system' ? nearestSystem(cache, camAbsX, camAbsY) : null;
       if (tier === 'system') {
         originX = focusedSystem ? focusedSystem.x : Math.round(camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
         originY = focusedSystem ? focusedSystem.y : Math.round(camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
@@ -602,22 +503,12 @@ export function start(container: HTMLElement, save: Save): () => void {
       // coords are stale for orbiting bodies).  This must run after the
       // streamer has spawned the sector's entities and updateOrbits has moved
       // them to the current simulation time.
-      if (pendingBookmark && tier === 'system') {
-        const id = findEntityByName(world, pendingBookmark.name);
-        if (id !== null) {
-          const pos = world.getStore(PositionDef).get(id);
-          if (pos) {
-            camera.x = pos.x;
-            camera.y = pos.y;
-          }
-          if (pendingBookmarkSelect) {
-            const bmKind = pendingBookmark.kind;
-            setSelection({ id, kind: bmKind as 'black-hole' | 'moon' | 'planet' | 'star' });
-            if (bmKind === 'planet' || bmKind === 'moon')
-              lockedId = id;
-          }
-          pendingBookmark = null;
-          pendingBookmarkSelect = false;
+      if (tier === 'system') {
+        const resolved = selectionState.resolvePending(world);
+        const pos = resolved === null ? undefined : positions.get(resolved);
+        if (pos) {
+          camera.x = pos.x;
+          camera.y = pos.y;
         }
       }
 
@@ -711,7 +602,7 @@ export function start(container: HTMLElement, save: Save): () => void {
         else if (selection.kind !== 'universe') {
           const pos = tier === 'system' ? positions.get(selection.id) : undefined;
           if (!pos) {
-            setSelection(null);
+            selectionState.select(null);
           }
           else {
             const renderable = renderables.get(selection.id);
@@ -758,13 +649,15 @@ export function start(container: HTMLElement, save: Save): () => void {
     // frame so the time display and frame-time sparkline stay live.
     frameStats.setCounter('drawn', lastDrawnCount);
 
-    const selKey = selection ? selectionBookmarkKey(selection, world) : null;
+    // Re-read: the reticle pass above may have cleared the selection.
+    const currentSelection = selectionState.selection;
+    const selKey = currentSelection ? selectionBookmarkKey(currentSelection, world) : null;
     const bookmarked = selKey !== null && bookmarks.some(b => bookmarkKey(b.kind, b.name) === selKey);
-    inspector.update(world, selection, lockedId, bookmarked);
+    inspector.update(world, currentSelection, selectionState.lockedId, bookmarked);
     bookmarkList.update(bookmarks);
     // The tree and the coordinate readout want the ABSOLUTE camera position.
     const camAbs = { ...camera, x: cameraAbsolute(renderOriginX, camera.x), y: cameraAbsolute(renderOriginY, camera.y) };
-    navTree.update(buildNavState(seed, cache, camAbs, tier, world, selection));
+    navTree.update(buildNavState(seed, cache, camAbs, tier, world, currentSelection));
     // Perf monitor: top-right, just left of the sim-time panel (so the tree
     // owns the top-left). Knobs are CSS pixels; the overlay draws in backing
     // pixels, hence the dpr scale.
@@ -802,138 +695,8 @@ export function start(container: HTMLElement, save: Save): () => void {
     resetViewButton.dispose();
     flattenButton.dispose();
     optionsMenu.dispose();
-    threeRenderer?.dispose();
+    threeBackend.dispose();
   };
-}
-
-/**
- * Build a self-contained Bookmark from the current selection so it can be
- * zoomed-to and inspected later, even when the body is not streamed.
- * Absolute-world positions and the framing extent are captured once.
- */
-function createBookmarkFromSelection(
-  sel: Selection,
-  world: EcsWorld,
-  renderOriginX: number,
-  renderOriginY: number,
-): Bookmark | null {
-  if (sel.kind === 'universe') {
-    return {
-      name: '',
-      extentAu: SECTOR_SIZE * 10,
-      kind: 'universe',
-      label: 'Universe',
-      x: 0,
-      y: 0,
-    };
-  }
-
-  if (sel.kind === 'galaxy') {
-    return {
-      name: sel.galaxy.name,
-      extentAu: sel.galaxy.radius * GALAXY_SPRITE_SCALE,
-      kind: 'galaxy',
-      label: sel.galaxy.humanName,
-      x: sel.galaxy.centerX,
-      y: sel.galaxy.centerY,
-    };
-  }
-
-  const pos = world.getStore(PositionDef).get(sel.id);
-  if (!pos)
-    return null;
-  const absX = cameraAbsolute(renderOriginX, pos.x);
-  const absY = cameraAbsolute(renderOriginY, pos.y);
-
-  const identity = world.getStore(NameDef).get(sel.id);
-  if (!identity)
-    return null;
-
-  let discRadiusAu: number;
-  let satelliteExtent = 0;
-
-  if (sel.kind === 'star') {
-    const star = world.getStore(StarPhysicalDef).get(sel.id);
-    if (!star)
-      return null;
-    discRadiusAu = starVisualRadius(star.radius);
-    satelliteExtent = starSatelliteApoapsis(world, pos.x, pos.y);
-  }
-  else if (sel.kind === 'planet') {
-    const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
-    if (!planet)
-      return null;
-    discRadiusAu = planetVisualRadius(planet.radius);
-    satelliteExtent = planetSatelliteApoapsis(world, sel.id);
-  }
-  else if (sel.kind === 'moon') {
-    const moon = world.getStore(MoonPhysicalDef).get(sel.id);
-    if (!moon)
-      return null;
-    discRadiusAu = planetVisualRadius(moon.radius);
-  }
-  else {
-    // black-hole
-    const bh = world.getStore(BlackHoleDef).get(sel.id);
-    if (!bh)
-      return null;
-    discRadiusAu = blackHoleVisualRadius(bh.mass);
-  }
-
-  return {
-    name: identity.scientific,
-    extentAu: Math.max(satelliteExtent, discRadiusAu * DISC_FRAME_FACTOR),
-    kind: sel.kind,
-    label: identity.human,
-    x: absX,
-    y: absY,
-  };
-}
-
-/** The system nearest the camera within its sector, or null if the sector is empty. */
-function nearestStar(cache: SectorCache, camX: number, camY: number): SystemData | null {
-  const sx = Math.floor(camX / SECTOR_SIZE);
-  const sy = Math.floor(camY / SECTOR_SIZE);
-  let best: SystemData | null = null;
-  let bestDist = Infinity;
-  for (const sys of cache.get(sx, sy).systems) {
-    const dx = sys.x - camX;
-    const dy = sys.y - camY;
-    const d = dx * dx + dy * dy;
-    if (d < bestDist) {
-      bestDist = d;
-      best = sys;
-    }
-  }
-  return best;
-}
-
-/** Assemble the location tree's state from the camera and current tier. */
-function buildNavState(seed: number, cache: SectorCache, camera: Camera, tier: Tier, world: EcsWorld, selection: Selection | null): NavState {
-  const galaxy = galaxyAt(seed, camera.x, camera.y);
-  let system: NavSystem | null = null;
-  if (tier === 'system') {
-    const focus = nearestStar(cache, camera.x, camera.y);
-    if (focus)
-      system = { name: focus.name.scientific, humanName: focus.name.human, planets: focus.planets.map(p => ({ name: p.name.scientific, humanName: p.name.human, moons: p.moons.map(m => ({ name: m.name.scientific, humanName: m.name.human })) })) };
-  }
-  return {
-    galaxy: galaxy ? { name: galaxy.name, humanName: galaxy.humanName } : null,
-    selectedKey: selectionKey(world, selection),
-    system,
-    tier,
-  };
-}
-
-/** The tree-node `key` matching the current selection, for highlighting. */
-function selectionKey(world: EcsWorld, selection: Selection | null): string | null {
-  if (!selection)
-    return null;
-  if (selection.kind === 'universe')
-    return 'universe';
-  if (selection.kind === 'galaxy')
-    return `galaxy:${selection.galaxy.name}`;
-  return world.getStore(NameDef).get(selection.id)?.scientific ?? null;
 }
 
 function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, tier: Tier, rendererLabel: string): void {
@@ -944,126 +707,4 @@ function drawHint(ctx2d: CanvasRenderingContext2D, canvas: HTMLCanvasElement, ti
   ctx2d.textBaseline = 'bottom';
   ctx2d.fillText(`${HINT}   ·   tier: ${tier}   ·   renderer: ${rendererLabel}`, 10, canvas.height - 8);
   ctx2d.restore();
-}
-
-// ── Camera focus & lock helpers ───────────────────────────────────────────
-
-/** The largest apoapsis among planets directly orbiting a given star. */
-function starSatelliteApoapsis(world: EcsWorld, starPosX: number, starPosY: number): number {
-  let max = 0;
-  for (const [, orbit] of world.query(OrbitElementsDef)) {
-    if (orbit.parent < 0 && Math.hypot(orbit.cx - starPosX, orbit.cy - starPosY) < 1e-6)
-      max = Math.max(max, orbit.a * (1 + orbit.e));
-  }
-  return max;
-}
-
-/** The largest apoapsis among moons orbiting a given planet. */
-function planetSatelliteApoapsis(world: EcsWorld, planetId: EntityId): number {
-  let max = 0;
-  for (const [, orbit] of world.query(OrbitElementsDef)) {
-    if (orbit.parent === planetId)
-      max = Math.max(max, orbit.a * (1 + orbit.e));
-  }
-  return max;
-}
-
-/**
- * Pan + zoom the camera to frame the selected body together with whatever
- * orbits it. The extent is the larger of the outermost satellite apoapsis and
- * `DISC_FRAME_FACTOR × disc radius`, so a satellite-less body still gets a
- * comfortable framing rather than filling the screen.
- */
-function frameSelection(
-  sel: Selection,
-  world: EcsWorld,
-  camera: Camera,
-  renderOriginX: number,
-  renderOriginY: number,
-): void {
-  if (sel.kind === 'universe')
-    return;
-
-  let cx: number;
-  let cy: number;
-  let extentAu: number;
-
-  if (sel.kind === 'galaxy') {
-    cx = sel.galaxy.centerX - renderOriginX;
-    cy = sel.galaxy.centerY - renderOriginY;
-    extentAu = sel.galaxy.radius * GALAXY_SPRITE_SCALE;
-  }
-  else {
-    const pos = world.getStore(PositionDef).get(sel.id);
-    if (!pos)
-      return;
-    cx = pos.x;
-    cy = pos.y;
-
-    let discRadiusAu: number;
-    let satelliteExtent = 0;
-
-    if (sel.kind === 'star') {
-      const star = world.getStore(StarPhysicalDef).get(sel.id);
-      if (!star)
-        return;
-      discRadiusAu = starVisualRadius(star.radius);
-      satelliteExtent = starSatelliteApoapsis(world, pos.x, pos.y);
-    }
-    else if (sel.kind === 'planet') {
-      const planet = world.getStore(PlanetPhysicalDef).get(sel.id);
-      if (!planet)
-        return;
-      discRadiusAu = planetVisualRadius(planet.radius);
-      satelliteExtent = planetSatelliteApoapsis(world, sel.id);
-    }
-    else if (sel.kind === 'moon') {
-      const moon = world.getStore(MoonPhysicalDef).get(sel.id);
-      if (!moon)
-        return;
-      discRadiusAu = planetVisualRadius(moon.radius);
-    }
-    else {
-      const bh = world.getStore(BlackHoleDef).get(sel.id);
-      if (!bh)
-        return;
-      discRadiusAu = blackHoleVisualRadius(bh.mass);
-    }
-
-    extentAu = Math.max(satelliteExtent, discRadiusAu * DISC_FRAME_FACTOR);
-  }
-
-  camera.zoom = frameZoom(extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
-  camera.x = cx;
-  camera.y = cy;
-}
-
-/**
- * Re-derive a body's position in the render-origin frame from the pure orbit
- * solver so Lock stays glued at any time scale (no one-frame lag) and without
- * round-tripping through absolute coordinates. Returns null when the entity or
- * its parent orbit has streamed out.
- */
-function lockedBodyLocalPos(
-  world: EcsWorld,
-  id: EntityId,
-  simSeconds: number,
-): { x: number; y: number; z: number } | null {
-  const orbit = world.getStore(OrbitElementsDef).get(id);
-  if (!orbit)
-    return null;
-  const years = simSeconds / SECONDS_PER_YEAR;
-  const tmp = { x: 0, y: 0, z: 0 };
-  if (orbit.parent < 0) {
-    writeOrbitPosition(orbit, years, tmp);
-  }
-  else {
-    const parentOrbit = world.getStore(OrbitElementsDef).get(orbit.parent);
-    if (!parentOrbit)
-      return null;
-    const planetPos = { x: 0, y: 0, z: 0 };
-    writeOrbitPosition(parentOrbit, years, planetPos);
-    writeOrbitPosition({ ...orbit, cx: planetPos.x, cy: planetPos.y, cz: planetPos.z }, years, tmp);
-  }
-  return { x: tmp.x, y: tmp.y, z: tmp.z };
 }

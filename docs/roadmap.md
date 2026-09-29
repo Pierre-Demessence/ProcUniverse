@@ -29,8 +29,11 @@ remove it from here once it ships. Links point to the design context.
 
 ## Engineering health
 
-- Split `src/main.ts`: extract bookmark navigation, renderer switching, and
-  selection tracking from the single `start()` closure so they can be tested.
+- Split the `main.ts` frame loop into stages (origin rebase + streaming, render
+  dispatch per tier, selection reticle, HUD) and move canvas / DPR sizing into
+  its own module.
+- Bookmark panel re-renders every frame (`createBookmarkList.update` copies the
+  array each tick); push only on change.
 - Split `ThreeRenderer.render()` (and the 959-line `three-renderer.ts`).
 - Tests for `camera-controller.ts`, `lod/streaming.ts`, and
   `lod/sector-cache.ts` (the source of most recent camera / reload fixes).
