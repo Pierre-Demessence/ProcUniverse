@@ -1,11 +1,15 @@
 name: Publish to itch.io
 
+# Publish only after CI has passed for a push to main, so a failing lint, test,
+# or build never reaches itch.io.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
 
 concurrency:
-  group: publish-itch-${{ github.ref }}
+  group: publish-itch
   cancel-in-progress: true
 
 permissions:
@@ -18,32 +22,23 @@ defaults:
 jobs:
   publish:
     name: Build & publish
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           path: procuniverse
 
-      - uses: actions/checkout@v4
-        with:
-          repository: Pierre-Demessence/Entity-Cornponent-System-Engine
-          path: Entity-Cornponent-System-Engine
+      - uses: ./procuniverse/.github/actions/setup
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: procuniverse/package-lock.json
-
-      - run: npm ci
       - run: npm run build
 
       - name: Setup butler
         uses: remarkablegames/setup-butler@v3
 
       - name: Push to itch.io
-        working-directory: procuniverse
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: butler push dist corniflex/procuniverse:html5

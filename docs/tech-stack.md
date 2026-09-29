@@ -7,12 +7,18 @@
 | Test runner | Vitest | 4 |
 | HUD overlays | Preact + `@preact/signals` | 10 / 2 |
 | Runtime | Evergreen browsers with Canvas 2D | current |
-| Engine | `@pierre/ecs` (sibling `file:` dependency) | 0.0.0 |
+| Engine | `@pierre/ecs` (sibling `file:` dependency; CI pins a commit) | 0.0.0 |
 | 3D / GPU backend (optional) | Three.js `three/webgpu` (WebGPU + WebGL2 fallback) | 0.184 |
 | Package manager | npm | 10 |
 
 ## Notes
 
+- Locally, `@pierre/ecs` resolves to whatever is checked out in the sibling
+  engine folder. CI and the itch.io publish check out the engine at the commit
+  pinned in [`.github/actions/setup/action.yml`](../.github/actions/setup/action.yml),
+  so engine changes only reach CI when that ref is bumped.
+- CI (lint, test, build) runs on pushes and PRs to `main`; the itch.io publish
+  runs only after CI succeeds for a push to `main`.
 - Rendering starts on Canvas 2D via the engine's `Canvas2DRenderer`, kept
   behind the engine `Renderer<TCtx>` interface. An optional **Three.js** backend
   (`three/webgpu` — WebGPU with automatic WebGL2 fallback) is being added behind a

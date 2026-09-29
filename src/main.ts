@@ -601,11 +601,9 @@ export function start(container: HTMLElement, save: Save): () => void {
         streamer.update(range, renderOriginX, renderOriginY);
       else
         streamer.clear();
-      // Flush despawns, drop the (subscriber-less) lifecycle events the
-      // spawns/despawns queued, and clear the stores' dirty sets (nothing
-      // consumes them) before anything reads the entity set.
+      // Flush despawns and drop the (subscriber-less) lifecycle events the
+      // spawns/despawns queued before anything reads the entity set.
       world.endOfTick();
-      world.clearAllDirty();
 
       if (tier === 'system')
         updateOrbits(world, simSeconds);

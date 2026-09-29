@@ -1,0 +1,22 @@
+name: Setup
+description: Check out the pinned @pierre/ecs engine next to the project, set up Node, and install dependencies.
+
+runs:
+  using: composite
+  steps:
+    # The engine is a sibling `file:` dependency. Pin it to a commit so upstream
+    # engine changes (including breaking ones) never alter CI or a published
+    # build until this ref is bumped deliberately.
+    - uses: actions/checkout@v4
+      with:
+        repository: Pierre-Demessence/Entity-Cornponent-System-Engine
+        ref: 557831584da3e64d87604fe0a41224280db82d4d
+        path: Entity-Cornponent-System-Engine
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: procuniverse/package-lock.json
+    - run: npm ci
+      shell: bash
+      working-directory: procuniverse

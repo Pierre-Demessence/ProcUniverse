@@ -25,6 +25,9 @@ planet-surface view.
 ## Key paths
 
 - Engine (sibling): `../Entity-Cornponent-System-Engine`.
+- CI engine pin: the `ref:` in `.github/actions/setup/action.yml`. After
+  adapting to an engine change, bump it to a **pushed** engine commit in the
+  same commit as the adaptation.
 - Engine API catalog (read first): `../Entity-Cornponent-System-Engine/docs/agent/engine-api.md`.
 - Roadmap: `docs/plans/procedural-universe.md`.
 
