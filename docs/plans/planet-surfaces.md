@@ -1,197 +1,289 @@
 # Planet Surface Overhaul — staged plan
 
 The planet half of the system-visuals roadmap
-([system-visuals.md](system-visuals.md)). Stars now read as real spheres
-([star-shading.md](done/star-shading.md)); planets are still flat single-colour
-balls (correctly lit by the star, but blank). This plan turns them into
-recognisable worlds — banded gas giants, mottled rocky surfaces with ice caps
-and oceans, atmospheres, rings — **one shippable slice at a time**, entirely
-from the already-generated physical data.
+([system-visuals.md](system-visuals.md)). Stars read as real spheres
+([star-shading.md](done/star-shading.md)); rings
+([planet-rings.md](done/planet-rings.md)) and oblateness (H) have shipped.
+Planets are still flat single-colour balls (correctly lit by the star, but
+blank). This plan turns them into recognisable worlds — atmospheres, rocky
+surfaces with ice caps and oceans, moons, banded gas and ice giants — **one
+shippable slice at a time**, entirely from the already-generated physical data.
 
-Covers workstreams **D, E, F, G, H, I** of
-[system-visuals.md](system-visuals.md); part of **Stage 2 (shader effects, R2)**
-and **Stage 4 (sphere surfaces, R3)** of
-[rendering-backend.md](rendering-backend.md), **system tier only**.
+Covers workstreams **D, E, F, I** of [system-visuals.md](system-visuals.md);
+part of **Stage 2 (shader effects, R2)** and **Stage 4 (sphere surfaces, R3)**
+of [rendering-backend.md](rendering-backend.md), **system tier only**. Tracked
+in [roadmap.md](../roadmap.md).
 
-> Status: **shelved.** Surface looks are judged by taste and blind iteration
-> without seeing the output did not converge, so work moved to geometric
-> workstreams: rings (G, [planet-rings.md](done/planet-rings.md)) and oblateness
-> (H) have shipped. Surfaces (D, E, F, I) resume when there is a way to iterate
-> on the look with Pierre in the loop; tracked in [roadmap.md](../roadmap.md).
+## 1. Why the first attempt stalled, and what changes
 
-## 1. Strategy: split, gas giants first
+Two gas-giant shader attempts were reverted as "ugly / not gaseous / noisy /
+degenerates into grains." The findings are captured in
+[gas-giant-shading.md](../research/gas-giant-shading.md) and stay the technical
+reference for Phase 5. The root cause was **process, not technique**: surface
+looks are judged by taste, and each iteration was an agent code change followed
+by a full in-app browser check. That loop is too slow and too blind to converge.
 
-Not one big change. Following the star-shading rhythm, each **kind of world** is
-a self-contained slice that builds, tests, reviews, and browser-verifies on its
-own. Recommended order (priority mirrors the roadmap):
+This plan changes three things:
 
-1. **Gas / ice giants** (workstream D) — biggest visual jump, simplest shader
-   (horizontal bands + temperature colour ramp), and it establishes the shared
-   **lit planet-material** infrastructure every later slice reuses.
-2. **Rocky / terrestrial** (workstream E) — mottled surface, temperature colour
-   ramp (molten → rock → ice), polar caps, oceans for liquid-water worlds.
-3. **Atmospheres** (workstream F) — rim-glow halo + a thin drifting cloud layer
-   on worlds that keep an atmosphere.
-4. **Rings** (workstream G) — a translucent tilted ring disc. Independent of the
-   surface shaders (it's geometry, not a fragment shader) and high payoff; could
-   be pulled earlier if desired (see §8).
-5. **Oblateness** (workstream H) — squash fast rotators at the equator. A cheap
-   geometry tweak; can piggyback on any slice.
-6. **Moon surfaces** (workstream I) — small grey/icy cratered bodies so moons
-   don't read as mini-planets. A trim of the rocky shader.
+1. **A tuning tool comes first** (Phase 0, the *planet lab*): every look
+   parameter is a live slider, so Pierre tunes by eye in seconds and hands back
+   the values; the agent bakes them into `config/render` defaults.
+2. **Easiest-to-get-right slices first.** Atmosphere rim glow and rocky
+   surfaces are forgiving (an imperfect rocky world still reads as "a plausible
+   alien world"); a convincing gas giant is the hardest look in the plan
+   (fluid, banded, storm detail — imperfect reads as "striped ball" or "noise").
+   Gas giants move to the end, once the infrastructure and the tuning workflow
+   are proven.
+3. **Still before moving.** Animation caused the worst artefact
+   (precision-loss grain) and doubled the tuning surface. Every look ships
+   static first; band motion is a separate, final, optional slice.
 
-Eclipses / cast shadows (workstream J) stay out of scope — roadmap-optional.
+## 2. Phases (in order)
 
-## 2. Key difference from the star shader (the one architectural call)
+| Phase | Slice | Workstream | Risk |
+| ----- | ----- | ---------- | ---- |
+| 0 | Planet lab + shared planet material | infra | low |
+| 1 | Atmosphere rim glow | F (part) | low |
+| 2 | Rocky / terrestrial surfaces | E | medium |
+| 3 | Moon surfaces | I | low (trim of 2) |
+| 4 | Cloud layer on atmospheric worlds | F (part) | medium |
+| 5 | Gas / ice giants — static | D | high |
+| 6 | Gas giant band motion (optional) | D | medium |
 
-Stars use a **self-lit** material (`MeshBasicNodeMaterial`): they make their own
-light and ignore the scene lighting. **Planets must stay lit** — the star's
-point light already paints their day side and a day/night terminator, and that
-must keep working. So a planet slice replaces only the planet's **albedo
-(surface colour/pattern)**, not its lighting model:
+Each phase is a self-contained slice that builds, tests, reviews, and is
+browser-verified by Pierre on its own. Eclipses / cast shadows (workstream J)
+stay out of scope — roadmap-optional.
 
-- Planets keep a **lit node material** (`MeshStandardNodeMaterial`), so the
-  existing star `PointLight` + ambient still shade them.
-- We drive its **`colorNode`** (albedo) with a procedural TSL surface, instead
-  of today's flat `material.color.set(fill)`
-  ([three-renderer.ts](../../src/render/three/three-renderer.ts#L481)).
+## 3. Architecture
 
-This keeps the terminator, orbit-tracking lit face, and eclipse-readiness for
-free, and means "prettier planets" is purely a surface-colour change.
+### 3.1 Lit material, albedo only
 
-## 3. Shared infrastructure (built in Phase 1, reused after)
+Stars use a **self-lit** material (`MeshBasicNodeMaterial`). **Planets stay
+lit**: the star's point light already paints their day side and the day/night
+terminator, and that must keep working. A planet slice replaces only the
+planet's **albedo** (surface colour/pattern), not its lighting model:
 
-- **`src/render/three/planet-material.ts`** — `createPlanetMaterial()` returning
-  a handle `{ material, setPlanet(...), setTime(seconds), dispose() }`, mirroring
-  [star-material.ts](../../src/render/three/star-material.ts). One handle per
-  planet mesh via a **`planetSpherePool`** analogous to `starSpherePool`
-  ([three-renderer.ts](../../src/render/three/three-renderer.ts#L173)) (a system
-  holds only a handful of planets, so per-planet handles are cheap).
-- **`src/render/three/planet-surface.ts`** — pure, unit-testable helpers mapping
-  physical data → shader parameters (band colours, ramp stops, cloud/cap
-  thresholds), mirroring [star-surface.ts](../../src/render/three/star-surface.ts).
-  The shader itself has no tests; these helpers do (per §6).
-- The renderer's planet loop stops calling flat `place(...)` for planets and
-  instead obtains a pooled planet-material mesh, sets its data + wall-clock time,
-  and orients it via the existing `orientPlanet`.
+- Planets use a **lit node material** (`MeshStandardNodeMaterial`), so the star
+  `PointLight` + ambient still shade them.
+- Its **`colorNode`** (albedo) is driven by the surface, instead of today's flat
+  `material.color.set(fill)` in
+  [three-renderer.ts](../../src/render/three/three-renderer.ts).
+- **Exception — thermal glow.** The hottest worlds (molten rocky planets, hot
+  Jupiters) glow on their own. This is an additive **`emissiveNode`** on top of
+  the lit albedo, not a switch to a self-lit material; the terminator still
+  shows, the night side glows faintly.
+
+### 3.2 Baked surface maps vs per-pixel procedural (decided in Phase 0)
+
+Two ways to produce the albedo:
+
+- **Per-pixel procedural** — evaluate the noise in the fragment shader every
+  frame (the approach of the reverted attempts).
+- **Baked map** — generate an equirectangular albedo map (e.g. 1024×512) **once
+  per planet** when it first becomes visible (GPU render-to-texture or CPU), with
+  mipmaps, and sample it on the sphere. Regenerated only when the planet or its
+  tuning changes.
+
+Baked maps are the **recommended default**:
+
+- **No shimmer when small.** Planets are often only tens of pixels wide.
+  Per-pixel noise with fine detail aliases and sparkles at that size (a likely
+  contributor to the "noisy" verdict); mipmapped textures filter it away for
+  free.
+- **Debuggable.** The flat map can be shown directly in the lab.
+- **Affordable quality.** More octaves / warping cost nothing per frame.
+- **Cost:** a texture per visible planet (a handful per system; evict on system
+  change), a one-time bake per planet, and motion (Phase 6) needs a
+  per-pixel layer on top or a UV scroll rather than re-baking.
+
+Optional hybrid for gas giants (Phase 5, decided there): a few **greyscale
+structure maps** (band/storm structure derived from real imagery with a
+compatible licence, e.g. CC BY — licence checked before use) recoloured from
+the planet's data. Trades "fully procedural" purity for a look that reads
+correctly immediately. Only adopted if the procedural bake does not reach the
+bar in the lab.
+
+### 3.3 Screen-size awareness
+
+Detail must fade with on-screen size. Below a few tens of pixels a planet shows
+its average colour + rim glow only; full detail appears only when it is large.
+With baked maps this is mostly mip selection; any per-pixel layer (clouds,
+motion) needs an explicit size-based fade.
+
+### 3.4 Shared modules
+
+- **`src/render/three/planet-material.ts`** — `createPlanetMaterial()`
+  returning a handle `{ material, setPlanet(...), setTime(seconds), dispose() }`,
+  mirroring [star-material.ts](../../src/render/three/star-material.ts). One
+  handle per planet mesh via a **`planetSpherePool`** analogous to
+  `starSpherePool` (a system holds only a handful of planets).
+- **`src/render/three/planet-surface.ts`** — pure, unit-testable helpers
+  mapping physical data → surface parameters (regime selection, palette stops,
+  cap/ocean thresholds, band count), mirroring
+  [star-surface.ts](../../src/render/three/star-surface.ts). Shaders have no
+  tests; these helpers do.
+- **Surface parameter set** — one typed object per look (e.g.
+  `RockySurfaceParams`, `GiantSurfaceParams`) whose defaults live in
+  `config/render`. The renderer and the lab both consume the same type, so a
+  value tuned in the lab is pasted verbatim into config.
+- The renderer's planet loop obtains a pooled planet-material mesh, sets its
+  data (+ wall-clock time where animated), and orients it via the existing
+  `orientPlanet`. Planet types without a shipped slice keep the flat albedo.
 
 ## 4. Determinism & data (invariant: universe byte-identical)
 
 Every look is derived from existing `PlanetPhysical` fields + orbit data — **no
-new sampled fields, no new RNG draws**, exactly like star-shading. Where a look
-needs per-planet variety (so two Jupiters differ), the noise offset is derived
-from data already on the entity (e.g. a hash of the planet's `name`, or its
-physical values) — never a new `rng()` draw. If a future slice genuinely needs a
-*new* sampled field, it is appended to the body's draw order per the realism
-plans' convention; the aim is to avoid that entirely.
+new sampled fields, no new RNG draws**, exactly like star-shading. Per-planet
+variety (so two Jupiters differ) comes from a hash of data already on the
+entity (e.g. `name`, or mass + temperature) — never a new `rng()` draw.
 
-Fields available today (from [planets.ts](../../src/generation/planets.ts)):
-`type`, `equilibriumTemp`, `waterState`, `inHabitableZone`, `insolation`,
-`mass`, `radius`, `density`, `obliquity`, `obliquityAzimuth`, `rotationPeriod`,
+Fields available (from [planets.ts](../../src/generation/planets.ts)): `type`,
+`equilibriumTemp`, `waterState`, `inHabitableZone`, `insolation`, `mass`,
+`radius`, `density`, `obliquity`, `obliquityAzimuth`, `rotationPeriod`,
 `hasRings`, plus derived `retainsAtmosphere` / `atmosphereType` /
 `surfaceTemperature`.
 
-## 5. Phase 1 — Gas / ice giant surfaces (the actionable slice)
+## 5. Phase 0 — Planet lab + shared material
 
-Replace the flat fill on gas-giant and ice-giant planets with a banded
-procedural surface.
+A dev-only page for tuning looks by eye, plus the shared infrastructure every
+later phase reuses.
 
-### 5.1 Feature checklist
+### 5.1 Checklist
 
-- [ ] **Lit planet material infra.** `planet-material.ts` + `planet-surface.ts`
-      + `planetSpherePool`, wired into the renderer's planet loop (§3). Rocky /
-      moon / black-hole planets keep the current flat material until their slice.
-- [ ] **Horizontal bands.** Stripes across latitude (`positionLocal.y` on the
-      oriented sphere) — a banded value from a low-frequency function of
-      latitude, warped by turbulence noise for the swirled, non-straight edges.
-- [ ] **Temperature colour ramp.** Warm giants (Jupiter-like) → creams / tans /
-      browns; cold giants and ice giants → cyans / deep blues. Ramp stops chosen
-      from `type` + `equilibriumTemp`.
-- [ ] **Per-planet variety.** A noise offset derived from existing entity data
-      (no new draw) so two same-type giants look different.
-- [ ] **Stays lit.** The star point light still produces a day/night terminator
-      across the bands (verify the lit node material path). No self-illumination.
-- [ ] **Animated bands (wind / storms).** Real gas giants have fast, turbulent
-      atmospheres, so the bands drift and the turbulence swirls over time
-      (wall-clock; §5.3). This is a realism cue, not decoration — kept plausible,
-      not frantic. Adjacent bands can drift at different rates (zonal winds).
+- [ ] **Lab entry point.** Dev-only (e.g. a separate Vite HTML entry or a
+      `?lab=planet` URL flag), excluded from the production build or unreachable
+      from the UI. Renders **one planet large**, lit by a single point light
+      that can be orbited around it (to check the terminator), on a dark
+      background.
+- [ ] **Planet picker.** Choose a real generated planet (seed + planet) or a
+      synthetic one (type, temperature, rotation period, water state sliders),
+      so looks are tuned against the data they will actually receive.
+- [ ] **Live sliders** for every parameter of the active surface type, driving
+      the same parameter object the renderer uses. Slider UI via a small
+      standard library (`lil-gui`, the de-facto three.js tuning panel) as a dev
+      dependency, or a minimal Preact panel if a dependency is unwanted.
+- [ ] **Export / import.** A "copy parameters" button that yields the exact
+      object to paste into `config/render`, and a paste-to-load for sharing
+      values between Pierre and the agent.
+- [ ] **Size preview.** A toggle to render the planet at typical in-app sizes
+      (e.g. 16 / 48 / 150 px wide) to judge shimmer and detail fade.
+- [ ] **Map view.** Show the baked equirectangular map flat beside the sphere.
+- [ ] **Reference strip.** Space for reference images (Pierre supplies/links
+      them; nothing copyrighted is committed).
+- [ ] **Shared material infra** (§3.4): `planet-material.ts`,
+      `planet-surface.ts`, `planetSpherePool`, wired into the renderer with the
+      current flat colour as the only "surface" — no visual change in-app.
+- [ ] **Decide §3.2** (baked vs per-pixel) using the lab: a quick noise test
+      at small sizes on both paths. Record the decision in §12.
 
-### 5.2 Data inputs
+## 6. Phase 1 — Atmosphere rim glow
 
-| Field (`PlanetPhysical`) | Used for |
-| ------------------------ | -------- |
-| `type` (`gas-giant` / `ice-giant`) | band palette family |
-| `equilibriumTemp` (K) | warm↔cold colour ramp |
-| `insolation` (S⊕) | optional brightness/haze bias |
-| entity `name` (or physical values) | per-planet noise offset (no new draw) |
+The highest value-to-risk slice: a thin, soft coloured halo at the limb makes a
+ball read as a world.
 
-### 5.3 Technical notes
+- [ ] Rim glow on worlds with `retainsAtmosphere` (and on gas/ice giants,
+      whose whole visible surface is atmosphere), tinted by `atmosphereType`
+      (e.g. Earth-like → pale blue, CO₂-thick → hazy yellow-white, methane →
+      cyan).
+- [ ] Glow strength follows the lit side — bright at the sunlit limb, fading
+      into the night side (a faint twilight wrap past the terminator), so it
+      never looks like a uniform neon outline.
+- [ ] Thickness/intensity scale plausibly with atmosphere type; airless worlds
+      get none.
+- [ ] Implementation (Fresnel term on the planet material vs a slightly larger
+      back-faced shell mesh) chosen in the lab by look.
+- [ ] Parameters tuned by Pierre in the lab; defaults in `config/render`.
 
-- Author in **TSL** → runs on WebGPU and the WebGL2 fallback from one source
-  (same as the star shader).
-- Use `MeshStandardNodeMaterial` (lit) with a procedural `colorNode`; leave
-  `metalness`/`roughness` giant-appropriate.
-- Band drift uses **wall-clock** time, not `simSeconds` — matches the
-  star-shading decision (no freeze-when-paused / strobe-under-time-warp); the
-  motion is cosmetic so wall-clock has no realism cost.
-- No runtime toggle: procedural surfaces are always-on realism (toggles are for
-  quality-of-life / user-choice rendering only). Tuning stays in `config/render`
-  knobs, adjusted in-browser — same as star-shading.
-- Bounded on-screen work: only near system-tier planets get the shader; far
-  tiers (points/sprites/glow) are untouched.
+## 7. Phase 2 — Rocky / terrestrial surfaces
 
-## 6. Phases 2–6 (sketch — expanded when reached)
+- [ ] Mottled surface from smooth, low-octave noise (continents / terrain
+      patches), no high-frequency grain.
+- [ ] Temperature colour regime from `surfaceTemperature` /
+      `equilibriumTemp`: molten (dark crust + glowing red cracks via
+      `emissiveNode`, §3.1) → barren rock (browns / greys / rusts) → frozen
+      (ice-white / pale grey).
+- [ ] Oceans where `waterState` is liquid: a sea level on the same noise, deep
+      blue below, land above.
+- [ ] Polar ice caps by latitude + temperature (larger when colder; none when
+      hot).
+- [ ] Per-planet variety from the entity hash (§4).
+- [ ] Tuned in the lab against real generated planets of each regime.
 
-- **Phase 2 — Rocky / terrestrial.** Mottled cratered surface; colour ramp
-  molten-red → brown/grey → ice-white by `equilibriumTemp` / `surfaceTemperature`;
-  polar ice caps by latitude + temperature; blue oceans where `waterState` is
-  liquid / `inHabitableZone`.
-- **Phase 3 — Atmospheres.** Soft coloured rim glow ("airglow") on worlds with
-  `retainsAtmosphere`, tinted by `atmosphereType`; a thin drifting cloud layer
-  over them (a second, slightly larger translucent sphere or a shader layer).
-- **Phase 4 — Rings.** A translucent ring disc for `hasRings` planets, tilted to
-  the planet's equatorial plane (the same normal `orientPlanet` uses). Data
-  exists; rings are not drawn today — high payoff, independent geometry.
-- **Phase 5 — Oblateness.** Squash the sphere at the equator using the existing
-  `oblateness(...)` value — a per-axis scale on the mesh; subtle.
-- **Phase 6 — Moon surfaces.** A trimmed rocky shader (grey/icy cratered, no
-  atmosphere/oceans) so moons read as small bodies.
+## 8. Later phases (sketch — expanded when reached)
 
-## 7. Invariants
+- **Phase 3 — Moon surfaces.** The rocky surface trimmed to grey/icy airless
+  bodies: craters / maria-like dark patches, no oceans or atmosphere, so moons
+  read as small bodies rather than mini-planets.
+- **Phase 4 — Cloud layer.** Thin, slow cloud cover on atmospheric worlds
+  (separate translucent shell mesh vs a layer in the surface material — decided
+  when reached, in the lab). Static first, like everything else.
+- **Phase 5 — Gas / ice giants, static.** Follow the recipe in
+  [gas-giant-shading.md](../research/gas-giant-shading.md) §4, minus motion:
+  - Multi-stop **latitude palette** (not a two-colour sine), belts/zones as a
+    gentle oscillation over it; band count from `rotationPeriod`.
+  - **Temperature regimes** from `equilibriumTemp`: hot (dark, near-featureless,
+    thermal `emissiveNode` glow for the hottest) → warm (Jupiter creams / tans /
+    rusts) → cold (pale, hazy, blue-grey). Ice giants are their own smooth,
+    blue, low-contrast regime (Neptune-like → Uranus-like).
+  - **Gentle domain warp** only on band edges and detail; low-octave smooth
+    fBM; no grain.
+  - 0–2 **latitude-locked oval storms**; muted poles; subtle limb darkening.
+  - Tuned in the lab against reference imagery. If the procedural bake does not
+    reach the bar, evaluate the greyscale structure-map hybrid (§3.2).
+- **Phase 6 — Gas giant band motion (optional).** Only once Phase 5 is
+  accepted. Longitude-only zonal drift with alternating per-band rates;
+  **bounded** time inputs only (periodic rotation / `sin`/`cos`, never
+  `p + time·dir`) to avoid precision grain. Timebase (wall-clock vs sim time)
+  decided here: the planet's own spin runs on sim time, so wall-clock band
+  drift would decouple from it under time-warp. Skippable: real giants show no
+  perceptible motion at human timescales.
+
+## 9. Invariants
 
 - Visual only: no generation / sim / determinism impact; no new sampled fields
-  or RNG draws (see §4).
-- Effects apply at the **system tier** to near planets; far tiers unchanged.
+  or RNG draws (§4).
+- Effects apply at the **system tier** to near planets; far tiers
+  (points/sprites/glow) unchanged. Detail fades with on-screen size (§3.3).
 - Behind the `Renderer` seam; the Canvas 2D backend is untouched; all work lives
   on the Three.js path.
 - WebGL2-capability baseline via TSL; any WebGPU-only trick is a progressive
   enhancement, never required.
-- Bounded on-screen work (a handful of planets per system).
+- Bounded work: a handful of planets per system; baked maps evicted on system
+  change.
+- No runtime toggle: surfaces are always-on realism; tuning lives in
+  `config/render` knobs (set via the lab).
+- The lab is dev-only and never reachable from the shipped UI.
 
-## 8. Open questions
+## 10. Testing
 
-- **Cloud layer (Phase 3).** Separate translucent sphere mesh, or a shader layer
-  on the surface material? Decided when we reach Phase 3.
+- Static pipeline only for the agent: `npm run build` (tsc + vite),
+  `npm test`, and `npm run lint`. Shaders have no unit tests; the pure
+  `planet-surface.ts` helpers (data → parameters, regime selection) get small
+  tests, mirroring `star-surface.test.ts`.
+- **Look and browser verification is Pierre's** (per AGENTS.md): tuning in the
+  lab, then in-app checks — does each world type read correctly, is the
+  terminator right, no shimmer on small planets, WebGL2 fallback matches
+  WebGPU, no perf regression.
 
-(Sequencing, the toggle question, and band animation are settled — see §10.)
+## 11. Open questions
 
-## 9. Testing
+- **§3.2 baked vs per-pixel** — decided in Phase 0 (baked recommended).
+- **Lab UI** — `lil-gui` dev dependency vs a minimal Preact panel.
+- **Rim glow implementation** — Fresnel term vs shell mesh (Phase 1).
+- **Cloud layer** — shell mesh vs material layer (Phase 4).
+- **Gas-giant hybrid** — only if procedural falls short (Phase 5).
+- **Band-motion timebase** — wall-clock vs sim time (Phase 6).
 
-- Static pipeline only for the agent: `npm run build` (tsc + vite) + `npm test`
-  - lint. Shaders have no unit tests; the pure `planet-surface.ts` helpers
-  (data → shader params) get small tests, mirroring `star-surface.test.ts`.
-- **Browser verification is Pierre's** (per AGENTS.md): do giants read as banded
-  worlds, is the day/night terminator correct across the bands, does the WebGL2
-  fallback match WebGPU, no perf regression.
-
-## 10. Decisions log
+## 12. Decisions log
 
 | Date | Question | Decision |
 | ---- | -------- | -------- |
 | 2026-07-06 | Scope | Planet **surfaces**, system tier only; all looks derived from existing physical data. |
 | 2026-07-06 | All-in-one vs split | **Split** — one shippable slice per kind of world, like star-shading. |
-| 2026-07-06 | First slice | **Gas / ice giants** — biggest jump, simplest shader, builds the shared lit-planet material infra. |
-| 2026-07-06 | Lighting model | Planets stay **lit** (`MeshStandardNodeMaterial`); we replace only the albedo (`colorNode`). Star point light keeps the terminator. |
-| 2026-07-06 | Sequencing | Gas/ice giants → rocky → atmospheres → rings → oblateness → moons (rings stay at 4, not pulled forward). |
-| 2026-07-06 | Runtime toggle | **None.** Procedural surfaces are always-on realism; toggles are reserved for quality-of-life / user-choice rendering. Tune via `config/render` knobs. |
-| 2026-07-06 | Giant band animation | **Animated** — real gas giants are windy/stormy; bands drift + turbulence swirls (wall-clock, plausible not frantic). |
+| 2026-07-06 | Lighting model | Planets stay **lit** (`MeshStandardNodeMaterial`); the surface drives the albedo (`colorNode`). Star point light keeps the terminator. |
+| 2026-07-06 | Runtime toggle | **None.** Surfaces are always-on realism; tune via `config/render` knobs. |
+| 2026-09-29 | Iteration workflow | **Planet lab first** (Phase 0): live sliders, Pierre tunes by eye, agent bakes values into config. Replaces blind agent-side iteration. |
+| 2026-09-29 | Sequencing | Lab → rim glow → rocky → moons → clouds → static giants → optional giant motion. Gas giants last (hardest look), not first. Rings and oblateness already shipped. |
+| 2026-09-29 | Animation | **Static first.** Band motion is a separate, optional final phase with bounded time inputs. |
+| 2026-09-29 | Thermal glow | Hottest worlds add an `emissiveNode` on top of the lit albedo; the material stays lit. |
+| 2026-09-29 | Albedo source | **Baked per-planet maps recommended** (mipmapped, no small-size shimmer); confirmed or overturned in Phase 0. |
