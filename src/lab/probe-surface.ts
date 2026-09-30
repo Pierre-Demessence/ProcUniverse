@@ -4,10 +4,10 @@
  * per-pixel albedo paths (plan §3.2) with detail you can push until it shimmers.
  */
 
-import type { AlbedoFn } from '../render/three/surface-bake';
+import type { PlanetSurface } from '../render/three/surface-bake';
 
 import { Color } from 'three';
-import { mix, mx_fractal_noise_float, smoothstep, uniform, vec3 } from 'three/tsl';
+import { mix, mx_fractal_noise_float, smoothstep, uniform, vec3, vec4 } from 'three/tsl';
 
 export interface ProbeParams {
   capColor: string;
@@ -34,7 +34,7 @@ export const PROBE_DEFAULTS: ProbeParams = {
 };
 
 export interface ProbeSurface {
-  albedo: AlbedoFn;
+  surface: PlanetSurface;
   set: (params: ProbeParams, varietySeed: number) => void;
 }
 
@@ -49,16 +49,16 @@ export function createProbeSurface(): ProbeSurface {
   const uCapSoftness = uniform(0.05);
   const uSeed = uniform(0);
 
-  const albedo: AlbedoFn = (dir) => {
+  const sample: PlanetSurface['sample'] = (dir) => {
     const noise = mx_fractal_noise_float(dir.mul(uScale).add(vec3(uSeed, uSeed.mul(0.7), uSeed.mul(1.3))), uOctaves, 2, 0.5);
     const t = noise.mul(uContrast).mul(0.5).add(0.5).clamp(0, 1);
     const ground = mix(uLow, uHigh, t);
     const cap = smoothstep(uCapStart, uCapStart.add(uCapSoftness), dir.y.abs());
-    return mix(ground, uCap, cap);
+    return vec4(mix(ground, uCap, cap), t);
   };
 
   return {
-    albedo,
+    surface: { sample },
     set: (params, varietySeed) => {
       uLow.value.set(params.lowColor);
       uHigh.value.set(params.highColor);

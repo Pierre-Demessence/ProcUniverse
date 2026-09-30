@@ -1,8 +1,8 @@
 import { SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 
-import { ATMOSPHERE_LOOKS } from '../../config/render';
-import { ATMOSPHERE_KINDS, atmosphereColumn, atmosphereKind, equirectDirection, planetVarietySeed, shellRadius, VARIETY_SEED_RANGE } from './planet-surface';
+import { ATMOSPHERE_LOOKS, ROCKY_SURFACE } from '../../config/render';
+import { ATMOSPHERE_KINDS, atmosphereColumn, atmosphereKind, equirectDirection, planetVarietySeed, rockPalette, rockyRegime, shellRadius, VARIETY_SEED_RANGE } from './planet-surface';
 
 const JUPITER = { equilibriumTemp: 110, mass: 317.8, radius: 11.2, rotationPeriod: 9.9 };
 
@@ -80,5 +80,56 @@ describe('atmosphereColumn', () => {
   it('is a faint haze at the disc centre, thickening toward the limb', () => {
     expect(atmosphereColumn(0, H)).toBeLessThan(0.1);
     expect(atmosphereColumn(0.9, H)).toBeGreaterThan(atmosphereColumn(0, H));
+  });
+});
+
+describe('rockPalette', () => {
+  const anchors = [
+    { high: '#ffffff', low: '#000000', tempK: 100 },
+    { high: '#000000', low: '#ffffff', tempK: 300 },
+  ];
+
+  it('interpolates between the surrounding anchors', () => {
+    const { high, low } = rockPalette(200, anchors);
+    expect(high[0]).toBeCloseTo(0.5);
+    expect(low[0]).toBeCloseTo(0.5);
+  });
+
+  it('clamps outside the anchor range', () => {
+    expect(rockPalette(10, anchors).high).toEqual([1, 1, 1]);
+    expect(rockPalette(5000, anchors).high).toEqual([0, 0, 0]);
+  });
+});
+
+describe('rockyRegime', () => {
+  const EARTH = { density: 5.5, equilibriumTemp: 255, hasRings: false, inHabitableZone: true, insolation: 1, mass: 1, moonRichness: 0.5, obliquity: 23, obliquityAzimuth: 0, radius: 1, rotationPeriod: 24, tidallyLocked: false, type: 'rocky', waterState: 'liquid' } as const;
+
+  it('gives a temperate water world oceans, small caps and softened craters', () => {
+    const regime = rockyRegime(EARTH, ROCKY_SURFACE);
+    expect(regime.ocean).toBe(true);
+    expect(regime.molten).toBe(0);
+    expect(regime.capStart).toBeGreaterThan(0.8);
+    expect(regime.craters).toBe(ROCKY_SURFACE.craterAtmosphereFactor);
+  });
+
+  it('melts a roasting airless world: lava, no oceans, no caps, full craters', () => {
+    const regime = rockyRegime({ ...EARTH, equilibriumTemp: 2000, insolation: 5000, mass: 0.05, radius: 0.4 }, ROCKY_SURFACE);
+    expect(regime.molten).toBe(1);
+    expect(regime.ocean).toBe(false);
+    expect(regime.capStart).toBeGreaterThan(1);
+    expect(regime.craters).toBe(1);
+  });
+
+  it('grows caps as a world cools', () => {
+    const cold = rockyRegime({ ...EARTH, equilibriumTemp: 130, waterState: 'ice' }, ROCKY_SURFACE);
+    const cool = rockyRegime({ ...EARTH, equilibriumTemp: 200, waterState: 'ice' }, ROCKY_SURFACE);
+    expect(cold.capStart).toBeLessThan(cool.capStart);
+  });
+});
+
+describe('rOCKY_SURFACE', () => {
+  it('lists palette anchors in ascending temperature', () => {
+    const temps = ROCKY_SURFACE.anchors.map(a => a.tempK);
+    expect(temps).toEqual([...temps].sort((a, b) => a - b));
   });
 });

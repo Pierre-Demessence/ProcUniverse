@@ -42,6 +42,7 @@ Shipped features. Planned work is in [roadmap.md](roadmap.md).
 | Background starfield | A galaxy-aware sky dome whose density and colour follow the local galaxy, with a smooth falloff away from the galaxy plane. |
 | Planet rings | Translucent, star-lit rings with a planet-shadow band, colour by temperature, and per-planet gaps, ringlets, and opacity. |
 | Oblateness | Fast-rotating planets bulge at the equator. |
+| Rocky surfaces | Rocky and super-Earth planets show terrain coloured by surface temperature, craters (softened under an atmosphere), oceans on liquid-water worlds, ice caps that grow as they cool, glowing lava on molten worlds, and relief that catches the star light. |
 | Atmosphere glow | Planets that keep an atmosphere show a soft halo at the sunlit limb, tinted by atmosphere type and the star's colour, wrapping faintly into the night side. |
 
 ## Data, time, and persistence

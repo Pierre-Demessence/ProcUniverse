@@ -296,6 +296,7 @@ export class BodyPasses {
 
   private syncPlanet({ handle, mesh }: Entry<PlanetMaterialHandle>, [id, pose, planet]: Scene3DEntry<[BodyPose, PlanetPhysical]>, world: EcsWorld): void {
     handle.setFill(pose.fill);
+    handle.setPlanet(planet);
     mesh.position.set(pose.x, pose.y, pose.z);
     mesh.scale.setScalar(pose.radius);
     stamp(mesh, id, 'planet');

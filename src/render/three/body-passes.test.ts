@@ -84,7 +84,7 @@ const FRAME: BodyFrame = {
 
 function makePools(): BodyPools {
   const starHandle = () => ({ dispose: vi.fn(), setStar: vi.fn(), setTime: vi.fn() }) as unknown as StarMaterialHandle;
-  const planetHandle = () => ({ dispose: vi.fn(), setFill: vi.fn() }) as unknown as PlanetMaterialHandle;
+  const planetHandle = () => ({ dispose: vi.fn(), setFill: vi.fn(), setPlanet: vi.fn() }) as unknown as PlanetMaterialHandle;
   const ringHandle = () => ({ dispose: vi.fn(), setRing: vi.fn() }) as unknown as RingMaterialHandle;
   const atmosphereHandle = () => ({ dispose: vi.fn(), setLight: vi.fn(), setLook: vi.fn(() => 1.15) }) as unknown as AtmosphereMaterialHandle;
   return {

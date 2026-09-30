@@ -219,23 +219,35 @@ ball read as a world.
 
 ## 7. Phase 2 — Rocky / terrestrial surfaces
 
-- [ ] Mottled surface from smooth, low-octave noise (continents / terrain
-      patches), no high-frequency grain.
-- [ ] Temperature colour regime from `surfaceTemperature` /
-      `equilibriumTemp`: molten (dark crust + glowing red cracks via
-      `emissiveNode`, §3.1) → barren rock (browns / greys / rusts) → frozen
-      (ice-white / pale grey).
-- [ ] Oceans where `waterState` is liquid: a sea level on the same noise, deep
-      blue below, land above.
-- [ ] Polar ice caps by latitude + temperature (larger when colder; none when
-      hot).
-- [ ] Per-planet variety from the entity hash (§4).
-- [ ] Craters (impact basins on airless / thin-atmosphere worlds), shared with
-      the moon surfaces of Phase 3.
-- [ ] Relief shading: a height field from the same noise baked alongside the
-      albedo and fed to the lit material as a bump / normal map, so terrain
-      catches the star light and the terminator looks rugged.
+Applies to `rocky` and `super-earth` planets (`isRockyType`); giants keep
+the flat fill until Phase 5. Implemented in `rocky-surface.ts`, with global
+knobs in `ROCKY_SURFACE` (`config/render`) and per-planet inputs from
+`rockyRegime` (`planet-surface.ts`). The map stores `vec4(albedo, height)`.
+
+- [x] Mottled surface from smooth fBM terrain (octaves / roughness tunable),
+      no high-frequency grain.
+- [x] Temperature colour regime from the greenhouse-corrected
+      `surfaceTemperature`: land colours blend along temperature anchors
+      (icy → cold rock → temperate → hot rust → scorched → molten crust);
+      molten worlds add glowing lava in the lowlands via `emissiveNode` (§3.1).
+- [x] Oceans where `waterState` is liquid (and not molten): a sea level on the
+      same height field, deep → shallow water, flat sea surface.
+- [x] Polar ice caps by latitude + temperature (none at `capWarmK` and above,
+      largest at `capColdK`), with a noisy edge.
+- [x] Per-planet variety from the entity hash (§4).
+- [x] Craters: bowl + raised rim in 27-cell jittered 3-D cells (two size
+      layers, random radius and presence), softened on worlds that keep an
+      atmosphere; reused by the moon surfaces of Phase 3.
+- [x] Relief shading from the baked height: slopes from finite differences
+      along the sphere's own east / north tangent frame (not screen
+      derivatives, whose strength changes with zoom), sampled at the pixel's
+      mip so small planets get smoothed slopes; fades at the poles.
+- [x] Lab: a `planet` surface mode (what the game draws), a "This planet gets"
+      readout, sliders for every `ROCKY_SURFACE` knob, and a height view on
+      the flat map.
 - [ ] Tuned in the lab against real generated planets of each regime.
+- [ ] Bake cost on system entry (each rocky planet bakes a 1024×512 map on
+      first draw) checked in-app; stagger bakes if it hitches.
 
 ## 8. Later phases (sketch — expanded when reached)
 
@@ -313,3 +325,4 @@ ball read as a world.
 | 2026-09-29 | Lab form | Separate dev-only `lab.html` entry (never in the build); `lil-gui` devDependency for sliders. |
 | 2026-09-29 | Albedo source | **Baked per-planet maps** (mipmapped). Lab comparison: neither path flickered at 16–48 px, baked was smoother; octave-8 detail at 1024-wide maps looks good even close up. |
 | 2026-09-30 | Rim glow form | Additive shell mesh with an analytic atmosphere-column profile (glows past the silhouette); Fresnel-only rejected. |
+| 2026-09-30 | Rocky relief | Relief normal from the baked height along the sphere's analytic tangent frame; three's screen-derivative `bumpMap` rejected (strength varies with zoom). |

@@ -6,7 +6,7 @@
  * changes the view. The universe-defining knobs live in `data.ts`.
  */
 
-import type { AtmosphereKind, AtmosphereLook } from '../render/three/planet-surface';
+import type { AtmosphereKind, AtmosphereLook, RockyTuning } from '../render/three/planet-surface';
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
@@ -61,6 +61,43 @@ export const ATMOSPHERE_LOOKS: Readonly<Record<AtmosphereKind, AtmosphereLook>> 
   'methane': { intensity: 0.8, scaleHeight: 0.03, tint: '#8fe3ee', twilight: 0.2 },
   'n2-co2': { intensity: 1, scaleHeight: 0.025, tint: '#6fa8ff', twilight: 0.25 },
   'thin-n2': { intensity: 0.5, scaleHeight: 0.012, tint: '#a9bcdc', twilight: 0.1 },
+};
+// Rocky / super-Earth surfaces (Phase 2): land colours blend along the surface-
+// temperature anchors (icy → cold rock → temperate → hot rust → scorched →
+// molten crust); oceans fill below `seaLevel` on liquid-water worlds; caps grow
+// as the world cools from `capWarmK` to `capColdK`; lava glows in the lowlands
+// between `moltenStartK` and `moltenFullK`. Relief is exaggerated so terrain
+// catches the light. Tuned in the planet lab (`/lab.html`).
+export const ROCKY_SURFACE: Readonly<RockyTuning> = {
+  capColdK: 120,
+  capColdStart: 0.35,
+  capColor: '#eef3f6',
+  capEdgeNoise: 0.06,
+  capWarmK: 300,
+  continentScale: 1.6,
+  craterAtmosphereFactor: 0.25,
+  craterDensity: 0.5,
+  craterDepth: 0.35,
+  craterScale: 5,
+  craterSize: 0.35,
+  deepColor: '#0d2a4f',
+  diminish: 0.5,
+  lavaColor: '#ff5a1a',
+  lavaLevel: 0.45,
+  moltenFullK: 1500,
+  moltenStartK: 900,
+  octaves: 8,
+  relief: 0.03,
+  seaLevel: 0.52,
+  shallowColor: '#2a5f8a',
+  anchors: [
+    { high: '#e4ebf0', low: '#7d8590', tempK: 80 },
+    { high: '#b9b1a6', low: '#6b6660', tempK: 200 },
+    { high: '#9c8a68', low: '#5d5a3f', tempK: 290 },
+    { high: '#b7764a', low: '#6e3b24', tempK: 450 },
+    { high: '#7a5a48', low: '#3a2a24', tempK: 800 },
+    { high: '#3b2d27', low: '#1d1512', tempK: 1400 },
+  ],
 };
 export const STAR_SPIN_RATE = 5e-8;
 export const LIGHT_AMBIENT = 0.15;
