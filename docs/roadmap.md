@@ -27,8 +27,6 @@ remove it from here once it ships. Links point to the design context.
 ## Engineering health
 
 - Move canvas / DPR sizing out of `main.ts` into its own module.
-- Bookmark panel re-renders every frame (`createBookmarkList.update` copies the
-  array each tick); push only on change.
 - Split the remaining 780-line `three-renderer.ts` (instanced star / glow tiers,
   orbit rings, camera sync); the system-tier bodies already live in
   `body-passes.ts`.
@@ -36,20 +34,14 @@ remove it from here once it ships. Links point to the design context.
   `lod/sector-cache.ts` (the source of most recent camera / reload fixes).
 - A performance budget: frame-time and star-count measurement per tier.
 - Performance follow-ups (measured in a Node benchmark):
-  - `galaxyInCell` builds a template-string cache key on every call (9 per
-    dominant-galaxy scan); a numeric key speeds up every galaxy lookup.
-  - The galaxy-tier glow (`forEachGalaxyGlow`) iterates the view twice (count,
-    then fill) and scans the dominant galaxy twice per cell; use
-    `galaxySampleAt` and a single grow-on-demand pass.
-  - The star tier re-parses each star's hex colour, allocates a `worldToView`
-    result, and calls `cache.get` twice per sector, per star, every frame.
   - Star-tier sector generation builds every system in full (planets, moons,
     names): ~11 ms per 12-sector pan column near a galaxy core, ~100 ms when a
     zoom-out brings in 100+ sectors at once. Options: a per-frame generation
     budget, or star-only sector records with planets generated at the system
     tier.
-  - A starfield rebuild still costs ~120 ms at the system tier (on a focus
-    jump of more than ~50,000 AU); spread it over frames or move it to a worker.
+  - A starfield rebuild still costs ~70 ms of sampling at the system tier (on
+    a focus jump of more than ~50,000 AU); spread it over frames or move it to
+    a worker.
   - At the system tier, focusing a different star moves the render origin,
     which despawns and respawns every streamed sector (unmeasured hitch risk).
 

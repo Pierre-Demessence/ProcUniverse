@@ -274,12 +274,25 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number): GalaxyPar
   };
 }
 
-const cellCache = new Map<string, GalaxyParams | null>();
+const cellCache = new Map<number, GalaxyParams | null>();
 const CELL_CACHE_CAP = 4096;
+let cellCacheSeed: number | null = null;
+// Numeric cache key `gx · 2²⁶ + gy`: unique while both coordinates stay within
+// ±2²⁵ cells (~4·10¹⁸ AU), and at most 2⁵¹ in magnitude, so it stays an exact
+// integer. Far beyond any reachable camera position; cells outside it skip the
+// cache rather than risk a collision.
+const CELL_KEY_SPAN = 2 ** 26;
+const CELL_KEY_LIMIT = 2 ** 25;
 
 /** Memoised `makeGalaxy`, since the 3×3 scans re-read the same cells often. */
 export function galaxyInCell(worldSeed: number, gx: number, gy: number): GalaxyParams | null {
-  const key = `${worldSeed},${gx},${gy}`;
+  if (Math.abs(gx) >= CELL_KEY_LIMIT || Math.abs(gy) >= CELL_KEY_LIMIT)
+    return makeGalaxy(worldSeed, gx, gy);
+  if (worldSeed !== cellCacheSeed) {
+    cellCache.clear();
+    cellCacheSeed = worldSeed;
+  }
+  const key = gx * CELL_KEY_SPAN + gy;
   const cached = cellCache.get(key);
   if (cached !== undefined)
     return cached;

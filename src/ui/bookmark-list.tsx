@@ -101,7 +101,7 @@ function BookmarkPanel({ bookmarks, onInspect, onRemove }: { bookmarks: Signal<r
 
 /**
  * Mount the bookmark list panel on `container` (a positioned ancestor). `update`
- * pushes a new bookmark array each frame (deduped by reference); `onInspect` /
+ * pushes a copy of the bookmark array whenever its items change; `onInspect` /
  * `onRemove` fire on the corresponding row action.
  */
 export function createBookmarkList(
@@ -127,7 +127,12 @@ export function createBookmarkList(
       mount.remove();
     },
     update(bookmarks: readonly Bookmark[]): void {
-      // New reference each frame so Preact signals detect adds/removes.
+      // Bookmarks are only ever added or removed whole (never edited in place),
+      // so an item-identity comparison detects every change. Push a fresh copy
+      // only then, so the panel re-renders on change instead of every frame.
+      const shown = state.value;
+      if (shown.length === bookmarks.length && shown.every((b, i) => b === bookmarks[i]))
+        return;
       state.value = [...bookmarks];
     },
   };

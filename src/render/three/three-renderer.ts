@@ -15,6 +15,7 @@ import type { EcsWorld } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
 
+import type { SectorData } from '../../generation/universe';
 import type { SectorCache } from '../../lod/sector-cache';
 import type { SectorRange } from '../../lod/tier';
 import type { BodyKind, PickResult } from '../../pick';
@@ -23,7 +24,6 @@ import type { BodyFrame } from './body-passes';
 import type { GlowField } from './glow-fields';
 import type { StarfieldDome } from './starfield';
 
-import { worldToView } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { pass } from 'three/tsl';
@@ -74,6 +74,10 @@ const STAR_INITIAL_CAPACITY = 8192;
 const STAR_CULL_PAD_PX = 4;
 /** Initial glow-sprite instance capacity; grown on demand, never shrunk. */
 const GLOW_INITIAL_CAPACITY = 1024;
+/** Values per buffered glow sprite: x, y, radius, then r, g, b pre-multiplied by alpha. */
+const GLOW_STRIDE = 6;
+/** Parsed star colours kept before the cache is reset (distinct blackbody hexes). */
+const STAR_COLOR_CACHE_CAP = 4096;
 /** Radial glow-sprite texture resolution (px). */
 const GLOW_TEXTURE_SIZE = 128;
 
@@ -142,6 +146,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly glowGeometry: PlaneGeometry;
   private readonly glowMaterial: MeshBasicMaterial;
   private glowMesh: InstancedMesh | null = null;
+  /** Glow sprites buffered in one pass over the tier's glow field; grown on demand. */
+  private glowScratch = new Float64Array(GLOW_INITIAL_CAPACITY * GLOW_STRIDE);
   private readonly glowTexture: CanvasTexture;
   private readonly group: Group;
   private readonly perspective: PerspectiveCamera;
@@ -159,6 +165,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private readonly scene: Scene;
   private readonly sphereGeometry: SphereGeometry;
   private starCapacity = 0;
+  /** Star colours parsed once from their hex strings, reused every frame. */
+  private readonly starColors = new Map<string, Color>();
   private starfieldDome: StarfieldDome | null = null;
   private readonly starGeometry: CircleGeometry;
   /**
@@ -170,6 +178,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private starLight: PointLight | null = null;
   private readonly starMaterial: MeshBasicMaterial;
   private starMesh: InstancedMesh | null = null;
+  /** The visible sectors, fetched once per star-tier frame. */
+  private readonly starSectors: SectorData[] = [];
   private readonly tmpColor = new Color();
   private readonly tmpVec = new Vector3();
   private readonly tmpVec2 = new Vector2();
@@ -489,29 +499,44 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     if (this.starMesh)
       this.starMesh.visible = false;
 
-    let capacity = 0;
-    forEach(camera, seed, originX, originY, () => {
-      capacity++;
-    });
-    const mesh = this.ensureGlowMesh(capacity);
-
-    let i = 0;
+    // Buffer the sprites in a single pass (the field is costly to evaluate),
+    // then size the mesh and fill it.
+    let count = 0;
     forEach(camera, seed, originX, originY, (x, y, radius, r, g, b, alpha) => {
-      this.dummy.position.set(x, y, 0);
-      this.dummy.scale.set(radius * 2, radius * 2, 1);
+      if ((count + 1) * GLOW_STRIDE > this.glowScratch.length) {
+        const grown = new Float64Array(this.glowScratch.length * 2);
+        grown.set(this.glowScratch);
+        this.glowScratch = grown;
+      }
+      const buf = this.glowScratch;
+      const o = count * GLOW_STRIDE;
+      buf[o] = x;
+      buf[o + 1] = y;
+      buf[o + 2] = radius;
+      buf[o + 3] = (r / 255) * alpha;
+      buf[o + 4] = (g / 255) * alpha;
+      buf[o + 5] = (b / 255) * alpha;
+      count++;
+    });
+    const mesh = this.ensureGlowMesh(count);
+
+    const buf = this.glowScratch;
+    for (let i = 0; i < count; i++) {
+      const o = i * GLOW_STRIDE;
+      const diameter = buf[o + 2] * 2;
+      this.dummy.position.set(buf[o], buf[o + 1], 0);
+      this.dummy.scale.set(diameter, diameter, 1);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(i, this.dummy.matrix);
-      this.tmpColor.setRGB((r / 255) * alpha, (g / 255) * alpha, (b / 255) * alpha);
-      mesh.setColorAt(i, this.tmpColor);
-      i++;
-    });
-    mesh.count = i;
-    mesh.visible = i > 0;
+      mesh.setColorAt(i, this.tmpColor.setRGB(buf[o + 3], buf[o + 4], buf[o + 5]));
+    }
+    mesh.count = count;
+    mesh.visible = count > 0;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor)
       mesh.instanceColor.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
-    return i;
+    return count;
   }
 
   /**
@@ -531,33 +556,44 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     if (this.glowMesh)
       this.glowMesh.visible = false;
 
+    const sectors = this.starSectors;
+    sectors.length = 0;
     let capacity = 0;
     for (let sy = range.minSy; sy <= range.maxSy; sy++) {
-      for (let sx = range.minSx; sx <= range.maxSx; sx++)
-        capacity += cache.get(sx, sy).systems.length;
+      for (let sx = range.minSx; sx <= range.maxSx; sx++) {
+        const sector = cache.get(sx, sy);
+        sectors.push(sector);
+        capacity += sector.systems.length;
+      }
     }
     const mesh = this.ensureStarMesh(capacity);
 
-    const minRadius = STAR_MIN_DOT_PX / camera.zoom;
+    // Inline `worldToView` (no per-star allocation): screen = (local − topLeft) · zoom.
+    const { zoom } = camera;
+    const leftX = camera.x + camera.offsetX - camera.viewportW / zoom / 2;
+    const topY = camera.y + camera.offsetY - camera.viewportH / zoom / 2;
+    const minRadius = STAR_MIN_DOT_PX / zoom;
     const maxX = camera.viewportW + STAR_CULL_PAD_PX;
     const maxY = camera.viewportH + STAR_CULL_PAD_PX;
     let i = 0;
-    for (let sy = range.minSy; sy <= range.maxSy; sy++) {
-      for (let sx = range.minSx; sx <= range.maxSx; sx++) {
-        for (const sys of cache.get(sx, sy).systems) {
-          const v = worldToView(sys.x - originX, sys.y - originY, camera);
-          if (v.vx < -STAR_CULL_PAD_PX || v.vx > maxX || v.vy < -STAR_CULL_PAD_PX || v.vy > maxY)
-            continue;
-          const r = Math.max(minRadius, sys.radius);
-          this.dummy.position.set(sys.x - originX, sys.y - originY, 0);
-          this.dummy.scale.set(r, r, 1);
-          this.dummy.updateMatrix();
-          mesh.setMatrixAt(i, this.dummy.matrix);
-          mesh.setColorAt(i, this.tmpColor.set(sys.star.colorHex));
-          i++;
-        }
+    for (const sector of sectors) {
+      for (const sys of sector.systems) {
+        const localX = sys.x - originX;
+        const localY = sys.y - originY;
+        const vx = (localX - leftX) * zoom;
+        const vy = (localY - topY) * zoom;
+        if (vx < -STAR_CULL_PAD_PX || vx > maxX || vy < -STAR_CULL_PAD_PX || vy > maxY)
+          continue;
+        const r = Math.max(minRadius, sys.radius);
+        this.dummy.position.set(localX, localY, 0);
+        this.dummy.scale.set(r, r, 1);
+        this.dummy.updateMatrix();
+        mesh.setMatrixAt(i, this.dummy.matrix);
+        mesh.setColorAt(i, this.starColor(sys.star.colorHex));
+        i++;
       }
     }
+    sectors.length = 0;
     mesh.count = i;
     mesh.visible = i > 0;
     mesh.instanceMatrix.needsUpdate = true;
@@ -580,6 +616,18 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // system view is fill-rate bound when a body fills the screen, and pixel
     // count dominates. Picking/labels use the logical size, so they're unaffected.
     this.renderer.setSize(Math.max(1, Math.round(width * RENDER_SCALE)), Math.max(1, Math.round(height * RENDER_SCALE)), false);
+  }
+
+  /** The parsed colour for a star's hex string, cached across frames. */
+  private starColor(hex: string): Color {
+    let color = this.starColors.get(hex);
+    if (!color) {
+      if (this.starColors.size >= STAR_COLOR_CACHE_CAP)
+        this.starColors.clear();
+      color = new Color(hex);
+      this.starColors.set(hex, color);
+    }
+    return color;
   }
 
   /**

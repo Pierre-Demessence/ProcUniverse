@@ -11,7 +11,7 @@ import { clamp, lerp } from '@pierre/ecs/modules/math';
 
 import { GALAXY_CELL_LY } from '../../config/data';
 import { GALAXY_SPRITE_SCALE } from '../../config/render';
-import { cosmicDensity, galaxiesInRect, galaxyActivityAt, galaxyDensityAt, galaxyRepresentativeActivity } from '../../generation/galaxies';
+import { cosmicDensity, galaxiesInRect, galaxyRepresentativeActivity, galaxySampleAt } from '../../generation/galaxies';
 import { AU_PER_LY } from '../../generation/units';
 import { SECTOR_SIZE } from '../../scale';
 import { bucketedPopulationColor } from '../galaxy-sprites';
@@ -65,10 +65,10 @@ export const forEachGalaxyGlow: GlowField = (cam, seed, originX, originY, sink) 
     for (let cx = minCx; cx <= maxCx; cx++) {
       const wxAbs = (cx + 0.5) * cellWorld;
       const wyAbs = (cy + 0.5) * cellWorld;
-      const norm = galaxyDensityAt(seed, wxAbs, wyAbs);
+      const { activity, density: norm } = galaxySampleAt(seed, wxAbs, wyAbs);
       if (norm < 0.01)
         continue;
-      const [r, g, b] = bucketedPopulationColor(galaxyActivityAt(seed, wxAbs, wyAbs));
+      const [r, g, b] = bucketedPopulationColor(activity);
       sink(wxAbs - originX, wyAbs - originY, cellWorld * (0.4 + 0.5 * norm), r, g, b, clamp(0.1 + 0.5 * norm, 0, 0.7));
     }
   }

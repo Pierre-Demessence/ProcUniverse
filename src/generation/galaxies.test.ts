@@ -19,6 +19,7 @@ import {
   galaxyDensityAt,
   galaxyDensityOf,
   galaxyDiameterLy,
+  galaxyInCell,
   galaxyRepresentativeActivity,
   galaxySampleAt,
   galaxyStellarMass,
@@ -165,6 +166,28 @@ describe('makeGalaxy', () => {
       }
     }
     expect(types.size).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('galaxyInCell cache', () => {
+  it('matches makeGalaxy for near, negative and beyond-key-range cells', () => {
+    for (const [gx, gy] of [[0, 0], [3, -7], [-12, 5], [2 ** 25, 1], [-1, -(2 ** 25) - 3]] as const)
+      expect(galaxyInCell(SEED, gx, gy)).toEqual(makeGalaxy(SEED, gx, gy));
+  });
+
+  it('keeps cells whose coordinates would alias under a naive key apart', () => {
+    expect(galaxyInCell(SEED, 1, 0)).toEqual(makeGalaxy(SEED, 1, 0));
+    expect(galaxyInCell(SEED, 0, 2 ** 26 - 1)).toEqual(makeGalaxy(SEED, 0, 2 ** 26 - 1));
+    expect(galaxyInCell(SEED, 0, -1)).toEqual(makeGalaxy(SEED, 0, -1));
+    expect(galaxyInCell(SEED, -1, 2 ** 25 - 1)).toEqual(makeGalaxy(SEED, -1, 2 ** 25 - 1));
+  });
+
+  it('never serves a cached galaxy for another seed', () => {
+    const other = SEED + 1;
+    for (let gx = 1; gx <= 6; gx++) {
+      expect(galaxyInCell(SEED, gx, 2)).toEqual(makeGalaxy(SEED, gx, 2));
+      expect(galaxyInCell(other, gx, 2)).toEqual(makeGalaxy(other, gx, 2));
+    }
   });
 });
 
