@@ -36,6 +36,7 @@ import { OrbitElementsDef, ringSegmentCount } from '../../sim/orbits';
 import { createAtmosphereMaterial } from './atmosphere-material';
 import { BodyPasses } from './body-passes';
 import { perspectiveClipPlanes } from './clip-planes';
+import { createCloudMaterial } from './cloud-material';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
 import { createPlanetMaterial } from './planet-material';
 import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS } from './planet-rings';
@@ -208,6 +209,10 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.bodyPasses = new BodyPasses({
       atmosphere: new RecyclePool(() => {
         const handle = createAtmosphereMaterial();
+        return { handle, mesh: new Mesh(this.sphereGeometry, handle.material) };
+      }),
+      cloud: new RecyclePool(() => {
+        const handle = createCloudMaterial();
         return { handle, mesh: new Mesh(this.sphereGeometry, handle.material) };
       }),
       generic: new RecyclePool(() => {

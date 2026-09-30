@@ -8,7 +8,7 @@
 
 import type { PlanetPhysical } from '../generation/planets';
 import type { AlbedoSource } from '../render/three/planet-material';
-import type { AtmosphereKind, AtmosphereLook, MoonTuning, RockyTuning } from '../render/three/planet-surface';
+import type { AtmosphereKind, AtmosphereLook, CloudKind, CloudLook, MoonTuning, RockyTuning } from '../render/three/planet-surface';
 import type { PlanetSurface } from '../render/three/surface-bake';
 import type { LabPlanet } from './lab-planets';
 import type { ProbeParams } from './probe-surface';
@@ -18,14 +18,15 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mix, uniform, uv, vec3 } from 'three/tsl';
 import { AmbientLight, ColorManagement, Group, Mesh, MeshBasicNodeMaterial, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Scene, SphereGeometry, WebGPURenderer } from 'three/webgpu';
 
-import { ATMOSPHERE_LOOKS, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE, MOON_SURFACE_MAP_WIDTH, RENDER_ANTIALIAS, ROCKY_SURFACE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS } from '../config/render';
+import { ATMOSPHERE_LOOKS, CAMERA_FOV_DEG, CLOUD_LOOKS, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE, MOON_SURFACE_MAP_WIDTH, RENDER_ANTIALIAS, ROCKY_SURFACE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS } from '../config/render';
 import { moonPhysicalFromMass } from '../generation/moons';
 import { oblateness } from '../generation/planets';
 import { parseSave, SAVE_KEY } from '../persistence/save';
 import { oblatePolarScale } from '../render/body-scale';
 import { createAtmosphereMaterial } from '../render/three/atmosphere-material';
+import { createCloudMaterial } from '../render/three/cloud-material';
 import { createPlanetMaterial } from '../render/three/planet-material';
-import { ATMOSPHERE_KINDS, atmosphereKind, isIcyMoon, isRockyType, moonSurface, planetVarietySeed, rockyRegime } from '../render/three/planet-surface';
+import { ATMOSPHERE_KINDS, atmosphereKind, CLOUD_KINDS, cloudKind, isIcyMoon, isRockyType, moonSurface, planetVarietySeed, rockyRegime } from '../render/three/planet-surface';
 import { sphereDirFromUv } from '../render/three/surface-bake';
 import { scanPlanets } from './lab-planets';
 import { distanceForDiameter } from './lab-view';
@@ -43,12 +44,16 @@ const DEG2RAD = Math.PI / 180;
 type SizePreset = 'free' | '150' | '48' | '16';
 /** Which atmosphere family to show: the planet's own (`auto`), a forced one, or none. */
 type AtmosphereMode = 'auto' | 'off' | AtmosphereKind;
+/** Which cloud family to show: the planet's own (`auto`), a forced one, or none. */
+type CloudMode = 'auto' | 'off' | CloudKind;
 
 interface LabState {
   atmosphere: Record<AtmosphereKind, AtmosphereLook>;
   atmosphereMode: AtmosphereMode;
   /** Which body the lab shows: the planet, or a moon of it (sharing its temperature). */
   body: 'moon' | 'planet';
+  cloudMode: CloudMode;
+  clouds: Record<CloudKind, CloudLook>;
   fill: string;
   moon: MoonTuning;
   /** The previewed moon's mass (M⊕); radius and density follow the generator's law. */
@@ -114,6 +119,8 @@ function defaultState(): LabState {
     atmosphere,
     atmosphereMode: 'auto',
     body: 'planet',
+    cloudMode: 'auto',
+    clouds: Object.fromEntries(CLOUD_KINDS.map(kind => [kind, { ...CLOUD_LOOKS[kind] }])) as Record<CloudKind, CloudLook>,
     fill: '#c9b88f',
     moon: { ...MOON_SURFACE },
     moonMass: 0.012,
@@ -199,7 +206,12 @@ async function start(root: HTMLElement): Promise<void> {
   // Child of the planet mesh, so it inherits the oblate scale and spin exactly.
   const atmosphere = createAtmosphereMaterial();
   const atmosphereMesh = new Mesh(geometry, atmosphere.material);
+  atmosphereMesh.renderOrder = 2;
   mesh.add(atmosphereMesh);
+  const clouds = createCloudMaterial();
+  const cloudMesh = new Mesh(geometry, clouds.material);
+  cloudMesh.renderOrder = 1;
+  mesh.add(cloudMesh);
 
   const probe = createProbeSurface();
 
@@ -282,12 +294,30 @@ async function start(root: HTMLElement): Promise<void> {
     }
   };
 
+  const cloudStatus = { detected: '' };
+  let cloudLookKind: CloudKind | null = null;
+  let rebuildCloudFolder: (kind: CloudKind | null) => void = () => {};
+  const applyClouds = (): void => {
+    const detected = cloudKind(state.planet);
+    cloudStatus.detected = detected ?? 'none';
+    const mode = state.cloudMode;
+    const kind = state.body === 'moon' ? null : mode === 'auto' ? detected : mode === 'off' ? null : mode;
+    cloudMesh.visible = kind !== null;
+    if (kind)
+      cloudMesh.scale.setScalar(clouds.setClouds(state.clouds[kind], planetVarietySeed(state.planet)));
+    if (kind !== cloudLookKind) {
+      cloudLookKind = kind;
+      rebuildCloudFolder(kind);
+    }
+  };
+
   const applyPlanet = (): void => {
     active().setFill(state.fill);
     const p = state.planet;
     mesh.scale.set(1, state.body === 'moon' ? 1 : oblatePolarScale(oblateness(p.rotationPeriod, p.mass, p.radius)), 1);
     tilt.rotation.set(0, 0, p.obliquity * DEG2RAD);
     applySurface();
+    applyClouds();
     applyAtmosphere();
   };
 
@@ -433,6 +463,26 @@ async function start(root: HTMLElement): Promise<void> {
   probeFolder.addColor(state.probe, 'capColor').onChange(applySurface);
   probeFolder.add(state.probe, 'capStart', 0, 1, 0.01).name('cap start |y|').onChange(applySurface);
   probeFolder.add(state.probe, 'capSoftness', 0, 0.5, 0.005).onChange(applySurface);
+
+  const cloudFolder = gui.addFolder('Clouds');
+  cloudFolder.add(cloudStatus, 'detected').name('planet has').disable().listen();
+  cloudFolder.add(state, 'cloudMode', ['auto', 'off', ...CLOUD_KINDS]).name('show').onChange(applyClouds);
+  let cloudLookFolder: GUI | null = null;
+  rebuildCloudFolder = (kind) => {
+    cloudLookFolder?.destroy();
+    cloudLookFolder = null;
+    if (!kind)
+      return;
+    const look = state.clouds[kind];
+    cloudLookFolder = cloudFolder.addFolder(`Look: ${kind}`);
+    cloudLookFolder.addColor(look, 'color').onChange(applyClouds);
+    cloudLookFolder.add(look, 'coverage', 0, 1, 0.01).onChange(applyClouds);
+    cloudLookFolder.add(look, 'haze', 0, 1, 0.01).name('overcast haze').onChange(applyClouds);
+    cloudLookFolder.add(look, 'softness', 0.001, 0.5, 0.001).name('edge softness').onChange(applyClouds);
+    cloudLookFolder.add(look, 'scale', 0.5, 12, 0.05).name('size (freq)').onChange(applyClouds);
+    cloudLookFolder.add(look, 'swirl', 0, 6, 0.05).onChange(applyClouds);
+    cloudLookFolder.add(look, 'stretch', 0.5, 6, 0.05).name('east–west stretch').onChange(applyClouds);
+  };
 
   const atmosphereFolder = gui.addFolder('Atmosphere (rim glow)');
   atmosphereFolder.add(atmosphereStatus, 'detected').name('planet has').disable().listen();

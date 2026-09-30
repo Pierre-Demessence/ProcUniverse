@@ -18,9 +18,10 @@ import type { StarPhysical } from '../../generation/stars';
 import type { BodyKind } from '../../pick';
 import type { OrbitElements } from '../../sim/orbits';
 import type { AtmosphereMaterialHandle } from './atmosphere-material';
+import type { CloudMaterialHandle } from './cloud-material';
 import type { PlanetMaterialHandle } from './planet-material';
 import type { RingMaterialHandle } from './planet-rings';
-import type { AtmosphereLook } from './planet-surface';
+import type { AtmosphereLook, CloudLook } from './planet-surface';
 import type { RecyclePool } from './recycle-pool';
 import type { StarMaterialHandle } from './star-material';
 
@@ -28,7 +29,7 @@ import { Scene3DRenderer } from '@pierre/ecs/modules/render-scene3d';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { Color, Matrix4, Quaternion, Vector3 } from 'three/webgpu';
 
-import { ATMOSPHERE_LOOKS, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
+import { ATMOSPHERE_LOOKS, CLOUD_LOOKS, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
 import { BodyVisualDef } from '../../generation/body-visual';
 import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
@@ -37,7 +38,7 @@ import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, tiltNormal } from '../../sim/orbits';
 import { oblatePolarScale } from '../body-scale';
 import { ringOuterRadius, ringVariety } from './planet-rings';
-import { atmosphereKind } from './planet-surface';
+import { atmosphereKind, cloudKind, planetVarietySeed } from './planet-surface';
 
 const DEFAULT_FILL = '#ffffff';
 const DEG2RAD = Math.PI / 180;
@@ -48,6 +49,9 @@ const SPHERE_POLE = new Vector3(0, 1, 0);
 const RING_POLE = new Vector3(0, 0, 1);
 /** Light colour for an atmosphere with no star light in the scene: the glow is starlight scattered by the air, so it goes dark. */
 const NO_LIGHT = new Color(0, 0, 0);
+/** Draw order among the translucent shells: clouds, then the additive rim glow over them. */
+const CLOUD_RENDER_ORDER = 1;
+const ATMOSPHERE_RENDER_ORDER = 2;
 
 const tmpAxis = new Vector3();
 const tmpQuat = new Quaternion();
@@ -67,6 +71,7 @@ export interface PooledMesh<THandle> {
 
 export interface BodyPools {
   atmosphere: RecyclePool<PooledMesh<AtmosphereMaterialHandle>>;
+  cloud: RecyclePool<PooledMesh<CloudMaterialHandle>>;
   generic: RecyclePool<PooledMesh<MeshStandardMaterial>>;
   moon: RecyclePool<PooledMesh<PlanetMaterialHandle>>;
   planet: RecyclePool<PooledMesh<PlanetMaterialHandle>>;
@@ -129,6 +134,14 @@ function* selectAtmospheric(world: EcsWorld): Generator<Scene3DEntry<[BodyPose, 
     const kind = atmosphereKind(planet);
     if (kind)
       yield [id, pose, planet, ATMOSPHERE_LOOKS[kind]];
+  }
+}
+
+function* selectClouded(world: EcsWorld): Generator<Scene3DEntry<[BodyPose, PlanetPhysical, CloudLook]>> {
+  for (const [id, pose, planet] of selectPosed(world, PlanetPhysicalDef)) {
+    const kind = cloudKind(planet);
+    if (kind)
+      yield [id, pose, planet, CLOUD_LOOKS[kind]];
   }
 }
 
@@ -233,6 +246,7 @@ const INITIAL_FRAME: BodyFrame = {
 export class BodyPasses {
   private readonly atmospheres: Scene3DRenderer<Entry<AtmosphereMaterialHandle>, [BodyPose, PlanetPhysical, AtmosphereLook]>;
   private readonly blackHoles: Scene3DRenderer<Entry<MeshStandardMaterial>, [BodyPose, BlackHolePhysical]>;
+  private readonly clouds: Scene3DRenderer<Entry<CloudMaterialHandle>, [BodyPose, PlanetPhysical, CloudLook]>;
   private frame = INITIAL_FRAME;
   private readonly graph: SceneGraph<PooledMesh<unknown>>;
   private light: PointLight | null = null;
@@ -248,6 +262,7 @@ export class BodyPasses {
     this.graph = meshGraph(group);
     this.stars = makePass(pools.star, world => selectPosed(world, StarPhysicalDef), (entry, row) => this.syncStar(entry, row));
     this.planets = makePass(pools.planet, world => selectPosed(world, PlanetPhysicalDef), (entry, row, world) => this.syncPlanet(entry, row, world));
+    this.clouds = makePass(pools.cloud, selectClouded, (entry, row, world) => this.syncClouds(entry, row, world));
     this.atmospheres = makePass(pools.atmosphere, selectAtmospheric, (entry, row, world) => this.syncAtmosphere(entry, row, world));
     this.rings = makePass(pools.ring, selectRinged, (entry, row) => this.syncRing(entry, row));
     this.moons = makePass(pools.moon, world => selectPosed(world, MoonPhysicalDef), (entry, row, world) => this.syncMoon(entry, row, world));
@@ -260,6 +275,7 @@ export class BodyPasses {
     this.pools.star.forEach(entry => entry.handle.dispose());
     this.pools.planet.forEach(entry => entry.handle.dispose());
     this.pools.atmosphere.forEach(entry => entry.handle.dispose());
+    this.pools.cloud.forEach(entry => entry.handle.dispose());
     this.pools.ring.forEach(entry => entry.handle.dispose());
     this.pools.generic.forEach(entry => entry.handle.dispose());
     this.pools.moon.forEach(entry => entry.handle.dispose());
@@ -269,18 +285,20 @@ export class BodyPasses {
   releaseAll(): void {
     this.stars.dispose(this.graph);
     this.planets.dispose(this.graph);
+    this.clouds.dispose(this.graph);
     this.atmospheres.dispose(this.graph);
     this.rings.dispose(this.graph);
     this.moons.dispose(this.graph);
     this.blackHoles.dispose(this.graph);
   }
 
-  /** Planets, their atmospheres, rings, moons and black holes. `light` is the star light, or null when none is placed. */
+  /** Planets, their clouds and atmospheres, rings, moons and black holes. `light` is the star light, or null when none is placed. */
   renderBodies(world: EcsWorld, frame: BodyFrame, light: PointLight | null): void {
     this.frame = frame;
     this.light = light;
     const context = { graph: this.graph, world };
     this.planets.render(context);
+    this.clouds.render(context);
     this.atmospheres.render(context);
     this.rings.render(context);
     this.moons.render(context);
@@ -303,6 +321,7 @@ export class BodyPasses {
    */
   private syncAtmosphere({ handle, mesh }: Entry<AtmosphereMaterialHandle>, [id, pose, planet, look]: Scene3DEntry<[BodyPose, PlanetPhysical, AtmosphereLook]>, world: EcsWorld): void {
     const shell = handle.setLook(look);
+    mesh.renderOrder = ATMOSPHERE_RENDER_ORDER;
     mesh.position.set(pose.x, pose.y, pose.z);
     mesh.scale.setScalar(pose.radius * shell);
     mesh.scale.y = mesh.scale.x * oblatePolarScale(oblateness(planet.rotationPeriod, planet.mass, planet.radius));
@@ -316,6 +335,20 @@ export class BodyPasses {
       handle.setLight(light.position, light.color);
     else
       handle.setLight(mesh.position, NO_LIGHT);
+  }
+
+  /** The cloud shell: the planet's pose, oblate scale and spin, just above its surface. Not stamped (unpickable). */
+  private syncClouds({ handle, mesh }: Entry<CloudMaterialHandle>, [id, pose, planet, look]: Scene3DEntry<[BodyPose, PlanetPhysical, CloudLook]>, world: EcsWorld): void {
+    const shell = handle.setClouds(look, planetVarietySeed(planet));
+    mesh.renderOrder = CLOUD_RENDER_ORDER;
+    mesh.position.set(pose.x, pose.y, pose.z);
+    mesh.scale.setScalar(pose.radius * shell);
+    mesh.scale.y = mesh.scale.x * oblatePolarScale(oblateness(planet.rotationPeriod, planet.mass, planet.radius));
+    const orbit = world.getStore(OrbitElementsDef).get(id);
+    if (orbit)
+      orientPlanet(mesh, planet, orbit, this.frame.simSeconds);
+    else
+      mesh.rotation.set(0, 0, 0);
   }
 
   private syncGeneric({ handle, mesh }: Entry<MeshStandardMaterial>, [id, pose]: Scene3DEntry<[BodyPose, unknown]>, kind: BodyKind): void {

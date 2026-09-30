@@ -6,6 +6,7 @@ import type { StarPhysical } from '../../generation/stars';
 import type { OrbitElements } from '../../sim/orbits';
 import type { AtmosphereMaterialHandle } from './atmosphere-material';
 import type { BodyFrame, BodyPools, PooledMesh } from './body-passes';
+import type { CloudMaterialHandle } from './cloud-material';
 import type { PlanetMaterialHandle } from './planet-material';
 import type { RingMaterialHandle } from './planet-rings';
 import type { StarMaterialHandle } from './star-material';
@@ -87,9 +88,11 @@ function makePools(): BodyPools {
   const planetHandle = () => ({ dispose: vi.fn(), setFill: vi.fn(), setPlanet: vi.fn() }) as unknown as PlanetMaterialHandle;
   const ringHandle = () => ({ dispose: vi.fn(), setRing: vi.fn() }) as unknown as RingMaterialHandle;
   const atmosphereHandle = () => ({ dispose: vi.fn(), setLight: vi.fn(), setLook: vi.fn(() => 1.15) }) as unknown as AtmosphereMaterialHandle;
+  const cloudHandle = () => ({ dispose: vi.fn(), setClouds: vi.fn(() => 1.006) }) as unknown as CloudMaterialHandle;
   const moonHandle = () => ({ dispose: vi.fn(), setFill: vi.fn(), setMoon: vi.fn() }) as unknown as PlanetMaterialHandle;
   return {
     atmosphere: new RecyclePool(() => ({ handle: atmosphereHandle(), mesh: new Mesh() })),
+    cloud: new RecyclePool(() => ({ handle: cloudHandle(), mesh: new Mesh() })),
     generic: new RecyclePool(() => ({ handle: new MeshStandardMaterial(), mesh: new Mesh() })),
     moon: new RecyclePool(() => ({ handle: moonHandle(), mesh: new Mesh() })),
     planet: new RecyclePool(() => ({ handle: planetHandle(), mesh: new Mesh() })),
@@ -233,21 +236,43 @@ describe('bodyPasses', () => {
   });
 
   it('wraps a planet with an atmosphere in an unpickable, oblate glow shell', () => {
+    const pools = makePools();
     const group = new Group();
-    const passes = new BodyPasses(makePools(), group);
+    const passes = new BodyPasses(pools, group);
     const world = makeWorld();
     const earth = { ...EARTH, rotationPeriod: 5 };
     addPlanet(world, 2, 3, earth);
     passes.renderBodies(world, FRAME, null);
     const planet = meshes(group).find(m => (m.userData as { kind?: string }).kind === 'planet')!;
-    const shell = meshes(group).find(m => m !== planet)!;
-    expect(meshes(group)).toHaveLength(2);
+    const shells: Mesh[] = [];
+    pools.atmosphere.forEach(e => shells.push(e.mesh));
+    const shell = shells[0]!;
+    expect(meshes(group)).toContain(shell);
     expect((shell.userData as { kind?: string }).kind).toBeUndefined();
     expect(shell.position.toArray()).toEqual([2, 3, 0]);
     expect(shell.scale.x).toBeCloseTo(0.5 * 1.15);
     expect(planet.scale.y).toBeLessThan(planet.scale.x);
     expect(shell.scale.y / shell.scale.x).toBeCloseTo(planet.scale.y / planet.scale.x);
     expect(shell.quaternion.angleTo(planet.quaternion)).toBeCloseTo(0);
+  });
+
+  it('gives a rocky world with an atmosphere a cloud shell under the glow, and none to an airless one', () => {
+    const pools = makePools();
+    const group = new Group();
+    const passes = new BodyPasses(pools, group);
+    const world = makeWorld();
+    addPlanet(world, 0, 0, EARTH);
+    addPlanet(world, 5, 0, PLANET);
+    passes.renderBodies(world, FRAME, null);
+    const clouds: Mesh[] = [];
+    pools.cloud.forEach(e => clouds.push(e.mesh));
+    const glows: Mesh[] = [];
+    pools.atmosphere.forEach(e => glows.push(e.mesh));
+    expect(clouds).toHaveLength(1);
+    expect(clouds[0]!.position.x).toBe(0);
+    expect(clouds[0]!.scale.x).toBeCloseTo(0.5 * 1.006);
+    expect((clouds[0]!.userData as { kind?: string }).kind).toBeUndefined();
+    expect(clouds[0]!.renderOrder).toBeLessThan(glows[0]!.renderOrder);
   });
 
   it('darkens the glow when no star light is placed', () => {

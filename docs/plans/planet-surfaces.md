@@ -187,7 +187,7 @@ later phase reuses.
 - [x] **Backend switch.** A button reloads the lab on forced WebGL2 (and back)
       to compare against WebGPU.
 - [x] **Decide §3.2** (baked vs per-pixel) using the lab: Pierre compared the
-      probe on both paths at small sizes — **baked** (§13).
+      probe on both paths at small sizes — **baked** (§14).
 
 ## 6. Phase 1 — Atmosphere rim glow
 
@@ -277,11 +277,31 @@ Moons reuse the rocky shader through the shared planet material
 - [x] Per-moon variety from a hash of its mass, radius and density.
 - [ ] Tuned in the lab by Pierre.
 
-## 9. Later phases (sketch — expanded when reached)
+## 9. Phase 4 — Cloud layer
 
-- **Phase 4 — Cloud layer.** Thin, slow cloud cover on atmospheric worlds
-  (separate translucent shell mesh vs a layer in the surface material — decided
-  when reached, in the lab). Static first, like everything else.
+Rocky / super-Earth worlds that keep an atmosphere get a cloud layer
+(`cloud-material.ts`); giants are Phase 5 (their visible face is cloud).
+
+- [x] Form: a separate lit, translucent **shell mesh** `CLOUD_ALTITUDE` radii
+      above the surface, following the planet's pose, oblate scale and spin —
+      not a layer in the surface material, which would inherit the terrain
+      relief, could never drift, and would sit flat on the ground. Drawn
+      after the planet and before the additive rim glow (`renderOrder`).
+- [x] Pattern: domain-warped fBM (swirling weather systems), compressed in
+      latitude so clouds stream east–west, thresholded to the family's
+      coverage, over an optional uniform haze for total overcast; baked once
+      per planet (`CLOUD_MAP_WIDTH`), re-baked only when look or seed change.
+- [x] Per-family looks in `CLOUD_LOOKS` (`cloudKind`): Earth-like N₂/CO₂ →
+      broken white swirls; runaway CO₂ → Venus-like pale-yellow overcast that
+      hides the ground; thin N₂ → sparse wisps.
+- [x] Lit by the star like the planet (night side and terminator for free);
+      per-planet variety from the planet's variety seed.
+- [x] Lab: a "Clouds" folder with the detected family, a force-family
+      override and live per-family sliders.
+- [ ] Tuned in the lab by Pierre.
+
+## 10. Later phases (sketch — expanded when reached)
+
 - **Phase 5 — Gas / ice giants, static.** Follow the recipe in
   [gas-giant-shading.md](../research/gas-giant-shading.md) §4, minus motion:
   - Multi-stop **latitude palette** (not a two-colour sine), belts/zones as a
@@ -303,7 +323,7 @@ Moons reuse the rocky shader through the shared planet material
   drift would decouple from it under time-warp. Skippable: real giants show no
   perceptible motion at human timescales.
 
-## 10. Invariants
+## 11. Invariants
 
 - Visual only: no generation / sim / determinism impact; no new sampled fields
   or RNG draws (§4).
@@ -318,7 +338,7 @@ Moons reuse the rocky shader through the shared planet material
   `config/render` knobs (set via the lab).
 - The lab is dev-only and never reachable from the shipped UI.
 
-## 11. Testing
+## 12. Testing
 
 - Static pipeline only for the agent: `npm run build` (tsc + vite),
   `npm test`, and `npm run lint`. Shaders have no unit tests; the pure
@@ -329,13 +349,12 @@ Moons reuse the rocky shader through the shared planet material
   terminator right, no shimmer on small planets, WebGL2 fallback matches
   WebGPU, no perf regression.
 
-## 12. Open questions
+## 13. Open questions
 
-- **Cloud layer** — shell mesh vs material layer (Phase 4).
 - **Gas-giant hybrid** — only if procedural falls short (Phase 5).
 - **Band-motion timebase** — wall-clock vs sim time (Phase 6).
 
-## 13. Decisions log
+## 14. Decisions log
 
 | Date | Question | Decision |
 | ---- | -------- | -------- |
@@ -352,3 +371,4 @@ Moons reuse the rocky shader through the shared planet material
 | 2026-09-30 | Rim glow form | Additive shell mesh with an analytic atmosphere-column profile (glows past the silhouette); Fresnel-only rejected. |
 | 2026-09-30 | Rocky relief | Relief normal from the baked height along the sphere's analytic tangent frame; three's screen-derivative `bumpMap` rejected (strength varies with zoom). |
 | 2026-09-30 | Moon surfaces | Rocky shader reused via `setMoon`; host temperature + density pick regolith vs ice; 256-wide maps; tidally locked moons face their host. |
+| 2026-09-30 | Cloud layer form | Separate lit translucent shell with a baked domain-warped cloud map per family; a layer in the surface material rejected (inherits relief, cannot drift). Static. |

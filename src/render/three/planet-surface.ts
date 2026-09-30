@@ -275,3 +275,33 @@ export function moonSurface(moon: MoonPhysical, hostTempK: number, rocky: RockyT
     },
   };
 }
+
+/** Atmosphere families that form a cloud layer on rocky worlds (giants' clouds are their surface). */
+export type CloudKind = Extract<AtmosphereKind, 'co2-runaway' | 'n2-co2' | 'thin-n2'>;
+
+export const CLOUD_KINDS: readonly CloudKind[] = ['co2-runaway', 'n2-co2', 'thin-n2'];
+
+/** How one family's cloud layer looks (tuned in the planet lab). */
+export interface CloudLook {
+  color: string;
+  /** Fraction of the sky covered by cloud (0..1). */
+  coverage: number;
+  /** Uniform veil under the cloud pattern (0..1); near 1 = total overcast. */
+  haze: number;
+  /** Cloud pattern frequency: larger = smaller cloud systems. */
+  scale: number;
+  /** Cloud edge softness. */
+  softness: number;
+  /** Latitude compression: > 1 stretches clouds east–west, like zonal winds. */
+  stretch: number;
+  /** Domain-warp strength: swirl of the cloud systems. */
+  swirl: number;
+}
+
+/** The planet's cloud family, or null (airless, giant, or a family without clouds). */
+export function cloudKind(planet: PlanetPhysical): CloudKind | null {
+  if (!isRockyType(planet.type))
+    return null;
+  const kind = atmosphereKind(planet);
+  return kind !== null && (CLOUD_KINDS as readonly string[]).includes(kind) ? kind as CloudKind : null;
+}

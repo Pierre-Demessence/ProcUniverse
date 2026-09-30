@@ -1,9 +1,9 @@
 import { SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 
-import { ATMOSPHERE_LOOKS, MOON_SURFACE, ROCKY_SURFACE } from '../../config/render';
+import { ATMOSPHERE_LOOKS, CLOUD_LOOKS, MOON_SURFACE, ROCKY_SURFACE } from '../../config/render';
 import { moonPhysicalFromMass } from '../../generation/moons';
-import { ATMOSPHERE_KINDS, atmosphereColumn, atmosphereKind, equirectDirection, isIcyMoon, moonSurface, planetVarietySeed, rockPalette, rockyRegime, shellRadius, VARIETY_SEED_RANGE } from './planet-surface';
+import { ATMOSPHERE_KINDS, atmosphereColumn, atmosphereKind, CLOUD_KINDS, cloudKind, equirectDirection, isIcyMoon, moonSurface, planetVarietySeed, rockPalette, rockyRegime, shellRadius, VARIETY_SEED_RANGE } from './planet-surface';
 
 const JUPITER = { equilibriumTemp: 110, mass: 317.8, radius: 11.2, rotationPeriod: 9.9 };
 
@@ -152,5 +152,24 @@ describe('moonSurface', () => {
     expect(regime.capStart).toBeGreaterThan(1);
     expect(tuning.craterDensity).toBe(MOON_SURFACE.craterDensity);
     expect(tuning.seaLevel).toBe(ROCKY_SURFACE.seaLevel);
+  });
+});
+
+describe('cloudKind', () => {
+  const EARTH = { density: 5.5, equilibriumTemp: 255, hasRings: false, inHabitableZone: true, insolation: 1, mass: 1, moonRichness: 0.5, obliquity: 23, obliquityAzimuth: 0, radius: 1, rotationPeriod: 24, tidallyLocked: false, type: 'rocky', waterState: 'liquid' } as const;
+
+  it('clouds rocky worlds that keep an atmosphere, by family', () => {
+    expect(cloudKind(EARTH)).toBe('n2-co2');
+    expect(cloudKind({ ...EARTH, equilibriumTemp: 700, insolation: 1.9 })).toBe('co2-runaway');
+  });
+
+  it('leaves airless worlds and giants without a cloud layer', () => {
+    expect(cloudKind({ ...EARTH, insolation: 1e6 })).toBeNull();
+    expect(cloudKind({ ...EARTH, mass: 317.8, radius: 11.2, type: 'gas-giant' })).toBeNull();
+  });
+
+  it('has a look for every cloud family', () => {
+    for (const kind of CLOUD_KINDS)
+      expect(CLOUD_LOOKS[kind]).toBeDefined();
   });
 });

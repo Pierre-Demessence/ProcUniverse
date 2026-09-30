@@ -6,7 +6,7 @@
  * changes the view. The universe-defining knobs live in `data.ts`.
  */
 
-import type { AtmosphereKind, AtmosphereLook, MoonTuning, RockyTuning } from '../render/three/planet-surface';
+import type { AtmosphereKind, AtmosphereLook, CloudKind, CloudLook, MoonTuning, RockyTuning } from '../render/three/planet-surface';
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
@@ -71,6 +71,17 @@ export const ATMOSPHERE_LOOKS: Readonly<Record<AtmosphereKind, AtmosphereLook>> 
 // as the world cools from `capWarmK` to `capColdK`; lava glows in the lowlands
 // between `moltenStartK` and `moltenFullK`. Relief is exaggerated so terrain
 // catches the light. Tuned in the planet lab (`/lab.html`).
+// Cloud layer on rocky worlds that keep an atmosphere (Phase 4): a lit,
+// translucent shell `CLOUD_ALTITUDE` planet radii above the surface, baked once
+// per planet at `CLOUD_MAP_WIDTH`. Earth-like air → broken swirls; runaway CO₂
+// → Venus-like total overcast; thin N₂ → sparse wisps. Tuned in the planet lab.
+export const CLOUD_ALTITUDE = 0.006;
+export const CLOUD_MAP_WIDTH = 1024;
+export const CLOUD_LOOKS: Readonly<Record<CloudKind, CloudLook>> = {
+  'co2-runaway': { color: '#efe2b8', coverage: 0.9, haze: 0.92, scale: 2.5, softness: 0.25, stretch: 2.5, swirl: 1.5 },
+  'n2-co2': { color: '#f4f6f8', coverage: 0.5, haze: 0, scale: 3, softness: 0.08, stretch: 1.6, swirl: 2.5 },
+  'thin-n2': { color: '#e6e9ee', coverage: 0.15, haze: 0, scale: 4, softness: 0.1, stretch: 2, swirl: 1.5 },
+};
 // Moon surfaces (Phase 3): airless bodies at their host planet's temperature,
 // grey regolith or ice by bulk density, more heavily cratered than planets.
 export const MOON_SURFACE: Readonly<MoonTuning> = {
