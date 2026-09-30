@@ -10,7 +10,7 @@ runs:
     - uses: actions/checkout@v4
       with:
         repository: Pierre-Demessence/Entity-Cornponent-System-Engine
-        ref: 557831584da3e64d87604fe0a41224280db82d4d
+        ref: 1afbcb627be460eb796ece11bc0cb39ed9e7c1d2
         path: Entity-Cornponent-System-Engine
     - uses: actions/setup-node@v4
       with:
