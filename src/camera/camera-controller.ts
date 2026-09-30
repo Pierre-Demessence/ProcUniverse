@@ -2,9 +2,9 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { makeCamera, viewToWorld } from '@pierre/ecs/modules/camera';
 import { projectPointer } from '@pierre/ecs/modules/input';
-import { clamp } from '@pierre/ecs/modules/math';
+import { clamp, wrap } from '@pierre/ecs/modules/math';
 
-import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, TILT_MAX, TILT_MIN, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
+import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
 
 export interface CameraController {
   /** Orbit azimuth (radians) for the 3D system view; ignored by the 2D path. */
@@ -14,7 +14,7 @@ export interface CameraController {
   readonly flat: boolean;
   /** Out-of-plane height (z) of the 3D camera focus; moved by the 3D pan and lock. */
   readonly focusZ: number;
-  /** Polar tilt (radians) from straight-down for the 3D system view. */
+  /** Polar tilt (radians, wrapped to [0, 2π)) from straight-down for the 3D system view. */
   readonly tilt: number;
   dispose: () => void;
   /** Reset the 3D orbit/tilt (and focus height) to the default framing. */
@@ -114,10 +114,11 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       // Horizontal drag spins the view (azimuth) in both modes; vertical drag
       // tilts only when NOT flat — flatten locks the top-down tilt while still
       // letting you pivot the map around its centre. The stored tilt is untouched
-      // while flat, so clearing flat restores it.
+      // while flat, so clearing flat restores it. Tilt is unbounded (trackball
+      // style: over the pole, under the disk and back round), wrapped to one turn.
       azimuth += (bx - lastX) * ORBIT_SENSITIVITY;
       if (!flat)
-        tilt = clamp(tilt + (by - lastY) * ORBIT_SENSITIVITY, TILT_MIN, TILT_MAX);
+        tilt = wrap(tilt + (by - lastY) * ORBIT_SENSITIVITY, 0, 2 * Math.PI);
     }
     else if (panMode3D) {
       // Plane-anchored perspective view: slide the focus in true screen space so
@@ -224,7 +225,7 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
     },
     restoreOrbit(az: number, ti: number, fz: number): void {
       azimuth = az;
-      tilt = Number.isFinite(ti) ? clamp(ti, TILT_MIN, TILT_MAX) : TILT_DEFAULT;
+      tilt = Number.isFinite(ti) ? wrap(ti, 0, 2 * Math.PI) : TILT_DEFAULT;
       focusZ = Number.isFinite(fz) ? fz : 0;
     },
     setFlat(next: boolean): void {

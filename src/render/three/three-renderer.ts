@@ -655,9 +655,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * camera x,y at z=0). Distance is derived from `zoom` so the framing roughly
    * matches the 2D view. The orbit is anchored to the focused system's plane:
    * `tilt` is the polar angle away from the plane normal (0 = looking straight
-   * down it, so orbits read as circles) and `azimuth` swings around it. `up` is
-   * the plane normal, so a near-zero tilt reads as a true top-down of the system
-   * regardless of how the disk is oriented in space.
+   * down it, so orbits read as circles) and `azimuth` swings around it. Any tilt
+   * is valid: past π/2 the camera is under the disk, and past π it has rolled
+   * over the far pole (trackball style).
    */
   private syncPerspective(camera: Camera, azimuth: number, tilt: number, sceneRadius: number, focusZ: number, planeNormal: readonly [number, number, number]): void {
     const fovRad = CAMERA_FOV_DEG * DEG2RAD;
@@ -700,7 +700,14 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     p.near = near;
     p.far = far;
     p.position.set(focusX + distance * ox, focusY + distance * oy, focusZ + distance * oz);
-    p.up.set(nx, ny, nz);
+    // Screen-up is the tilt tangent sinT·N − cosT·(azimuth dir), not the fixed
+    // normal N: it stays well-defined at the poles and rolls continuously over
+    // them, so the tilt can wrap a full turn. Matches the controller's pan basis.
+    p.up.set(
+      sinTilt * nx - cosTilt * (cosA * ux + sinA * vx),
+      sinTilt * ny - cosTilt * (cosA * uy + sinA * vy),
+      sinTilt * nz - cosTilt * (cosA * uz + sinA * vz),
+    );
     p.lookAt(focusX, focusY, focusZ);
     p.updateProjectionMatrix();
   }

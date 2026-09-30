@@ -30,15 +30,11 @@ export const REBASE_SECTORS = 8;
 // you can orbit + tilt with a right-drag (left-drag still pans, wheel still
 // zooms). `CAMERA_FOV_DEG` is the vertical field of view; the camera distance is
 // derived from `zoom` so the framing matches the 2D view. `ORBIT_SENSITIVITY` is
-// radians of orbit per drag pixel; `TILT_MIN/MAX` bound the polar angle away from
-// the focused system's plane normal — `TILT_MIN` keeps it off the exact top-down
-// pole (where the look-at direction meets the up axis and the orientation
-// degenerates) and `TILT_MAX` stops just short of edge-on, so the camera stays
-// above the disk and the pan direction never inverts; `TILT_DEFAULT` is the
-// gentle starting tilt. `FLAT_TILT` is the polar angle the "Flatten" toggle
-// drops to — as close to straight-down the system plane as it can get while
-// staying off the degenerate pole, so the view reads as top-down (orbits as
-// circles) without the orientation collapsing.
+// radians of orbit per drag pixel. The tilt (polar angle away from the focused
+// system's plane normal) is unbounded — the camera can roll over the pole, under
+// the disk and back round, trackball style; `TILT_DEFAULT` is the gentle starting
+// tilt. `FLAT_TILT` is the polar angle the "Flatten" toggle drops to: straight
+// down the system plane, so orbits read as circles.
 // `SPHERE_*_SEGMENTS` set the sphere tesselation; `STAR_SPIN_RATE` spins stars
 // (which carry no rotation data) slowly. `LIGHT_AMBIENT` is the small fill that
 // keeps a body's star-facing-away side readable; `LIGHT_STAR_BASE` is the
@@ -46,10 +42,8 @@ export const REBASE_SECTORS = 8;
 // (scaled per star by luminosity in `starLightIntensity`).
 export const CAMERA_FOV_DEG = 50;
 export const ORBIT_SENSITIVITY = 0.006;
-export const TILT_MIN = 0.08;
-export const TILT_MAX = 1.45;
 export const TILT_DEFAULT = 0.35;
-export const FLAT_TILT = 0.02;
+export const FLAT_TILT = 0;
 export const SPHERE_WIDTH_SEGMENTS = 32;
 export const SPHERE_HEIGHT_SEGMENTS = 24;
 // Width (px) of a planet's baked equirectangular surface map (height = width/2);
