@@ -1,20 +1,22 @@
 /**
  * Shared lit planet material (docs/plans/planet-surfaces.md §3). Planets stay
  * lit by the star's point light — only the albedo (plus relief and any thermal
- * glow) changes — so the day/night terminator keeps working. Planet types
- * without a surface slice yet keep the flat fill.
+ * glow) changes — so the day/night terminator keeps working. Moons use the
+ * same material with a moon surface. Planet types without a surface slice yet
+ * keep the flat fill.
  */
 
+import type { MoonPhysical } from '../../generation/moons';
 import type { PlanetPhysical } from '../../generation/planets';
-import type { RockyTuning } from './planet-surface';
+import type { MoonTuning, RockyRegime, RockyTuning } from './planet-surface';
 import type { RockySurface } from './rocky-surface';
 import type { PlanetSurface, SurfaceBake } from './surface-bake';
 
 import { positionLocal } from 'three/tsl';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 
-import { PLANET_SURFACE_MAP_WIDTH, ROCKY_SURFACE } from '../../config/render';
-import { isRockyType, rockyRegime } from './planet-surface';
+import { MOON_SURFACE, PLANET_SURFACE_MAP_WIDTH, ROCKY_SURFACE } from '../../config/render';
+import { isRockyType, moonSurface, rockyRegime } from './planet-surface';
 import { createRockySurface } from './rocky-surface';
 import { createSurfaceBake } from './surface-bake';
 
@@ -29,6 +31,8 @@ export interface PlanetMaterialHandle {
   refreshSurface: () => void;
   /** Flat base colour (raw sRGB hex), shown while no surface is installed. */
   setFill: (colorHex: string) => void;
+  /** Show a moon's surface: an airless body at its host planet's temperature `hostTempK`. */
+  setMoon: (moon: MoonPhysical, hostTempK: number, rocky?: RockyTuning, tuning?: MoonTuning) => void;
   /**
    * Show the game's surface for this planet (rocky types today; the flat fill
    * otherwise). Cheap to call every frame: it re-bakes only when the planet's
@@ -41,8 +45,11 @@ export interface PlanetMaterialHandle {
   surface: () => PlanetSurface | null;
 }
 
-/** One handle per planet mesh; a system holds only a handful of planets. */
-export function createPlanetMaterial(): PlanetMaterialHandle {
+/**
+ * One handle per planet or moon mesh. `mapWidth` sizes the baked surface map
+ * (smaller for moons, which are many and small on screen).
+ */
+export function createPlanetMaterial(mapWidth = PLANET_SURFACE_MAP_WIDTH): PlanetMaterialHandle {
   const material = new MeshStandardNodeMaterial({ metalness: 0, roughness: 0.95 });
   let bake: SurfaceBake | null = null;
   let installed: PlanetSurface | null = null;
@@ -59,7 +66,7 @@ export function createPlanetMaterial(): PlanetMaterialHandle {
     if (surface) {
       let sampled;
       if (source === 'baked') {
-        bake = createSurfaceBake(surface, PLANET_SURFACE_MAP_WIDTH);
+        bake = createSurfaceBake(surface, mapWidth);
         sampled = bake.node;
         if (surface.relief)
           material.normalNode = bake.reliefNormal(surface.relief);
@@ -74,6 +81,21 @@ export function createPlanetMaterial(): PlanetMaterialHandle {
     material.needsUpdate = true;
   };
 
+  /**
+   * Install the rocky surface with these inputs. Cheap every frame: it re-bakes
+   * only when the derived inputs change (e.g. a pooled mesh reused for another body).
+   */
+  const showRocky = (tuning: RockyTuning, regime: RockyRegime): void => {
+    rocky ??= createRockySurface();
+    rocky.set(tuning, regime);
+    const key = JSON.stringify(regime);
+    if (installed !== rocky.surface)
+      setSurface(rocky.surface);
+    else if (key !== regimeKey)
+      bake?.invalidate();
+    regimeKey = key;
+  };
+
   return {
     material,
     setSurface,
@@ -86,23 +108,15 @@ export function createPlanetMaterial(): PlanetMaterialHandle {
     setFill: (colorHex) => {
       material.color.set(colorHex);
     },
+    setMoon: (moon, hostTempK, rockyTuning = ROCKY_SURFACE, tuning = MOON_SURFACE) => {
+      const inputs = moonSurface(moon, hostTempK, rockyTuning, tuning);
+      showRocky(inputs.tuning, inputs.regime);
+    },
     setPlanet: (planet, tuning = ROCKY_SURFACE) => {
-      if (!isRockyType(planet.type)) {
-        if (installed)
-          setSurface(null);
-        return;
-      }
-      rocky ??= createRockySurface();
-      const regime = rockyRegime(planet, tuning);
-      rocky.set(tuning, regime);
-      const key = JSON.stringify(regime);
-      if (installed !== rocky.surface) {
-        setSurface(rocky.surface);
-      }
-      else if (key !== regimeKey) {
-        bake?.invalidate();
-      }
-      regimeKey = key;
+      if (isRockyType(planet.type))
+        showRocky(tuning, rockyRegime(planet, tuning));
+      else if (installed)
+        setSurface(null);
     },
   };
 }

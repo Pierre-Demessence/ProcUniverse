@@ -187,7 +187,7 @@ later phase reuses.
 - [x] **Backend switch.** A button reloads the lab on forced WebGL2 (and back)
       to compare against WebGPU.
 - [x] **Decide §3.2** (baked vs per-pixel) using the lab: Pierre compared the
-      probe on both paths at small sizes — **baked** (§12).
+      probe on both paths at small sizes — **baked** (§13).
 
 ## 6. Phase 1 — Atmosphere rim glow
 
@@ -245,15 +245,40 @@ knobs in `ROCKY_SURFACE` (`config/render`) and per-planet inputs from
 - [x] Lab: a `planet` surface mode (what the game draws), a "This planet gets"
       readout, sliders for every `ROCKY_SURFACE` knob, and a height view on
       the flat map.
-- [ ] Tuned in the lab against real generated planets of each regime.
+- [x] Tuned in the lab against real generated planets of each regime
+      (starting values accepted as-is).
 - [ ] Bake cost on system entry (each rocky planet bakes a 1024×512 map on
       first draw) checked in-app; stagger bakes if it hitches.
 
-## 8. Later phases (sketch — expanded when reached)
+## 8. Phase 3 — Moon surfaces
 
-- **Phase 3 — Moon surfaces.** The rocky surface trimmed to grey/icy airless
-  bodies: craters / maria-like dark patches, no oceans or atmosphere, so moons
-  read as small bodies rather than mini-planets.
+Moons reuse the rocky shader through the shared planet material
+(`setMoon`), with `MOON_SURFACE` knobs (`config/render`) and inputs from
+`moonSurface` (`planet-surface.ts`).
+
+- [x] Airless bodies at their host planet's equilibrium temperature (moons
+      share its distance from the star): full craters, no oceans, caps or rim
+      glow; lava only if roasting.
+- [x] Grey regolith or ice by bulk density (`icyDensity`), ice only where cold
+      enough to survive (`iceStableK`); the generator's mass–radius law makes
+      small moons low-density, so small cold moons read icy.
+- [x] Heavier cratering and their own terrain scale (`MOON_SURFACE` overrides
+      the matching rocky knobs); lowland/highland blend gives maria-like dark
+      patches.
+- [x] Smaller baked maps (`MOON_SURFACE_MAP_WIDTH` = 256): a giant can hold
+      dozens of moons and a 1024-wide half-float map with mips is ~5 MB.
+- [x] Orientation: pole along the host's spin axis (moons orbit in its
+      equatorial plane); tidally locked moons keep local +X facing the host.
+      Moons previously had no rotation.
+- [x] Moons get their own pool (`BodyPools.moon`); the generic lit pool now
+      serves only black holes.
+- [x] Lab: a "Moon" folder previews a moon of the current planet (mass slider,
+      radius / density / icy readout, moon look knobs) at the in-game map size.
+- [x] Per-moon variety from a hash of its mass, radius and density.
+- [ ] Tuned in the lab by Pierre.
+
+## 9. Later phases (sketch — expanded when reached)
+
 - **Phase 4 — Cloud layer.** Thin, slow cloud cover on atmospheric worlds
   (separate translucent shell mesh vs a layer in the surface material — decided
   when reached, in the lab). Static first, like everything else.
@@ -278,7 +303,7 @@ knobs in `ROCKY_SURFACE` (`config/render`) and per-planet inputs from
   drift would decouple from it under time-warp. Skippable: real giants show no
   perceptible motion at human timescales.
 
-## 9. Invariants
+## 10. Invariants
 
 - Visual only: no generation / sim / determinism impact; no new sampled fields
   or RNG draws (§4).
@@ -293,7 +318,7 @@ knobs in `ROCKY_SURFACE` (`config/render`) and per-planet inputs from
   `config/render` knobs (set via the lab).
 - The lab is dev-only and never reachable from the shipped UI.
 
-## 10. Testing
+## 11. Testing
 
 - Static pipeline only for the agent: `npm run build` (tsc + vite),
   `npm test`, and `npm run lint`. Shaders have no unit tests; the pure
@@ -304,13 +329,13 @@ knobs in `ROCKY_SURFACE` (`config/render`) and per-planet inputs from
   terminator right, no shimmer on small planets, WebGL2 fallback matches
   WebGPU, no perf regression.
 
-## 11. Open questions
+## 12. Open questions
 
 - **Cloud layer** — shell mesh vs material layer (Phase 4).
 - **Gas-giant hybrid** — only if procedural falls short (Phase 5).
 - **Band-motion timebase** — wall-clock vs sim time (Phase 6).
 
-## 12. Decisions log
+## 13. Decisions log
 
 | Date | Question | Decision |
 | ---- | -------- | -------- |
@@ -326,3 +351,4 @@ knobs in `ROCKY_SURFACE` (`config/render`) and per-planet inputs from
 | 2026-09-29 | Albedo source | **Baked per-planet maps** (mipmapped). Lab comparison: neither path flickered at 16–48 px, baked was smoother; octave-8 detail at 1024-wide maps looks good even close up. |
 | 2026-09-30 | Rim glow form | Additive shell mesh with an analytic atmosphere-column profile (glows past the silhouette); Fresnel-only rejected. |
 | 2026-09-30 | Rocky relief | Relief normal from the baked height along the sphere's analytic tangent frame; three's screen-derivative `bumpMap` rejected (strength varies with zoom). |
+| 2026-09-30 | Moon surfaces | Rocky shader reused via `setMoon`; host temperature + density pick regolith vs ice; 256-wide maps; tidally locked moons face their host. |

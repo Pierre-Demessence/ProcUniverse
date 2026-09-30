@@ -29,7 +29,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { pass } from 'three/tsl';
 import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
-import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH } from '../../config/render';
+import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH } from '../../config/render';
 import { galaxyAt } from '../../generation/galaxies';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, ringSegmentCount } from '../../sim/orbits';
@@ -213,6 +213,10 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       generic: new RecyclePool(() => {
         const handle = new MeshStandardMaterial({ metalness: 0, roughness: 0.95 });
         return { handle, mesh: new Mesh(this.sphereGeometry, handle) };
+      }),
+      moon: new RecyclePool(() => {
+        const handle = createPlanetMaterial(MOON_SURFACE_MAP_WIDTH);
+        return { handle, mesh: new Mesh(this.sphereGeometry, handle.material) };
       }),
       planet: new RecyclePool(() => {
         const handle = createPlanetMaterial();

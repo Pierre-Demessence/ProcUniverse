@@ -47,12 +47,17 @@ const MOON_LOCK_CHANCE = 0.9;
  */
 export function sampleMoon(rng: RandomFn): MoonPhysical {
   const mass = 10 ** lerp(Math.log10(MOON_MASS_MIN), Math.log10(MOON_MASS_MAX), rng());
+  return moonPhysicalFromMass(mass, rng() < MOON_LOCK_CHANCE);
+}
+
+/** A moon's physical state from its mass (M⊕) via the terran mass–radius law; no draws. */
+export function moonPhysicalFromMass(mass: number, tidallyLocked: boolean): MoonPhysical {
   const radius = massToRadius(mass);
   return {
     density: (MOON_EARTH_DENSITY * mass) / radius ** 3,
     mass,
     radius,
-    tidallyLocked: rng() < MOON_LOCK_CHANCE,
+    tidallyLocked,
   };
 }
 

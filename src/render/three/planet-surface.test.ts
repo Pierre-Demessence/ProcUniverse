@@ -1,8 +1,9 @@
 import { SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 
-import { ATMOSPHERE_LOOKS, ROCKY_SURFACE } from '../../config/render';
-import { ATMOSPHERE_KINDS, atmosphereColumn, atmosphereKind, equirectDirection, planetVarietySeed, rockPalette, rockyRegime, shellRadius, VARIETY_SEED_RANGE } from './planet-surface';
+import { ATMOSPHERE_LOOKS, MOON_SURFACE, ROCKY_SURFACE } from '../../config/render';
+import { moonPhysicalFromMass } from '../../generation/moons';
+import { ATMOSPHERE_KINDS, atmosphereColumn, atmosphereKind, equirectDirection, isIcyMoon, moonSurface, planetVarietySeed, rockPalette, rockyRegime, shellRadius, VARIETY_SEED_RANGE } from './planet-surface';
 
 const JUPITER = { equilibriumTemp: 110, mass: 317.8, radius: 11.2, rotationPeriod: 9.9 };
 
@@ -131,5 +132,25 @@ describe('rOCKY_SURFACE', () => {
   it('lists palette anchors in ascending temperature', () => {
     const temps = ROCKY_SURFACE.anchors.map(a => a.tempK);
     expect(temps).toEqual([...temps].sort((a, b) => a - b));
+  });
+});
+
+describe('moonSurface', () => {
+  const small = moonPhysicalFromMass(1e-3, true);
+  const big = moonPhysicalFromMass(0.04, true);
+
+  it('makes a small cold moon icy and a big or warm one rocky', () => {
+    expect(isIcyMoon(small, 100, MOON_SURFACE)).toBe(true);
+    expect(isIcyMoon(big, 100, MOON_SURFACE)).toBe(false);
+    expect(isIcyMoon(small, 300, MOON_SURFACE)).toBe(false);
+  });
+
+  it('is airless: full craters, no ocean, no caps, moon knobs override rocky ones', () => {
+    const { regime, tuning } = moonSurface(big, 250, ROCKY_SURFACE, MOON_SURFACE);
+    expect(regime.ocean).toBe(false);
+    expect(regime.craters).toBe(1);
+    expect(regime.capStart).toBeGreaterThan(1);
+    expect(tuning.craterDensity).toBe(MOON_SURFACE.craterDensity);
+    expect(tuning.seaLevel).toBe(ROCKY_SURFACE.seaLevel);
   });
 });

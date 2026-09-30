@@ -5,25 +5,26 @@
  * `atmosphere-material.ts`) mirrors the maths here.
  */
 
+import type { MoonPhysical } from '../../generation/moons';
 import type { PlanetPhysical, PlanetType } from '../../generation/planets';
 
 import { atmosphereType, escapeVelocity, retainsAtmosphere, surfaceTemperature } from '../../generation/planets';
 
-/** Range of the per-planet noise offset returned by `planetVarietySeed`. */
+/** Range of the per-body noise offset returned by `varietySeed`. */
 export const VARIETY_SEED_RANGE = 1000;
 
 const scratch = new DataView(new ArrayBuffer(8));
 
 /**
- * A stable per-planet noise offset in `[0, VARIETY_SEED_RANGE)`, hashed from
- * already-generated physical values so two same-type planets look different
+ * A stable per-body noise offset in `[0, VARIETY_SEED_RANGE)`, hashed from
+ * already-generated physical values so two same-type bodies look different
  * without a new RNG draw (the universe stays byte-identical).
  */
-export function planetVarietySeed(planet: Pick<PlanetPhysical, 'equilibriumTemp' | 'mass' | 'radius' | 'rotationPeriod'>): number {
+export function varietySeed(values: readonly number[]): number {
   // FNV-1a over the IEEE-754 bytes: every bit of each value contributes, so
-  // planets differing only in a low decimal still get unrelated offsets.
+  // bodies differing only in a low decimal still get unrelated offsets.
   let h = 0x811C9DC5;
-  for (const value of [planet.mass, planet.radius, planet.equilibriumTemp, planet.rotationPeriod]) {
+  for (const value of values) {
     scratch.setFloat64(0, value);
     for (let i = 0; i < 8; i++) {
       h ^= scratch.getUint8(i);
@@ -31,6 +32,11 @@ export function planetVarietySeed(planet: Pick<PlanetPhysical, 'equilibriumTemp'
     }
   }
   return ((h >>> 0) / 0x100000000) * VARIETY_SEED_RANGE;
+}
+
+/** `varietySeed` of a planet's physical values. */
+export function planetVarietySeed(planet: Pick<PlanetPhysical, 'equilibriumTemp' | 'mass' | 'radius' | 'rotationPeriod'>): number {
+  return varietySeed([planet.mass, planet.radius, planet.equilibriumTemp, planet.rotationPeriod]);
 }
 
 /**
@@ -225,5 +231,47 @@ export function rockyRegime(planet: PlanetPhysical, tuning: RockyTuning): RockyR
     ocean: planet.waterState === 'liquid' && molten === 0,
     seed: planetVarietySeed(planet),
     surfaceTempK,
+  };
+}
+
+/** Look knobs for moon surfaces: airless rocky or icy bodies (tuned in the planet lab). */
+export interface MoonTuning {
+  continentScale: number;
+  craterDensity: number;
+  craterDepth: number;
+  iceHigh: string;
+  iceLow: string;
+  /** Warmest host temperature at which a low-density moon keeps its ice. */
+  iceStableK: number;
+  /** Moons below this bulk density (g/cm³) are icy (when cold enough). */
+  icyDensity: number;
+  rockHigh: string;
+  rockLow: string;
+}
+
+/** Whether a moon reads as icy: low bulk density and cold enough to keep its ice. */
+export function isIcyMoon(moon: Pick<MoonPhysical, 'density'>, hostTempK: number, tuning: MoonTuning): boolean {
+  return moon.density < tuning.icyDensity && hostTempK < tuning.iceStableK;
+}
+
+/**
+ * Rocky-shader inputs for a moon: an airless body at its host planet's
+ * temperature — grey regolith or ice by density, full craters, no oceans or
+ * caps, lava only if roasting. Moon knobs override the matching rocky ones.
+ */
+export function moonSurface(moon: MoonPhysical, hostTempK: number, rocky: RockyTuning, tuning: MoonTuning): { regime: RockyRegime; tuning: RockyTuning } {
+  const icy = isIcyMoon(moon, hostTempK, tuning);
+  return {
+    tuning: { ...rocky, continentScale: tuning.continentScale, craterDensity: tuning.craterDensity, craterDepth: tuning.craterDepth },
+    regime: {
+      capStart: 2,
+      craters: 1,
+      high: hexToRgb(icy ? tuning.iceHigh : tuning.rockHigh),
+      low: hexToRgb(icy ? tuning.iceLow : tuning.rockLow),
+      molten: smoothstep(rocky.moltenStartK, rocky.moltenFullK, hostTempK),
+      ocean: false,
+      seed: varietySeed([moon.mass, moon.radius, moon.density]),
+      surfaceTempK: hostTempK,
+    },
   };
 }

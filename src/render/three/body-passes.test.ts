@@ -87,9 +87,11 @@ function makePools(): BodyPools {
   const planetHandle = () => ({ dispose: vi.fn(), setFill: vi.fn(), setPlanet: vi.fn() }) as unknown as PlanetMaterialHandle;
   const ringHandle = () => ({ dispose: vi.fn(), setRing: vi.fn() }) as unknown as RingMaterialHandle;
   const atmosphereHandle = () => ({ dispose: vi.fn(), setLight: vi.fn(), setLook: vi.fn(() => 1.15) }) as unknown as AtmosphereMaterialHandle;
+  const moonHandle = () => ({ dispose: vi.fn(), setFill: vi.fn(), setMoon: vi.fn() }) as unknown as PlanetMaterialHandle;
   return {
     atmosphere: new RecyclePool(() => ({ handle: atmosphereHandle(), mesh: new Mesh() })),
     generic: new RecyclePool(() => ({ handle: new MeshStandardMaterial(), mesh: new Mesh() })),
+    moon: new RecyclePool(() => ({ handle: moonHandle(), mesh: new Mesh() })),
     planet: new RecyclePool(() => ({ handle: planetHandle(), mesh: new Mesh() })),
     ring: new RecyclePool(() => ({ handle: ringHandle(), mesh: new Mesh() })),
     star: new RecyclePool(() => ({ handle: starHandle(), mesh: new Mesh() })),
@@ -260,7 +262,28 @@ describe('bodyPasses', () => {
     expect([color.r, color.g, color.b]).toEqual([0, 0, 0]);
   });
 
-  it('draws moons and black holes from the generic pool with their kinds', () => {
+  it('gives a moon its host planet temperature and turns a locked moon to face the host', () => {
+    const pools = makePools();
+    const group = new Group();
+    const passes = new BodyPasses(pools, group);
+    const world = makeWorld();
+    const host = addPlanet(world, 0, 0, { ...PLANET, equilibriumTemp: 123, obliquity: 0 });
+    const moon = addBody(world, 3, 4);
+    world.getStore(MoonPhysicalDef).set(moon, { ...MOON, tidallyLocked: true });
+    world.getStore(OrbitElementsDef).set(moon, { ...ORBIT, parent: host });
+    passes.renderBodies(world, FRAME, null);
+    const handles: PlanetMaterialHandle[] = [];
+    pools.moon.forEach(e => handles.push(e.handle));
+    expect(handles[0]!.setMoon).toHaveBeenCalledWith(expect.objectContaining({ tidallyLocked: true }), 123);
+    const mesh = meshes(group).find(m => (m.userData as { id: number }).id === moon)!;
+    const facing = new Vector3(1, 0, 0).applyQuaternion(mesh.quaternion);
+    expect(facing.x).toBeCloseTo(-0.6);
+    expect(facing.y).toBeCloseTo(-0.8);
+    const pole = new Vector3(0, 1, 0).applyQuaternion(mesh.quaternion);
+    expect(pole.z).toBeCloseTo(1);
+  });
+
+  it('draws moons and black holes with their kinds', () => {
     const group = new Group();
     const passes = new BodyPasses(makePools(), group);
     const world = makeWorld();

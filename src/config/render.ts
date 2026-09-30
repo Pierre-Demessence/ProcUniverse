@@ -6,7 +6,7 @@
  * changes the view. The universe-defining knobs live in `data.ts`.
  */
 
-import type { AtmosphereKind, AtmosphereLook, RockyTuning } from '../render/three/planet-surface';
+import type { AtmosphereKind, AtmosphereLook, MoonTuning, RockyTuning } from '../render/three/planet-surface';
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
@@ -51,6 +51,9 @@ export const SPHERE_HEIGHT_SEGMENTS = 24;
 // Width (px) of a planet's baked equirectangular surface map (height = width/2);
 // see docs/plans/planet-surfaces.md §3.2.
 export const PLANET_SURFACE_MAP_WIDTH = 1024;
+// Moons are small on screen and a giant can hold dozens, so their maps are
+// smaller (a 1024-wide half-float map with mips is ~5 MB of GPU memory).
+export const MOON_SURFACE_MAP_WIDTH = 256;
 // Atmosphere rim glow per atmosphere family (docs/plans/planet-surfaces.md
 // Phase 1): a soft halo just outside the limb on the sunlit side. Scale heights
 // are exaggerated far beyond the real ~0.1 % of a radius so the glow reads at
@@ -68,6 +71,19 @@ export const ATMOSPHERE_LOOKS: Readonly<Record<AtmosphereKind, AtmosphereLook>> 
 // as the world cools from `capWarmK` to `capColdK`; lava glows in the lowlands
 // between `moltenStartK` and `moltenFullK`. Relief is exaggerated so terrain
 // catches the light. Tuned in the planet lab (`/lab.html`).
+// Moon surfaces (Phase 3): airless bodies at their host planet's temperature,
+// grey regolith or ice by bulk density, more heavily cratered than planets.
+export const MOON_SURFACE: Readonly<MoonTuning> = {
+  continentScale: 2.2,
+  craterDensity: 0.75,
+  craterDepth: 0.45,
+  iceHigh: '#eef1f2',
+  iceLow: '#a9a39a',
+  iceStableK: 150,
+  icyDensity: 2.5,
+  rockHigh: '#a8a49e',
+  rockLow: '#56544f',
+};
 export const ROCKY_SURFACE: Readonly<RockyTuning> = {
   capColdK: 120,
   capColdStart: 0.35,

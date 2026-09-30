@@ -26,7 +26,7 @@ import type { StarMaterialHandle } from './star-material';
 
 import { Scene3DRenderer } from '@pierre/ecs/modules/render-scene3d';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
-import { Color, Quaternion, Vector3 } from 'three/webgpu';
+import { Color, Matrix4, Quaternion, Vector3 } from 'three/webgpu';
 
 import { ATMOSPHERE_LOOKS, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
 import { BodyVisualDef } from '../../generation/body-visual';
@@ -52,6 +52,12 @@ const NO_LIGHT = new Color(0, 0, 0);
 const tmpAxis = new Vector3();
 const tmpQuat = new Quaternion();
 const tmpQuat2 = new Quaternion();
+const tmpHost = new Vector3();
+const tmpFacing = new Vector3();
+const tmpSide = new Vector3();
+const tmpBasis = new Matrix4();
+/** Host temperature assumed for a moon whose host planet is not streamed in. */
+const FALLBACK_HOST_TEMP_K = 200;
 
 /** A pooled mesh together with whatever owns its material (a handle, or the material itself). */
 export interface PooledMesh<THandle> {
@@ -62,6 +68,7 @@ export interface PooledMesh<THandle> {
 export interface BodyPools {
   atmosphere: RecyclePool<PooledMesh<AtmosphereMaterialHandle>>;
   generic: RecyclePool<PooledMesh<MeshStandardMaterial>>;
+  moon: RecyclePool<PooledMesh<PlanetMaterialHandle>>;
   planet: RecyclePool<PooledMesh<PlanetMaterialHandle>>;
   ring: RecyclePool<PooledMesh<RingMaterialHandle>>;
   star: RecyclePool<PooledMesh<StarMaterialHandle>>;
@@ -158,6 +165,30 @@ function orientPlanet(mesh: Mesh, planet: PlanetPhysical, orbit: OrbitElements, 
   mesh.quaternion.multiplyQuaternions(tmpQuat2, tmpQuat);
 }
 
+/**
+ * Orient a moon: its pole along the host's spin axis (moons orbit in the host's
+ * equatorial plane). A tidally locked moon also turns its local +X toward the
+ * host, so it always shows the host the same hemisphere, as the Moon does Earth.
+ */
+function orientMoon(mesh: Mesh, locked: boolean, host: Vector3 | null, axis: Vector3 | null): void {
+  if (!axis) {
+    mesh.rotation.set(0, 0, 0);
+    return;
+  }
+  if (locked && host) {
+    tmpFacing.subVectors(host, mesh.position);
+    tmpFacing.addScaledVector(axis, -tmpFacing.dot(axis));
+    if (tmpFacing.lengthSq() > 0) {
+      tmpFacing.normalize();
+      tmpSide.crossVectors(tmpFacing, axis);
+      tmpBasis.makeBasis(tmpFacing, axis, tmpSide);
+      mesh.quaternion.setFromRotationMatrix(tmpBasis);
+      return;
+    }
+  }
+  mesh.quaternion.setFromUnitVectors(SPHERE_POLE, axis);
+}
+
 function stamp(mesh: Mesh, id: EntityId, kind: BodyKind): void {
   const data = mesh.userData as { id: number; kind: BodyKind };
   data.id = id;
@@ -205,7 +236,7 @@ export class BodyPasses {
   private frame = INITIAL_FRAME;
   private readonly graph: SceneGraph<PooledMesh<unknown>>;
   private light: PointLight | null = null;
-  private readonly moons: Scene3DRenderer<Entry<MeshStandardMaterial>, [BodyPose, MoonPhysical]>;
+  private readonly moons: Scene3DRenderer<Entry<PlanetMaterialHandle>, [BodyPose, MoonPhysical]>;
   readonly nearestStar: NearestStar = { distSq: Infinity, fill: DEFAULT_FILL, found: false, luminosity: 0, position: new Vector3() };
   private readonly planets: Scene3DRenderer<Entry<PlanetMaterialHandle>, [BodyPose, PlanetPhysical]>;
   private readonly pools: BodyPools;
@@ -219,7 +250,7 @@ export class BodyPasses {
     this.planets = makePass(pools.planet, world => selectPosed(world, PlanetPhysicalDef), (entry, row, world) => this.syncPlanet(entry, row, world));
     this.atmospheres = makePass(pools.atmosphere, selectAtmospheric, (entry, row, world) => this.syncAtmosphere(entry, row, world));
     this.rings = makePass(pools.ring, selectRinged, (entry, row) => this.syncRing(entry, row));
-    this.moons = makePass(pools.generic, world => selectPosed(world, MoonPhysicalDef), (entry, row) => this.syncGeneric(entry, row, 'moon'));
+    this.moons = makePass(pools.moon, world => selectPosed(world, MoonPhysicalDef), (entry, row, world) => this.syncMoon(entry, row, world));
     this.blackHoles = makePass(pools.generic, world => selectPosed(world, BlackHoleDef), (entry, row) => this.syncGeneric(entry, row, 'black-hole'));
   }
 
@@ -231,6 +262,7 @@ export class BodyPasses {
     this.pools.atmosphere.forEach(entry => entry.handle.dispose());
     this.pools.ring.forEach(entry => entry.handle.dispose());
     this.pools.generic.forEach(entry => entry.handle.dispose());
+    this.pools.moon.forEach(entry => entry.handle.dispose());
   }
 
   /** Detach every held mesh back to its pool. Call after a world reset: entity ids restart, so held meshes must not match new entities. */
@@ -292,6 +324,26 @@ export class BodyPasses {
     mesh.scale.setScalar(pose.radius);
     mesh.rotation.set(0, 0, 0);
     stamp(mesh, id, kind);
+  }
+
+  /** A moon: the moon surface at its host's temperature, oriented on the host's spin axis. */
+  private syncMoon({ handle, mesh }: Entry<PlanetMaterialHandle>, [id, pose, moon]: Scene3DEntry<[BodyPose, MoonPhysical]>, world: EcsWorld): void {
+    handle.setFill(pose.fill);
+    mesh.position.set(pose.x, pose.y, pose.z);
+    mesh.scale.setScalar(pose.radius);
+    stamp(mesh, id, 'moon');
+    const orbits = world.getStore(OrbitElementsDef);
+    const parent = orbits.get(id)?.parent ?? -1;
+    const hostId = parent as EntityId;
+    const host = parent >= 0 ? world.getStore(PlanetPhysicalDef).get(hostId) : undefined;
+    handle.setMoon(moon, host?.equilibriumTemp ?? FALLBACK_HOST_TEMP_K);
+    const hostOrbit = host ? orbits.get(hostId) : undefined;
+    if (host && hostOrbit)
+      planetSpinAxis(host, hostOrbit, tmpAxis);
+    const hostPosition = host ? world.getStore(Position3DDef).get(hostId) : undefined;
+    if (hostPosition)
+      tmpHost.set(hostPosition.x, hostPosition.y, hostPosition.z);
+    orientMoon(mesh, moon.tidallyLocked, hostPosition ? tmpHost : null, host && hostOrbit ? tmpAxis : null);
   }
 
   private syncPlanet({ handle, mesh }: Entry<PlanetMaterialHandle>, [id, pose, planet]: Scene3DEntry<[BodyPose, PlanetPhysical]>, world: EcsWorld): void {

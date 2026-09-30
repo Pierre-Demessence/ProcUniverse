@@ -8,7 +8,7 @@
 
 import type { PlanetPhysical } from '../generation/planets';
 import type { AlbedoSource } from '../render/three/planet-material';
-import type { AtmosphereKind, AtmosphereLook, RockyTuning } from '../render/three/planet-surface';
+import type { AtmosphereKind, AtmosphereLook, MoonTuning, RockyTuning } from '../render/three/planet-surface';
 import type { PlanetSurface } from '../render/three/surface-bake';
 import type { LabPlanet } from './lab-planets';
 import type { ProbeParams } from './probe-surface';
@@ -18,13 +18,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mix, uniform, uv, vec3 } from 'three/tsl';
 import { AmbientLight, ColorManagement, Group, Mesh, MeshBasicNodeMaterial, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Scene, SphereGeometry, WebGPURenderer } from 'three/webgpu';
 
-import { ATMOSPHERE_LOOKS, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, ROCKY_SURFACE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS } from '../config/render';
+import { ATMOSPHERE_LOOKS, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE, MOON_SURFACE_MAP_WIDTH, RENDER_ANTIALIAS, ROCKY_SURFACE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS } from '../config/render';
+import { moonPhysicalFromMass } from '../generation/moons';
 import { oblateness } from '../generation/planets';
 import { parseSave, SAVE_KEY } from '../persistence/save';
 import { oblatePolarScale } from '../render/body-scale';
 import { createAtmosphereMaterial } from '../render/three/atmosphere-material';
 import { createPlanetMaterial } from '../render/three/planet-material';
-import { ATMOSPHERE_KINDS, atmosphereKind, isRockyType, planetVarietySeed, rockyRegime } from '../render/three/planet-surface';
+import { ATMOSPHERE_KINDS, atmosphereKind, isIcyMoon, isRockyType, moonSurface, planetVarietySeed, rockyRegime } from '../render/three/planet-surface';
 import { sphereDirFromUv } from '../render/three/surface-bake';
 import { scanPlanets } from './lab-planets';
 import { distanceForDiameter } from './lab-view';
@@ -46,7 +47,12 @@ type AtmosphereMode = 'auto' | 'off' | AtmosphereKind;
 interface LabState {
   atmosphere: Record<AtmosphereKind, AtmosphereLook>;
   atmosphereMode: AtmosphereMode;
+  /** Which body the lab shows: the planet, or a moon of it (sharing its temperature). */
+  body: 'moon' | 'planet';
   fill: string;
+  moon: MoonTuning;
+  /** The previewed moon's mass (M⊕); radius and density follow the generator's law. */
+  moonMass: number;
   planet: PlanetPhysical;
   probe: ProbeParams;
   rocky: RockyTuning;
@@ -107,7 +113,10 @@ function defaultState(): LabState {
   return {
     atmosphere,
     atmosphereMode: 'auto',
+    body: 'planet',
     fill: '#c9b88f',
+    moon: { ...MOON_SURFACE },
+    moonMass: 0.012,
     planet: { ...EARTH_LIKE },
     probe: { ...PROBE_DEFAULTS },
     rocky: JSON.parse(JSON.stringify(ROCKY_SURFACE)) as RockyTuning,
@@ -182,8 +191,10 @@ async function start(root: HTMLElement): Promise<void> {
   const tilt = new Group();
   scene.add(tilt);
   const geometry = new SphereGeometry(1, SPHERE_WIDTH_SEGMENTS, SPHERE_HEIGHT_SEGMENTS);
-  const handle = createPlanetMaterial();
-  const mesh = new Mesh(geometry, handle.material);
+  // Moons use their smaller in-game map so the preview matches the game.
+  const handles = { moon: createPlanetMaterial(MOON_SURFACE_MAP_WIDTH), planet: createPlanetMaterial() };
+  const active = () => handles[state.body];
+  const mesh = new Mesh(geometry, active().material);
   tilt.add(mesh);
   // Child of the planet mesh, so it inherits the oblate scale and spin exactly.
   const atmosphere = createAtmosphereMaterial();
@@ -200,7 +211,7 @@ async function start(root: HTMLElement): Promise<void> {
   let mapped: PlanetSurface | null = null;
   const syncMap = (): void => {
     uMapHeight.value = state.view.mapShows === 'height' ? 1 : 0;
-    const surface = handle.surface();
+    const surface = active().surface();
     if (surface === mapped)
       return;
     mapped = surface;
@@ -216,11 +227,25 @@ async function start(root: HTMLElement): Promise<void> {
 
   let installed = '';
   const regimeStatus = { capStart: '', craters: 0, molten: 0, ocean: false, surfaceTempK: 0 };
+  const moonStatus = { density: 0, icy: false, radius: 0 };
 
   const applySurface = (): void => {
+    const handle = active();
+    mesh.material = handle.material;
     probe.set(state.probe, planetVarietySeed(state.planet));
-    const key = state.surface === 'planet' ? 'planet' : `${state.surface}/${state.source}`;
-    if (state.surface === 'planet') {
+    const key = `${state.body}:${state.surface === 'planet' ? 'planet' : `${state.surface}/${state.source}`}`;
+    if (state.surface === 'planet' && state.body === 'moon') {
+      const moon = moonPhysicalFromMass(state.moonMass, true);
+      const hostTempK = state.planet.equilibriumTemp;
+      handle.setMoon(moon, hostTempK, state.rocky, state.moon);
+      const { regime } = moonSurface(moon, hostTempK, state.rocky, state.moon);
+      moonStatus.density = Number(moon.density.toFixed(2));
+      moonStatus.radius = Number(moon.radius.toFixed(3));
+      moonStatus.icy = isIcyMoon(moon, hostTempK, state.moon);
+      regimeStatus.surfaceTempK = Math.round(regime.surfaceTempK);
+      regimeStatus.molten = Number(regime.molten.toFixed(2));
+    }
+    else if (state.surface === 'planet') {
       handle.setPlanet(state.planet, state.rocky);
       if (isRockyType(state.planet.type)) {
         const regime = rockyRegime(state.planet, state.rocky);
@@ -235,7 +260,7 @@ async function start(root: HTMLElement): Promise<void> {
       handle.setSurface(state.surface === 'probe' ? probe.surface : null, state.source);
     }
     installed = key;
-    // Tuning edits keep the planet's regime (so `setPlanet` does not re-bake): always refresh.
+    // Tuning edits keep the body's regime (so `setPlanet` does not re-bake): always refresh.
     handle.refreshSurface();
     syncMap();
   };
@@ -247,7 +272,7 @@ async function start(root: HTMLElement): Promise<void> {
     const detected = atmosphereKind(state.planet);
     atmosphereStatus.detected = detected ?? 'none';
     const mode = state.atmosphereMode;
-    const kind = mode === 'auto' ? detected : mode === 'off' ? null : mode;
+    const kind = state.body === 'moon' ? null : mode === 'auto' ? detected : mode === 'off' ? null : mode;
     atmosphereMesh.visible = kind !== null;
     if (kind)
       atmosphereMesh.scale.setScalar(atmosphere.setLook(state.atmosphere[kind]));
@@ -258,9 +283,9 @@ async function start(root: HTMLElement): Promise<void> {
   };
 
   const applyPlanet = (): void => {
-    handle.setFill(state.fill);
+    active().setFill(state.fill);
     const p = state.planet;
-    mesh.scale.set(1, oblatePolarScale(oblateness(p.rotationPeriod, p.mass, p.radius)), 1);
+    mesh.scale.set(1, state.body === 'moon' ? 1 : oblatePolarScale(oblateness(p.rotationPeriod, p.mass, p.radius)), 1);
     tilt.rotation.set(0, 0, p.obliquity * DEG2RAD);
     applySurface();
     applyAtmosphere();
@@ -335,6 +360,24 @@ async function start(root: HTMLElement): Promise<void> {
   editFolder.add(state.planet, 'radius', 0.1, 25, 0.01).name('radius (R⊕)').onChange(applyPlanet);
   editFolder.add(state.planet, 'obliquity', 0, 180, 0.5).name('obliquity (°)').onChange(applyPlanet);
   editFolder.addColor(state, 'fill').name('flat fill').onChange(applyPlanet);
+
+  const moonFolder = gui.addFolder('Moon (orbits the planet above)');
+  moonFolder.add(state, 'body', ['planet', 'moon']).name('show').onChange(applyPlanet);
+  moonFolder.add(state, 'moonMass', 0.0001, 0.05, 0.0001).name('mass (M⊕)').onChange(applyPlanet);
+  const moonStatusFolder = moonFolder.addFolder('This moon gets');
+  moonStatusFolder.add(moonStatus, 'radius').name('radius (R⊕)').disable().listen();
+  moonStatusFolder.add(moonStatus, 'density').name('density (g/cm³)').disable().listen();
+  moonStatusFolder.add(moonStatus, 'icy').disable().listen();
+  const moonLookFolder = moonFolder.addFolder('Moon look');
+  moonLookFolder.add(state.moon, 'icyDensity', 1, 5, 0.05).name('icy below density').onChange(applySurface);
+  moonLookFolder.add(state.moon, 'iceStableK', 50, 400, 1).name('ice survives below (K)').onChange(applySurface);
+  moonLookFolder.addColor(state.moon, 'rockLow').name('rock lowland').onChange(applySurface);
+  moonLookFolder.addColor(state.moon, 'rockHigh').name('rock highland').onChange(applySurface);
+  moonLookFolder.addColor(state.moon, 'iceLow').name('ice lowland').onChange(applySurface);
+  moonLookFolder.addColor(state.moon, 'iceHigh').name('ice highland').onChange(applySurface);
+  moonLookFolder.add(state.moon, 'continentScale', 0.3, 8, 0.05).name('terrain size (freq)').onChange(applySurface);
+  moonLookFolder.add(state.moon, 'craterDensity', 0, 1, 0.01).name('crater density').onChange(applySurface);
+  moonLookFolder.add(state.moon, 'craterDepth', 0, 1, 0.01).name('crater depth').onChange(applySurface);
 
   const surfaceFolder = gui.addFolder('Surface');
   surfaceFolder.add(state, 'surface', ['planet', 'probe', 'flat']).onChange(applySurface);
