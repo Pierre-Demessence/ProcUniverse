@@ -39,9 +39,9 @@ remove it from here once it ships. Links point to the design context.
     zoom-out brings in 100+ sectors at once. Options: a per-frame generation
     budget, or star-only sector records with planets generated at the system
     tier.
-  - A starfield rebuild still costs ~70 ms of sampling at the system tier (on
-    a focus jump of more than ~50,000 AU); spread it over frames or move it to
-    a worker.
+  - A starfield rebuild still costs ~115 ms at the system tier (~70 ms galaxy
+    sampling, ~30 ms sky-structure bake, ~15 ms map lookups; on a focus jump
+    of more than ~50,000 AU); spread it over frames or move it to a worker.
   - At the system tier, focusing a different star moves the render origin,
     which despawns and respawns every streamed sector (unmeasured hitch risk).
 
@@ -59,17 +59,15 @@ remove it from here once it ships. Links point to the design context.
   [planet-rings.md](plans/done/planet-rings.md)
 - **Eclipses / cast shadows** (optional, costly).
   [system-visuals.md](plans/system-visuals.md)
-- **Starfield sky polish** (flat-galaxy model; shipped so far:
-  [starfield-star-realism.md](plans/done/starfield-star-realism.md),
-  [starfield-band-structure.md](plans/done/starfield-band-structure.md)):
-  - Coloured nebulae (red emission, blue reflection) along the band.
-  - Intergalactic-void sky: almost no individual stars, other galaxies as faint
-    smudges, the nearest galaxy as a large bright one (today: a thin uniform
-    star field).
-  - Real neighbours as the brightest sky stars: nearby generated systems drawn
-    in their true directions and colours (hybrid sky: real near stars +
-    skybox beyond). Invisible parallax inside a system; the payoff is a
-    seamless system → sector zoom where sky stars become map stars.
+- **Starfield sky polish** (options, references and details:
+  [starfield-enhancements.md](research/starfield-enhancements.md)):
+  - Hybrid sky: the nearest generated systems as real sky stars (true
+    direction, brightness from luminosity and distance) over the dome; payoff
+    is a seamless system → sector zoom. Needs per-system out-of-plane offsets.
+  - Intergalactic-void sky: almost no stars, other galaxies as smudges.
+  - Neighbour galaxies visible as faint smudges from inside a galaxy.
+  - Coloured nebulae along the band, tied to open clusters.
+  - Bulge size / brightness scaled by distance to the galaxy core.
 - **Black-hole visuals:** animated accretion disk, photon ring, optional
   lensing post-process.
 - **Cosmic-web / nebula** additive noise from `cosmicDensity`.
