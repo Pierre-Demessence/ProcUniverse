@@ -48,7 +48,7 @@ This plan changes three things:
 | 3 | Moon surfaces | I | low (trim of 2) |
 | 4 | Cloud layer on atmospheric worlds | F (part) | medium |
 | 5 | Gas / ice giants — static | D | high |
-| 6 | Gas giant band motion (optional) | D | medium |
+| 6 | Band and cloud motion (optional) | D, F | medium |
 
 Each phase is a self-contained slice that builds, tests, reviews, and is
 browser-verified by Pierre on its own. Eclipses / cast shadows (workstream J)
@@ -315,13 +315,23 @@ Rocky / super-Earth worlds that keep an atmosphere get a cloud layer
   - 0–2 **latitude-locked oval storms**; muted poles; subtle limb darkening.
   - Tuned in the lab against reference imagery. If the procedural bake does not
     reach the bar, evaluate the greyscale structure-map hybrid (§3.2).
-- **Phase 6 — Gas giant band motion (optional).** Only once Phase 5 is
-  accepted. Longitude-only zonal drift with alternating per-band rates;
-  **bounded** time inputs only (periodic rotation / `sin`/`cos`, never
-  `p + time·dir`) to avoid precision grain. Timebase (wall-clock vs sim time)
-  decided here: the planet's own spin runs on sim time, so wall-clock band
-  drift would decouple from it under time-warp. Skippable: real giants show no
-  perceptible motion at human timescales.
+- **Phase 6 — Band and cloud motion (optional).** Only once Phase 5 is
+  accepted. One shared **zonal-drift** helper that samples a baked map with
+  its longitude shifted by `time × rate(latitude)` — no re-bake, and
+  **bounded** by construction (the shift wraps around the sphere; never
+  `p + time·dir`, which causes precision grain). Used for:
+  - Gas / ice giant bands: alternating per-band rates, so belts shear past
+    each other.
+  - Cloud layers (Phase 4): the whole layer drifting relative to the ground,
+    optionally faster at mid-latitudes (jet streams). A uniform drift alone is
+    just an extra spin on the cloud shell mesh.
+  - Clouds forming / dissolving (evolving, not just sliding) are out of scope
+    unless sliding reads as lifeless: it needs per-frame noise, which undoes
+    the baked approach; a cheap alternative is cross-fading two baked maps.
+  Timebase decided here; sim time is the likely choice, since the planet's own
+  spin already runs on sim time and wall-clock drift would decouple from it
+  under time-warp. Skippable: real giants and weather show little motion at
+  human timescales.
 
 ## 11. Invariants
 
