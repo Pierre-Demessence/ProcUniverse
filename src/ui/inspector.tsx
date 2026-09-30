@@ -530,7 +530,7 @@ function InspectorPanel({ actions, bookmarked, getWorld, lockedId, selection }: 
     const moon = world.getStore(MoonPhysicalDef).get(sel.id);
     const orbit = world.getStore(OrbitElementsDef).get(sel.id);
     const identity = world.getStore(NameDef).get(sel.id);
-    const host = displayName(orbit ? world.getStore(NameDef).get(orbit.parent) : undefined, namingStyle.value) || '\u2014';
+    const host = displayName(orbit && orbit.parent !== -1 ? world.getStore(NameDef).get(orbit.parent) : undefined, namingStyle.value) || '\u2014';
     return moon && orbit ? <MoonPanel footer={footer} host={host} moon={moon} name={displayName(identity, namingStyle.value)} orbit={orbit} /> : null;
   }
 

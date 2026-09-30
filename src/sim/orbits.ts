@@ -1,4 +1,4 @@
-import type { EcsWorld } from '@pierre/ecs';
+import type { EcsWorld, EntityId } from '@pierre/ecs';
 import type { ComponentDef } from '@pierre/ecs/component-store';
 
 import { simpleComponent } from '@pierre/ecs/component-store';
@@ -23,7 +23,7 @@ const KM_S_PER_AU_YEAR = KM_PER_AU / SECONDS_PER_YEAR;
  * faster at the same `a`. Periods follow Kepler's third law in solar units, so
  * they come out directly in years.
  *
- * `parent` is −1 for a body orbiting its star at the fixed focus `cx`/`cy`; for a
+ * `parent` is `-1` for a body orbiting its star at the fixed focus `cx`/`cy`; for a
  * **moon** it is the entity id of its planet, whose current position becomes the
  * focus each frame (and `starMass` then holds the planet's mass, in M☉).
  *
@@ -42,7 +42,7 @@ export interface OrbitElements {
   inclination: number;
   longitudeAscendingNode: number;
   meanAnomaly0: number;
-  parent: number;
+  parent: EntityId | -1;
   starMass: number;
 }
 
@@ -241,7 +241,7 @@ export function updateOrbits(world: EcsWorld, simSeconds: number): void {
   const out = { x: 0, y: 0, z: 0 };
   // Pass 1: bodies orbiting a fixed focus (planets around their star, parent < 0).
   for (const [id, orbit] of world.query(OrbitElementsDef)) {
-    if (orbit.parent >= 0)
+    if (orbit.parent !== -1)
       continue;
     const pos = positions.get(id);
     if (!pos)
@@ -254,7 +254,7 @@ export function updateOrbits(world: EcsWorld, simSeconds: number): void {
   // Pass 2: bodies orbiting a moving parent (moons around a planet). The parent
   // was positioned in pass 1, so its current 3D position is the moon's focus.
   for (const [id, orbit] of world.query(OrbitElementsDef)) {
-    if (orbit.parent < 0)
+    if (orbit.parent === -1)
       continue;
     const pos = positions.get(id);
     const parentPos = positions.get(orbit.parent);

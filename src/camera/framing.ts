@@ -33,7 +33,7 @@ export interface Frame {
 function starSatelliteApoapsis(world: EcsWorld, starPosX: number, starPosY: number): number {
   let max = 0;
   for (const [, orbit] of world.query(OrbitElementsDef)) {
-    if (orbit.parent < 0 && Math.hypot(orbit.cx - starPosX, orbit.cy - starPosY) < 1e-6)
+    if (orbit.parent === -1 && Math.hypot(orbit.cx - starPosX, orbit.cy - starPosY) < 1e-6)
       max = Math.max(max, orbit.a * (1 + orbit.e));
   }
   return max;
@@ -123,7 +123,7 @@ export function lockedBodyLocalPos(world: EcsWorld, id: EntityId, simSeconds: nu
     return null;
   const years = simSeconds / SECONDS_PER_YEAR;
   const out = { x: 0, y: 0, z: 0 };
-  if (orbit.parent < 0) {
+  if (orbit.parent === -1) {
     writeOrbitPosition(orbit, years, out);
   }
   else {

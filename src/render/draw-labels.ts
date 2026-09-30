@@ -1,4 +1,4 @@
-import type { EcsWorld } from '@pierre/ecs';
+import type { EcsWorld, EntityId } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
@@ -49,7 +49,7 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, world: EcsWorld,
   ctx2d.shadowColor = SHADOW;
   ctx2d.shadowBlur = 3;
 
-  const label = (id: number): void => {
+  const label = (id: EntityId): void => {
     const identity = names.get(id);
     const pos = positions.get(id);
     if (!identity || !pos || !project(pos.x, pos.y, pos.z, screen))

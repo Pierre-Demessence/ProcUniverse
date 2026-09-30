@@ -11,7 +11,7 @@
  * up with them.
  */
 
-import type { EcsWorld } from '@pierre/ecs';
+import type { EcsWorld, EntityId } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
 
@@ -403,7 +403,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const hit = this.raycaster.intersectObjects(targets, false)[0];
     if (!hit)
       return null;
-    const data = hit.object.userData as { id?: number; kind?: BodyKind };
+    const data = hit.object.userData as { id?: EntityId; kind?: BodyKind };
     return data.id === undefined || data.kind === undefined ? null : { id: data.id, kind: data.kind };
   }
 
