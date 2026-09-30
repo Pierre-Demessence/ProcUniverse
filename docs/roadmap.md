@@ -59,6 +59,17 @@ remove it from here once it ships. Links point to the design context.
   [planet-rings.md](plans/done/planet-rings.md)
 - **Eclipses / cast shadows** (optional, costly).
   [system-visuals.md](plans/system-visuals.md)
+- **Starfield sky polish** (flat-galaxy model; shipped so far:
+  [starfield-star-realism.md](plans/done/starfield-star-realism.md),
+  [starfield-band-structure.md](plans/done/starfield-band-structure.md)):
+  - Coloured nebulae (red emission, blue reflection) along the band.
+  - Intergalactic-void sky: almost no individual stars, other galaxies as faint
+    smudges, the nearest galaxy as a large bright one (today: a thin uniform
+    star field).
+  - Real neighbours as the brightest sky stars: nearby generated systems drawn
+    in their true directions and colours (hybrid sky: real near stars +
+    skybox beyond). Invisible parallax inside a system; the payoff is a
+    seamless system → sector zoom where sky stars become map stars.
 - **Black-hole visuals:** animated accretion disk, photon ring, optional
   lensing post-process.
 - **Cosmic-web / nebula** additive noise from `cosmicDensity`.

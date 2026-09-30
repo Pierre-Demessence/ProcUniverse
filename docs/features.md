@@ -39,7 +39,7 @@ Shipped features. Planned work is in [roadmap.md](roadmap.md).
 | Feature | Description |
 | ------- | ----------- |
 | Star shading | Limb darkening, granulation and spots, gentle flicker, and a bloom corona, all from the star's temperature and size; the star is the scene's point light. |
-| Background starfield | A galaxy-aware sky dome whose density and colour follow the local galaxy, with a smooth falloff away from the galaxy plane. |
+| Background starfield | A galaxy-aware sky dome whose density and colour follow the local galaxy: a patchy Milky-Way band (star clouds, dark dust lanes, a warm bulge toward the core) that the stars follow, open clusters, mostly faint stars with a few bright, larger ones (the brightest glow via bloom) and per-star colours mixed around white. |
 | Planet rings | Translucent, star-lit rings with a planet-shadow band, colour by temperature, and per-planet gaps, ringlets, and opacity. |
 | Oblateness | Fast-rotating planets bulge at the equator. |
 | Rocky surfaces | Rocky and super-Earth planets show terrain coloured by surface temperature, craters (softened under an atmosphere), oceans on liquid-water worlds, ice caps that grow as they cool, glowing lava on molten worlds, and relief that catches the star light. |

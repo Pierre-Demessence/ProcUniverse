@@ -1,66 +1,54 @@
 import { describe, expect, it } from 'vitest';
 
-import { pixelToDir } from './starfield';
+import { BLOOM_THRESHOLD } from '../../config/render';
+import { starBrightness, starIntensity, starScale, starTint } from './starfield';
 
-describe('pixelToDir', () => {
-  const W = 2048;
-  const H = 1024;
+describe('per-star appearance', () => {
+  const uniforms = Array.from({ length: 1001 }, (_, i) => i / 1000);
 
-  it('returns a unit vector', () => {
-    for (const [px, py] of [[0, 0], [W / 2, H / 2], [W - 1, H - 1], [512, 256], [1536, 768]]) {
-      const d = pixelToDir(px, py);
-      const len = Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
-      expect(len).toBeCloseTo(1, 6);
+  it('skews brightness toward the faint end', () => {
+    const lo = starBrightness(0);
+    const hi = starBrightness(1);
+    expect(starBrightness(0.5)).toBeLessThan(lo + (hi - lo) * 0.25);
+    for (let i = 1; i < uniforms.length; i++)
+      expect(starBrightness(uniforms[i]!)).toBeGreaterThanOrEqual(starBrightness(uniforms[i - 1]!));
+  });
+
+  it('pushes only the brightest tail past the bloom threshold', () => {
+    const blooming = uniforms.filter(u => starIntensity(starBrightness(u)) > BLOOM_THRESHOLD).length;
+    expect(blooming).toBeGreaterThan(0);
+    expect(blooming / uniforms.length).toBeLessThan(0.01);
+    expect(starIntensity(0.5)).toBe(0.5);
+  });
+
+  it('grows sprite size with brightness', () => {
+    let prev = 0;
+    for (const u of uniforms) {
+      const size = starScale(starBrightness(u));
+      expect(size).toBeGreaterThanOrEqual(prev);
+      prev = size;
     }
+    expect(starScale(starBrightness(1))).toBeGreaterThan(starScale(starBrightness(0)) * 2);
   });
 
-  it('maps the centre pixel to forward (+x) at the equator', () => {
-    const d = pixelToDir(W / 2, H / 2);
-    // azimuth = π, elevation = 0 → (−1, 0, 0) ... wait, let me re-derive.
-    // px = W/2 → azimuth = π, cos(π) = −1, sin(π) = 0
-    // py = H/2 → elevation = 0, cos(0) = 1, sin(0) = 0
-    // dir = (−1, 0, 0) — unit vector, length 1 ✓
-    expect(d.x).toBeCloseTo(-1, 6);
-    expect(d.y).toBeCloseTo(0, 6);
-    expect(d.z).toBeCloseTo(0, 6);
-  });
-
-  it('maps px = 0 to azimuth 0 (+x)', () => {
-    const d = pixelToDir(0, H / 2);
-    expect(d.x).toBeCloseTo(1, 6);
-    expect(d.y).toBeCloseTo(0, 6);
-    expect(d.z).toBeCloseTo(0, 6);
-  });
-
-  it('maps the top row to near the north pole (+z)', () => {
-    const d = pixelToDir(0, 0);
-    // The pixel centre is slightly below the exact pole.
-    expect(d.z).toBeGreaterThan(0.999);
-    expect(Math.abs(d.x)).toBeLessThan(0.01);
-    expect(Math.abs(d.y)).toBeLessThan(0.01);
-  });
-
-  it('maps the bottom row to near the south pole (−z)', () => {
-    const d = pixelToDir(0, H - 1);
-    // The pixel centre is slightly above the exact pole; use looser tolerance.
-    expect(d.z).toBeLessThan(-0.999);
-    expect(Math.abs(d.x)).toBeLessThan(0.01);
-    expect(Math.abs(d.y)).toBeLessThan(0.01);
-  });
-
-  it('has consistent azimuth wrapping: px = 0 and px = W give the same direction', () => {
-    const a = pixelToDir(0, H / 2);
-    const b = pixelToDir(W, H / 2);
-    expect(a.x).toBeCloseTo(b.x, 6);
-    expect(a.y).toBeCloseTo(b.y, 6);
-    expect(a.z).toBeCloseTo(b.z, 6);
-  });
-
-  it('produces xy-plane directions when at the equator', () => {
-    for (let px = 0; px < W; px += W / 8) {
-      const d = pixelToDir(px, H / 2);
-      expect(d.z).toBeCloseTo(0, 6);
-      expect(Math.abs(Math.sqrt(d.x * d.x + d.y * d.y) - 1)).toBeLessThan(1e-6);
+  it('keeps tints in range and mostly near white', () => {
+    let nearWhite = 0;
+    let total = 0;
+    for (const u1 of uniforms.filter((_, i) => i % 10 === 0)) {
+      for (const u2 of uniforms.filter((_, i) => i % 10 === 5)) {
+        const t = starTint(u1, u2, 0.5);
+        expect(t).toBeGreaterThanOrEqual(0);
+        expect(t).toBeLessThanOrEqual(1);
+        if (Math.abs(t - 0.5) < 0.2)
+          nearWhite++;
+        total++;
+      }
     }
+    expect(nearWhite / total).toBeGreaterThan(0.5);
+  });
+
+  it('leans tints with local activity', () => {
+    expect(starTint(0.5, 0.5, 1)).toBeGreaterThan(starTint(0.5, 0.5, 0.5));
+    expect(starTint(0.5, 0.5, 0)).toBeLessThan(starTint(0.5, 0.5, 0.5));
   });
 });

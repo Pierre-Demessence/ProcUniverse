@@ -68,8 +68,12 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   selection must be re-iterable (`makePass` wraps the generator selectors).
 - `ThreeRenderer.updateStarfield` runs at the system tier only, with absolute
   coordinates. A starfield rebuild samples ~10⁵ galaxy lookups (hundreds of
-  ms), and the zoomed-out tiers would cross its ~50,000 AU cache buckets every
-  frame.
+  ms) plus a ~30 ms sky-structure bake, and the zoomed-out tiers would cross its
+  ~50,000 AU cache buckets every frame.
+- The starfield band sphere is unrotated: its shader derives the world
+  direction from `positionLocal` and must use the same equirectangular
+  convention as `sky-structure.ts` (`pixelToDir` / `dirToUv`), or the band and
+  the stars disagree.
 - No agent browser/E2E testing — hand in-browser verification to Pierre.
 - Planet surface looks are tuned by Pierre in the planet lab (`src/lab/`); the
   agent turns the copied lab JSON into `src/config/render.ts` defaults. The app
