@@ -21,7 +21,7 @@ const BLACK_HOLE_COLOR = '#15151c';
 /**
  * Spawn ECS entities for a generated sector: one star per system, plus one
  * orbiting planet entity per planet. Positions and orbit centres are stored
- * **relative to `(originX, originY)`** — the floating render origin — so the
+ * **relative to `(originX, originY, originZ)`** — the floating render origin — so the
  * renderer always works on small, precise coordinates however far the camera
  * has travelled. Returns every spawned entity id (each star immediately before
  * its planets) so the streamer can despawn the sector later.
@@ -31,6 +31,7 @@ export function spawnSector(
   data: SectorData,
   originX: number,
   originY: number,
+  originZ: number,
 ): EntityId[] {
   const positions = world.getStore(Position3DDef);
   const visuals = world.getStore(BodyVisualDef);
@@ -45,8 +46,9 @@ export function spawnSector(
   for (const sys of data.systems) {
     const cx = sys.x - originX;
     const cy = sys.y - originY;
+    const cz = sys.z - originZ;
     const starId = world.createEntity();
-    positions.set(starId, { x: cx, y: cy, z: 0 });
+    positions.set(starId, { x: cx, y: cy, z: cz });
     visuals.set(starId, { color: sys.star.colorHex, radius: sys.radius });
     starPhysicals.set(starId, sys.star);
     names.set(starId, { human: sys.name.human, scientific: sys.name.scientific });
@@ -54,14 +56,14 @@ export function spawnSector(
 
     for (const planet of sys.planets) {
       const id = world.createEntity();
-      positions.set(id, { x: cx + planet.a, y: cy, z: 0 });
+      positions.set(id, { x: cx + planet.a, y: cy, z: cz });
       visuals.set(id, { color: planet.color, radius: planet.radius });
       orbits.set(id, {
         a: planet.a,
         argPeriapsis: planet.argPeriapsis,
         cx,
         cy,
-        cz: 0,
+        cz,
         e: planet.e,
         inclination: planet.inclination,
         longitudeAscendingNode: planet.longitudeAscendingNode,
@@ -79,14 +81,14 @@ export function spawnSector(
       const planetMassSolar = planet.physical.mass * EARTH_MASS_SOLAR;
       for (const moon of planet.moons) {
         const moonId = world.createEntity();
-        positions.set(moonId, { x: planetX + moon.a, y: cy, z: 0 });
+        positions.set(moonId, { x: planetX + moon.a, y: cy, z: cz });
         visuals.set(moonId, { color: moon.color, radius: moon.radius });
         orbits.set(moonId, {
           a: moon.a,
           argPeriapsis: moon.argPeriapsis,
           cx: planetX,
           cy,
-          cz: 0,
+          cz,
           e: moon.e,
           inclination: moon.inclination,
           longitudeAscendingNode: moon.longitudeAscendingNode,
@@ -101,11 +103,11 @@ export function spawnSector(
     }
   }
 
-  // A galaxy's central black hole,
-  // positioned at the galaxy centre in the floating render frame.
+  // A galaxy's central black hole, at the galaxy centre on the galactic plane
+  // (z = 0), in the floating render frame.
   for (const bh of data.blackHoles) {
     const id = world.createEntity();
-    positions.set(id, { x: bh.x - originX, y: bh.y - originY, z: 0 });
+    positions.set(id, { x: bh.x - originX, y: bh.y - originY, z: -originZ });
     visuals.set(id, { color: BLACK_HOLE_COLOR, radius: bh.radius });
     blackHoles.set(id, { eddingtonRatio: bh.eddingtonRatio, mass: bh.mass, schwarzschildRadius: bh.schwarzschildRadius, spin: bh.spin });
     names.set(id, { human: bh.name.human, scientific: bh.name.scientific });

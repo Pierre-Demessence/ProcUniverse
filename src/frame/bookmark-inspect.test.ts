@@ -3,7 +3,7 @@ import { makeCamera } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
-import { bookmarkFromSelection } from '../bookmarks';
+import { bookmarkFromSelection, bookmarkZ } from '../bookmarks';
 import { frameZoom } from '../camera/focus';
 import { FRAME_MARGIN, MAX_ZOOM, MIN_ZOOM, SYSTEM_VIEW_AU } from '../config/render';
 import { NameDef } from '../generation/naming';
@@ -32,16 +32,18 @@ describe('bookmark inspect across systems', () => {
     const camera = makeCamera({ viewportH: 1000, viewportW: 1000, x: 0, y: 0, zoom: 1000 / SYSTEM_VIEW_AU });
     const state = new FrameState({ simSeconds: 0, tier: 'system' });
     const selectionState = new SelectionState();
-    const controller = { setFocusZ() {}, setThreeSystemActive() {} };
+    const controller = { focusZ: 0, setThreeSystemActive() {}, setTiltScale() {}, setFocusZ(z: number) {
+      controller.focusZ = z;
+    } };
     const scheduler = buildFramePipeline([
       makeSimClockSystem(state, { timeScale: 1 }, { sample() {} }),
       makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
       makeTierSelectSystem(camera, state),
-      makeBackendSelectSystem({ controller, flattenButton: { setVisible() {} }, state, threeBackend: { update: () => false } }),
-      makeOriginRebaseSystem({ cache, camera, state, streamer }),
+      makeBackendSelectSystem({ camera, controller, flattenButton: { setVisible() {} }, state, threeBackend: { update: () => false } }),
+      makeOriginRebaseSystem({ cache, camera, controller, state, streamer }),
       makeStreamingSystem({ state, streamer, world }),
       makeOrbitsSystem(state, world),
-      makePendingBookmarkSystem({ camera, selectionState, world }),
+      makePendingBookmarkSystem({ camera, controller, selectionState, world }),
       // Render steps are stubs; the reticle is the real system because it can clear the selection.
       { name: 'overlay-clear', runAfter: after('overlay-clear'), run() {} },
       { name: 'render-three', runAfter: after('render-three'), run() {} },
@@ -52,31 +54,34 @@ describe('bookmark inspect across systems', () => {
         scheduler.run(createFrameCtx(16, state.currentTier));
     };
 
-    const goTo = (x: number, y: number): void => {
+    const goTo = (x: number, y: number, z: number): void => {
       camera.x = x - state.renderOriginX;
       camera.y = y - state.renderOriginY;
+      controller.setFocusZ(z - state.renderOriginZ);
     };
     // Find two systems with planets in different sectors.
-    const found: { x: number; y: number }[] = [];
+    const found: { x: number; y: number; z: number }[] = [];
     for (let sx = 0; sx < 60 && found.length < 2; sx++) {
       for (const sys of cache.get(sx, 0).systems) {
         if (sys.planets && sys.planets.length > 0) {
-          found.push({ x: sys.x, y: sys.y });
+          found.push({ x: sys.x, y: sys.y, z: sys.z });
           break;
         }
       }
     }
     expect(found.length).toBe(2);
 
-    goTo(found[0].x, found[0].y);
+    goTo(found[0].x, found[0].y, found[0].z);
     tick(3);
     const planets = [...world.query(PlanetPhysicalDef)];
     expect(planets.length).toBeGreaterThan(0);
     const id = planets[0][0];
-    const bm = bookmarkFromSelection({ id, kind: 'planet' }, world, state.renderOriginX, state.renderOriginY)!;
+    const bm = bookmarkFromSelection({ id, kind: 'planet' }, world, state.renderOriginX, state.renderOriginY, state.renderOriginZ)!;
     expect(bm).not.toBeNull();
+    // The planet sits on its (inclined) orbit, within its system's disk of its star.
+    expect(Math.abs((bm.z ?? Number.NaN) - found[0].z)).toBeLessThan(1000);
 
-    goTo(found[1].x, found[1].y);
+    goTo(found[1].x, found[1].y, found[1].z);
     tick(3);
     camera.zoom = startZoom;
     tick(4);
@@ -88,6 +93,7 @@ describe('bookmark inspect across systems', () => {
     // ---- inspect (same logic as main.ts onBookmarkInspect)
     camera.x = bm.x - state.renderOriginX;
     camera.y = bm.y - state.renderOriginY;
+    controller.setFocusZ(bookmarkZ(bm, cache) - state.renderOriginZ);
     camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
     const zoomSet = camera.zoom;
     const opened = selectionState.openBookmark(bm, world, seed);

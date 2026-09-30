@@ -2,6 +2,9 @@ import type { SectorData } from '../generation/universe';
 
 import { generateSectorData } from '../generation/universe';
 
+/** Default sector capacity: well above the most sectors any view keeps in range. */
+export const SECTOR_CACHE_CAPACITY = 2048;
+
 /**
  * Generate-on-demand cache of deterministic `SectorData`, keyed by sector
  * coordinates. Because generation is a pure function of `(seed, sx, sy)`, a
@@ -14,7 +17,7 @@ export class SectorCache {
   private readonly map = new Map<string, SectorData>();
   private readonly seed: number;
 
-  constructor(seed: number, capacity = 2048) {
+  constructor(seed: number, capacity = SECTOR_CACHE_CAPACITY) {
     this.seed = seed;
     this.capacity = capacity;
   }
@@ -32,5 +35,10 @@ export class SectorCache {
         this.map.delete(oldest);
     }
     return data;
+  }
+
+  /** The cached sector, or undefined without generating it (for budgeted callers). */
+  peek(sx: number, sy: number): SectorData | undefined {
+    return this.map.get(`${sx},${sy}`);
   }
 }

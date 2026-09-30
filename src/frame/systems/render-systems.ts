@@ -6,6 +6,7 @@ import type { CameraController } from '../../camera/camera-controller';
 import type { SectorCache } from '../../lod/sector-cache';
 import type { SystemStreamer } from '../../lod/streaming';
 import type { ThreeBackend } from '../../render/three-backend';
+import type { DrawnStar } from '../../render/three/star-sprites';
 import type { ThreeRenderer } from '../../render/three/three-renderer';
 import type { SelectionState } from '../../selection-state';
 import type { FrameCtx } from '../frame-context';
@@ -14,15 +15,17 @@ import type { FrameState } from '../frame-state';
 import { worldToView } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
+import { blendPlaneNormal, GALACTIC_NORMAL } from '../../camera/plane-basis';
 import { GALAXY_SPRITE_SCALE } from '../../config/render';
 import { BodyVisualDef } from '../../generation/body-visual';
+import { layerWeights, SYSTEM_LAYER_REACH_AU } from '../../lod/tier';
 import { applyBodyScale } from '../../render/body-scale';
-import { drawBodyLabels, drawGalaxyFieldLabels } from '../../render/draw-labels';
+import { drawBodyLabels, drawGalaxyFieldLabels, drawStarLabels } from '../../render/draw-labels';
 import { drawSelectReticle } from '../../render/select-reticle';
 import { after } from '../pipeline';
 
-// Fallback orbital-plane normal (world +z) when no system is focused.
-const WORLD_PLANE_NORMAL = [0, 0, 1] as const;
+/** Reticle radius (px) around a hovered star sprite. */
+const STAR_HOVER_RETICLE_PX = 10;
 
 export interface RenderSystemDeps {
   cache: SectorCache;
@@ -57,9 +60,11 @@ export function makeOverlayClearSystem(deps: Pick<RenderSystemDeps, 'canvas' | '
  * Draws the active tier with Three.js and its labels on the overlay. `camera`
  * is already in the render-origin frame; the lock re-centre at the top of the
  * frame set it to the body's local position, so a locked body stays centred.
+ * The system and star tiers are one blended 3D render (`ctx.blend`).
  */
 export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'camera' | 'controller' | 'ctx2d' | 'seed' | 'state' | 'streamer' | 'threeBackend' | 'world'>): SchedulableSystem<FrameCtx> {
   const { cache, camera, controller, ctx2d, seed, state, streamer, threeBackend, world } = deps;
+  const labelScratch: DrawnStar[] = [];
   return {
     name: 'render-three',
     runAfter: after('render-three'),
@@ -70,22 +75,56 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
       ctx.localCam = localCam;
       const originX = state.renderOriginX;
       const originY = state.renderOriginY;
-      if (ctx.tier === 'system') {
-        three.updateStarfield(seed, ctx.camAbsX, ctx.camAbsY);
-        // Floor the body radii for this zoom before the passes read them.
-        applyBodyScale(world, localCam.zoom);
+      if (ctx.tier === 'system' || ctx.tier === 'star') {
+        const { blend } = ctx;
+        const weights = layerWeights(blend);
+        const systemLayer = blend < 1;
+        if (ctx.tier === 'system')
+          three.updateStarfield(seed, ctx.camAbsX, ctx.camAbsY);
+        else
+          three.ensureStarfield(seed, ctx.camAbsX, ctx.camAbsY);
+        // Floor the body radii for this zoom (shrinking with the cross-fade)
+        // before the passes read them.
+        if (systemLayer)
+          applyBodyScale(world, localCam.zoom, weights.bodies);
         // Anchor the 3D camera + pan to the focused system's orbital plane, so a
         // low tilt reads as a true top-down (orbits as circles) regardless of how
-        // the disk is oriented in space.
-        const planeNormal = ctx.focusedSystem?.diskNormal ?? WORLD_PLANE_NORMAL;
+        // the disk is oriented in space; across the cross-fade it swings to the
+        // galactic plane, which the star tier orbits around.
+        const planeNormal = blendPlaneNormal(ctx.focusedSystem?.diskNormal ?? GALACTIC_NORMAL, blend);
         controller.setSystemPlane(planeNormal[0], planeNormal[1], planeNormal[2]);
-        three.render({ azimuth: controller.azimuth, camera: localCam, focusZ: controller.focusZ, planeNormal, simSeconds: state.simSeconds, tilt: controller.tilt, world });
-        drawBodyLabels(ctx2d, world, (x, y, z, out) => three.projectToScreen(x, y, z, out), localCam.zoom);
+        const starsDrawn = three.render({
+          azimuth: controller.azimuth,
+          blend,
+          camera: localCam,
+          focusZ: controller.focusZ,
+          planeNormal,
+          simSeconds: state.simSeconds,
+          stars: blend > 0 ? { cache, focused: ctx.focusedSystem, originX, originY, originZ: state.renderOriginZ } : null,
+          tilt: controller.tilt,
+          world,
+        });
+        const project = (x: number, y: number, z: number, out: { sx: number; sy: number }): boolean => three.projectToScreen(x, y, z, out);
+        if (systemLayer) {
+          // Once the far plane reaches the star field, neighbouring systems'
+          // bodies are no longer clipped; label only the focused system's.
+          const reach2 = SYSTEM_LAYER_REACH_AU * SYSTEM_LAYER_REACH_AU;
+          const bodyProject = blend > 0
+            ? (x: number, y: number, z: number, out: { sx: number; sy: number }): boolean => x * x + y * y + z * z <= reach2 && project(x, y, z, out)
+            : project;
+          ctx2d.save();
+          ctx2d.globalAlpha = weights.bodies;
+          drawBodyLabels(ctx2d, world, bodyProject, localCam.zoom);
+          ctx2d.restore();
+        }
+        if (blend > 0) {
+          ctx2d.save();
+          ctx2d.globalAlpha = weights.stars;
+          drawStarLabels(ctx2d, three.brightestStars(labelScratch), project);
+          ctx2d.restore();
+        }
         const status = streamer.status();
-        state.lastDrawnCount = status.stars + status.planets;
-      }
-      else if (ctx.tier === 'star') {
-        state.lastDrawnCount = three.renderStars({ cache, camera: localCam, originX, originY, range: ctx.range });
+        state.lastDrawnCount = (systemLayer ? status.stars + status.planets : 0) + starsDrawn;
       }
       else if (ctx.tier === 'galaxy-field') {
         state.lastDrawnCount = three.renderGalaxyField({ camera: localCam, originX, originY, seed });
@@ -104,7 +143,8 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
 /**
  * Tracks the selected body: clears the selection if it streamed out or the tier
  * left the system view, otherwise draws its reticle at the body's live screen
- * position so it follows an orbiting planet.
+ * position so it follows an orbiting planet. At the star tier it also marks and
+ * names the star under the pointer (a click there flies into that system).
  */
 export function makeReticleSystem(deps: Pick<RenderSystemDeps, 'camera' | 'ctx2d' | 'selectionState' | 'state' | 'threeBackend' | 'world'>): SchedulableSystem<FrameCtx> {
   const { camera, ctx2d, selectionState, state, threeBackend, world } = deps;
@@ -114,6 +154,15 @@ export function makeReticleSystem(deps: Pick<RenderSystemDeps, 'camera' | 'ctx2d
     name: 'reticle',
     runAfter: after('reticle'),
     run(ctx) {
+      const hoverThree = threeBackend.renderer;
+      if (ctx.tier === 'star' && ctx.threeActive && hoverThree && state.pointerX !== null && state.pointerY !== null) {
+        const star = hoverThree.pickStar(state.pointerX, state.pointerY);
+        const p = { sx: 0, sy: 0 };
+        if (star && hoverThree.projectToScreen(star.x, star.y, star.z, p)) {
+          drawSelectReticle(ctx2d, p.sx, p.sy, STAR_HOVER_RETICLE_PX);
+          drawStarLabels(ctx2d, [star], (x, y, z, out) => hoverThree.projectToScreen(x, y, z, out));
+        }
+      }
       // Read live, not the frame-start selection: a bookmark can resolve earlier
       // in this frame, and a stale selection whose body just streamed out would
       // clear the new one (and its lock).

@@ -20,6 +20,7 @@ const SAVE_VERSION = 1;
 /** A persisted camera view: world-space centre (AU), zoom (pixels per AU), and 3D orbit state. */
 export interface SavedView {
   azimuth: number;
+  /** Absolute height of the 3D camera focus off the galactic plane (AU). */
   focusZ: number;
   tilt: number;
   x: number;
@@ -75,7 +76,7 @@ const BOOKMARK_KINDS = new Set<string>(['black-hole', 'galaxy', 'moon', 'planet'
 function parseBookmark(value: unknown): Bookmark | null {
   if (typeof value !== 'object' || value === null)
     return null;
-  const { name, extentAu, kind, label, x, y } = value as Record<string, unknown>;
+  const { name, extentAu, kind, label, x, y, z } = value as Record<string, unknown>;
   if (
     typeof name === 'string'
     && typeof label === 'string'
@@ -84,7 +85,11 @@ function parseBookmark(value: unknown): Bookmark | null {
     && typeof y === 'number' && Number.isFinite(y)
     && typeof extentAu === 'number' && Number.isFinite(extentAu) && extentAu > 0
   ) {
-    return { name, extentAu, kind: kind as Bookmark['kind'], label, x, y };
+    const bm: Bookmark = { name, extentAu, kind: kind as Bookmark['kind'], label, x, y };
+    // Height arrived with the 3D star tier; older bookmarks resolve it via `bookmarkZ`.
+    if (typeof z === 'number' && Number.isFinite(z))
+      bm.z = z;
+    return bm;
   }
   return null;
 }

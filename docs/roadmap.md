@@ -19,6 +19,10 @@ remove it from here once it ships. Links point to the design context.
   bulge, inclination) touches generation, LOD, and the camera, so decide it
   before building more on the flat model. Design:
   [rendering-backend.md §7 Stage 3](plans/rendering-backend.md).
+  - Direction chosen: this is the end goal. The 3D star tier
+    ([star-tier-3d.md](plans/done/star-tier-3d.md)) shipped first with a
+    per-system height (`systemZ`, a thin local slab) that this work replaces.
+    Bookmarks and the save already store absolute z.
   - Follow-on: starfield realism (band on each galaxy's own plane, type-aware,
     true 3D density, inside-vs-outside a galaxy).
 - **Distance-based LOD** to replace zoom-level tier selection (depends on the
@@ -27,18 +31,19 @@ remove it from here once it ships. Links point to the design context.
 ## Engineering health
 
 - Move canvas / DPR sizing out of `main.ts` into its own module.
-- Split the remaining 780-line `three-renderer.ts` (instanced star / glow tiers,
-  orbit rings, camera sync); the system-tier bodies already live in
-  `body-passes.ts`.
+- Split the remaining ~800-line `three-renderer.ts` (glow tiers, orbit rings,
+  camera sync); the system-tier bodies live in `body-passes.ts` and the star
+  sprites in `star-sprites.ts`.
 - Tests for `camera-controller.ts`, `lod/streaming.ts`, and
   `lod/sector-cache.ts` (the source of most recent camera / reload fixes).
 - A performance budget: frame-time and star-count measurement per tier.
 - Performance follow-ups (measured in a Node benchmark):
   - Star-tier sector generation builds every system in full (planets, moons,
-    names): ~11 ms per 12-sector pan column near a galaxy core, ~100 ms when a
-    zoom-out brings in 100+ sectors at once. Options: a per-frame generation
-    budget, or star-only sector records with planets generated at the system
-    tier.
+    names): ~1 ms per dense-core sector. A per-frame budget now spreads it (a
+    wide or tilted 3D star view fills in over a few frames); star-only sector
+    records with planets generated at the system tier would remove the cost.
+  - Star-tier hover projects every drawn star each frame (~30k near a core);
+    cache screen positions or use a coarse grid if it shows in profiles.
   - A starfield rebuild still costs ~115 ms at the system tier (~70 ms galaxy
     sampling, ~30 ms sky-structure bake, ~15 ms map lookups; on a focus jump
     of more than ~50,000 AU); spread it over frames or move it to a worker.
@@ -62,12 +67,22 @@ remove it from here once it ships. Links point to the design context.
 - **Starfield sky polish** (options, references and details:
   [starfield-enhancements.md](research/starfield-enhancements.md)):
   - Hybrid sky: the nearest generated systems as real sky stars (true
-    direction, brightness from luminosity and distance) over the dome; payoff
-    is a seamless system → sector zoom. Needs per-system out-of-plane offsets.
+    direction, brightness from luminosity and distance) over the dome at the
+    system tier. The star tier already draws them (per-system heights exist);
+    the remaining step is showing them from inside a system.
   - Intergalactic-void sky: almost no stars, other galaxies as smudges.
   - Neighbour galaxies visible as faint smudges from inside a galaxy.
   - Coloured nebulae along the band, tied to open clusters.
   - Bulge size / brightness scaled by distance to the galaxy core.
+- **3D star tier polish:** hover highlight beyond the reticle, tuning of the
+  brightness / spike / label knobs from Pierre's browser pass, and a gentler
+  star → galaxy swap (the star tier eases to top-down but the orthographic
+  galaxy view is mirrored in y relative to it).
+  [star-tier-3d.md](plans/done/star-tier-3d.md)
+- **Reference-plane swing (star-tier-3d R1):** across the cross-fade the view
+  swings from the system's disk to the galactic plane (up to 180° for an
+  upside-down disk). If it reads as a roll, keep the disk plane for the whole
+  star tier and realign only at the galaxy swap.
 - **Black-hole visuals:** animated accretion disk, photon ring, optional
   lensing post-process.
 - **Cosmic-web / nebula** additive noise from `cosmicDensity`.
@@ -99,7 +114,6 @@ remove it from here once it ships. Links point to the design context.
 
 ## Navigation and UX
 
-- Click a system at the star tier to inspect it (star properties, planet count).
 - Smooth fly / warp-to-target instead of instant jumps.
   [camera-focus-and-lock.md](plans/done/camera-focus-and-lock.md)
 - Startup framing and zoom feel retune.

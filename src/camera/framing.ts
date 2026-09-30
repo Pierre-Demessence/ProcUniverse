@@ -27,6 +27,7 @@ export interface Frame {
   extentAu: number;
   x: number;
   y: number;
+  z: number;
 }
 
 /** The largest apoapsis among planets directly orbiting a star at the given position. */
@@ -54,7 +55,7 @@ function planetSatelliteApoapsis(world: EcsWorld, planetId: EntityId): number {
  * `DISC_FRAME_FACTOR × disc radius`, so a satellite-less body still gets a
  * comfortable framing. Null for the universe or a body that streamed out.
  */
-export function selectionFrame(sel: Selection, world: EcsWorld, originX: number, originY: number): Frame | null {
+export function selectionFrame(sel: Selection, world: EcsWorld, originX: number, originY: number, originZ = 0): Frame | null {
   if (sel.kind === 'universe')
     return null;
   if (sel.kind === 'galaxy') {
@@ -62,6 +63,7 @@ export function selectionFrame(sel: Selection, world: EcsWorld, originX: number,
       extentAu: sel.galaxy.radius * GALAXY_SPRITE_SCALE,
       x: sel.galaxy.centerX - originX,
       y: sel.galaxy.centerY - originY,
+      z: -originZ,
     };
   }
 
@@ -98,17 +100,21 @@ export function selectionFrame(sel: Selection, world: EcsWorld, originX: number,
     discRadiusAu = blackHoleVisualRadius(bh.mass);
   }
 
-  return { extentAu: Math.max(satelliteExtent, discRadiusAu * DISC_FRAME_FACTOR), x: pos.x, y: pos.y };
+  return { extentAu: Math.max(satelliteExtent, discRadiusAu * DISC_FRAME_FACTOR), x: pos.x, y: pos.y, z: pos.z };
 }
 
-/** Pan and zoom the camera to the selection's frame; a no-op when there is none. */
-export function frameSelection(sel: Selection, world: EcsWorld, camera: Camera, originX: number, originY: number): void {
-  const frame = selectionFrame(sel, world, originX, originY);
+/**
+ * Pan and zoom the camera to the selection's frame and return it (null, and a
+ * no-op, when there is none); the caller moves the 3D focus height to `frame.z`.
+ */
+export function frameSelection(sel: Selection, world: EcsWorld, camera: Camera, originX: number, originY: number, originZ = 0): Frame | null {
+  const frame = selectionFrame(sel, world, originX, originY, originZ);
   if (!frame)
-    return;
+    return null;
   camera.zoom = frameZoom(frame.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
   camera.x = frame.x;
   camera.y = frame.y;
+  return frame;
 }
 
 /**

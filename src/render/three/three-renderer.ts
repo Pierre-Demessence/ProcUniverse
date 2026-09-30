@@ -4,34 +4,40 @@
  *
  * It owns its own canvas, behind the transparent 2D overlay canvas that carries
  * labels, the reticle and the HUD (a canvas holds only one context type). The
- * system tier draws bodies as lit, rotating 3D spheres viewed by an orbit/tilt
- * perspective camera; the star, galaxy, galaxy-field and universe tiers draw
- * instanced points / additive glow sprites under an orthographic top-down camera
- * that matches the camera module's `worldToView` mapping, so overlay labels line
- * up with them.
+ * system and star tiers share one orbit/tilt perspective camera and bloom
+ * pipeline: the system layer draws bodies as lit, rotating 3D spheres, the star
+ * layer each system as a bloomed sprite, and the two cross-fade over a zoom
+ * band (docs/plans/star-tier-3d.md). The galaxy, galaxy-field and universe
+ * tiers draw additive glow sprites under an orthographic top-down camera that
+ * matches the camera module's `worldToView` mapping, so overlay labels line up
+ * with them.
  */
 
 import type { EcsWorld, EntityId } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
 
-import type { SectorData } from '../../generation/universe';
+import type { SystemData } from '../../generation/universe';
 import type { SectorCache } from '../../lod/sector-cache';
-import type { SectorRange } from '../../lod/tier';
 import type { BodyKind, PickResult } from '../../pick';
 import type { OrbitElements, RingArc } from '../../sim/orbits';
 import type { BodyFrame } from './body-passes';
 import type { GlowField } from './glow-fields';
+import type { DrawnStar } from './star-sprites';
 import type { StarfieldDome } from './starfield';
 
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { pass } from 'three/tsl';
-import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, CircleGeometry, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
+import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
-import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH } from '../../config/render';
+import { planeBasis } from '../../camera/plane-basis';
+import { STAR_SLAB_THICKNESS_LY } from '../../config/data';
+import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, PICK_PX, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH, STAR_MAX_REACH_LY, STAR_MIN_REACH_LY } from '../../config/render';
 import { galaxyAt } from '../../generation/galaxies';
 import { StarPhysicalDef } from '../../generation/stars';
+import { AU_PER_LY } from '../../generation/units';
+import { layerWeights, sectorsAround, SYSTEM_LAYER_REACH_AU } from '../../lod/tier';
 import { OrbitElementsDef, ringArc } from '../../sim/orbits';
 import { createAtmosphereMaterial } from './atmosphere-material';
 import { BodyPasses } from './body-passes';
@@ -42,6 +48,7 @@ import { createPlanetMaterial } from './planet-material';
 import { createRingMaterial, RING_INNER_FRAC, RING_SEGMENTS } from './planet-rings';
 import { RecyclePool } from './recycle-pool';
 import { createStarMaterial } from './star-material';
+import { StarSpriteLayer } from './star-sprites';
 import { starLightIntensity } from './star-surface';
 import { createStarfieldDome } from './starfield';
 
@@ -65,20 +72,14 @@ const RING_COLOR = 0x96B4E6;
 const RING_OPACITY = 0.14;
 /** Initial merged-ring vertex capacity; grown on demand. */
 const RING_INITIAL_VERTS = 8192;
-/** Minimum on-screen star dot radius (px). */
-const STAR_MIN_DOT_PX = 1.1;
-/** Low-poly disc for star dots — they are only a few pixels across. */
-const STAR_SEGMENTS = 8;
-/** Initial star instance capacity; grown (reallocated) on demand, never shrunk. */
-const STAR_INITIAL_CAPACITY = 8192;
-/** Off-screen cull padding (px) for star instances. */
-const STAR_CULL_PAD_PX = 4;
+/** A plane zoom target farther than this many focus distances from the camera is ignored. */
+const ZOOM_TARGET_MAX_DISTANCE_FACTOR = 4;
+/** Half the star slab's thickness (AU): how far above / below the plane stars reach. */
+const STAR_SLAB_HALF_AU = (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
 /** Initial glow-sprite instance capacity; grown on demand, never shrunk. */
 const GLOW_INITIAL_CAPACITY = 1024;
 /** Values per buffered glow sprite: x, y, radius, then r, g, b pre-multiplied by alpha. */
 const GLOW_STRIDE = 6;
-/** Parsed star colours kept before the cache is reset (distinct blackbody hexes). */
-const STAR_COLOR_CACHE_CAP = 4096;
 /** Radial glow-sprite texture resolution (px). */
 const GLOW_TEXTURE_SIZE = 128;
 
@@ -103,14 +104,21 @@ function makeGlowTexture(): CanvasTexture {
   return new CanvasTexture(canvas);
 }
 
-/** Per-frame inputs for the 3D system tier: camera, orbit angles, sim clock, world. */
+/**
+ * Per-frame inputs for the 3D system and star tiers: camera, orbit angles, sim
+ * clock, world, and the system → star cross-fade.
+ */
 export interface ThreeRenderContext {
   azimuth: number;
+  /** System → star cross-fade, 0 (system layer only) … 1 (star layer only). */
+  blend: number;
   camera: Camera;
   focusZ: number;
-  /** Unit normal of the focused system's orbital plane; the orbit camera looks down it. */
+  /** Unit normal of the reference plane (focused disk → galactic plane across the band); the orbit camera looks down it. */
   planeNormal: readonly [number, number, number];
   simSeconds: number;
+  /** Star-layer inputs, required whenever `blend > 0`. */
+  stars: ThreeStarContext | null;
   tilt: number;
   world: EcsWorld;
 }
@@ -123,13 +131,13 @@ export interface ThreeGlowContext {
   seed: number;
 }
 
-/** Per-frame inputs for the star tier: the visible sectors and the read origin. */
+/** Star-layer inputs: where to read systems from and the focused one (whose sprite hands over from its sphere). */
 export interface ThreeStarContext {
-  cache: SectorCache;
-  camera: Camera;
+  cache: Pick<SectorCache, 'get' | 'peek'>;
+  focused: SystemData | null;
   originX: number;
   originY: number;
-  range: SectorRange;
+  originZ: number;
 }
 
 export class ThreeRenderer implements Renderer<ThreeRenderContext> {
@@ -151,6 +159,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private glowScratch = new Float64Array(GLOW_INITIAL_CAPACITY * GLOW_STRIDE);
   private readonly glowTexture: CanvasTexture;
   private readonly group: Group;
+  /** Render-origin-frame focus and reference-plane normal of the last 3D frame (for zoom targeting). */
+  private readonly lastFocus = new Vector3();
+  private readonly lastPlaneNormal = new Vector3(0, 0, 1);
   private readonly perspective: PerspectiveCamera;
   /** Post-process pipeline (scene → bloom) for the system tier; null until ready. */
   private pipeline: RenderPipeline | null = null;
@@ -167,11 +178,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private ringMesh: LineSegments | null = null;
   private readonly scene: Scene;
   private readonly sphereGeometry: SphereGeometry;
-  private starCapacity = 0;
-  /** Star colours parsed once from their hex strings, reused every frame. */
-  private readonly starColors = new Map<string, Color>();
   private starfieldDome: StarfieldDome | null = null;
-  private readonly starGeometry: CircleGeometry;
+  /** The star layer's sprites (star tier and cross-fade band). */
+  private readonly starLayer: StarSpriteLayer;
   /**
    * A single point light for the system in view, placed at the star nearest the
    * camera focus. One light (not one per star) so the many stars streamed into
@@ -179,11 +188,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * their (decay-free, infinite-reach) illumination and blow the planets out.
    */
   private starLight: PointLight | null = null;
-  private readonly starMaterial: MeshBasicMaterial;
-  private starMesh: InstancedMesh | null = null;
-  /** The visible sectors, fetched once per star-tier frame. */
-  private readonly starSectors: SectorData[] = [];
   private readonly tmpColor = new Color();
+  private readonly tmpPlane = new Plane();
   private readonly tmpVec = new Vector3();
   private readonly tmpVec2 = new Vector2();
   private viewH = 0;
@@ -209,8 +215,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, CAMERA_DEPTH * 2);
     this.perspective = new PerspectiveCamera(CAMERA_FOV_DEG, 1, 0.1, CAMERA_DEPTH);
     this.sphereGeometry = new SphereGeometry(1, SPHERE_WIDTH_SEGMENTS, SPHERE_HEIGHT_SEGMENTS);
-    this.starGeometry = new CircleGeometry(1, STAR_SEGMENTS);
-    this.starMaterial = new MeshBasicMaterial({ side: DoubleSide });
+    const starGroup = new Group();
+    this.scene.add(starGroup);
+    this.starLayer = new StarSpriteLayer(starGroup);
     this.planetRingGeometry = new RingGeometry(RING_INNER_FRAC, 1, RING_SEGMENTS);
     this.bodyPasses = new BodyPasses({
       atmosphere: new RecyclePool(() => {
@@ -259,9 +266,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       const backend = this.renderer.backend as { isWebGPUBackend?: boolean } | undefined;
       this.backendLabel = backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
       console.warn(`ProcUniverse: Three.js renderer ready (${this.backendLabel}).`);
-      // System-tier post-processing: render the scene, then add a bloom of its
-      // HDR-bright pixels (the stars) so they gain a corona. Built once the
-      // renderer is initialised; the glow tiers keep rendering directly.
+      // System- and star-tier post-processing: render the scene, then add a
+      // bloom of its HDR-bright pixels (the stars) so they gain a corona. Built
+      // once the renderer is initialised; the glow tiers keep rendering directly.
       const scenePass = pass(this.scene, this.perspective);
       const bloomPass = bloom(scenePass, BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD);
       const pipeline = new RenderPipeline(this.renderer);
@@ -273,15 +280,18 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     });
   }
 
+  /** The brightest drawn star sprites (for labels), brightest first; empty when the star layer is off. */
+  brightestStars(out: DrawnStar[]): DrawnStar[] {
+    return this.starLayer.brightest(out);
+  }
+
   dispose(): void {
     this.starfieldDome?.dispose();
     this.pipeline?.dispose();
     this.bodyPasses.dispose();
     if (this.starLight)
       this.scene.remove(this.starLight);
-    this.starMesh?.dispose();
-    this.starGeometry.dispose();
-    this.starMaterial.dispose();
+    this.starLayer.dispose();
     this.glowMesh?.dispose();
     this.glowGeometry.dispose();
     this.glowMaterial.dispose();
@@ -330,21 +340,14 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return mesh;
   }
 
-  /** Ensure the star instanced mesh holds ≥ `count` instances, growing as needed. */
-  private ensureStarMesh(count: number): InstancedMesh {
-    if (this.starMesh && this.starCapacity >= count)
-      return this.starMesh;
-    if (this.starMesh) {
-      this.scene.remove(this.starMesh);
-      this.starMesh.dispose();
-    }
-    const capacity = Math.max(STAR_INITIAL_CAPACITY, nextPowerOfTwo(count));
-    const mesh = new InstancedMesh(this.starGeometry, this.starMaterial, capacity);
-    mesh.frustumCulled = false;
-    this.starMesh = mesh;
-    this.starCapacity = capacity;
-    this.scene.add(mesh);
-    return mesh;
+  /**
+   * Fill the background starfield dome once if it is still empty. The star
+   * tier keeps whatever sky the system tier last built (the band barely moves
+   * over the star tier's few light-years) instead of rebuilding it every frame.
+   */
+  ensureStarfield(seed: number, camAbsX: number, camAbsY: number): void {
+    if (!this.starfieldDome?.populated)
+      this.updateStarfield(seed, camAbsX, camAbsY);
   }
 
   /**
@@ -354,7 +357,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * enclosing the focused system, including its central star when zoomed in on an
    * outer planet.
    */
-  private focusedSystemReach(world: EcsWorld, focusX: number, focusY: number): number {
+  private focusedSystemReach(world: EcsWorld, focusX: number, focusY: number, focusZ: number): number {
     const positions = world.getStore(Position3DDef);
     let nearestStar2 = Infinity;
     for (const [id] of world.query(StarPhysicalDef)) {
@@ -363,7 +366,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         continue;
       const dx = p.x - focusX;
       const dy = p.y - focusY;
-      const d2 = dx * dx + dy * dy;
+      const dz = p.z - focusZ;
+      const d2 = dx * dx + dy * dy + dz * dz;
       if (d2 < nearestStar2)
         nearestStar2 = d2;
     }
@@ -407,6 +411,13 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return data.id === undefined || data.kind === undefined ? null : { id: data.id, kind: data.kind };
   }
 
+  /** The star sprite under the cursor (backing px) at the star tier, or null. */
+  pickStar(bx: number, by: number): DrawnStar | null {
+    if (!this.ready)
+      return null;
+    return this.starLayer.nearestOnScreen(bx, by, PICK_PX, (x, y, z, out) => this.projectToScreen(x, y, z, out));
+  }
+
   /**
    * Project a render-origin-frame world point through the perspective camera to
    * backing-pixel screen coordinates (shared with the 2D overlay). Returns false
@@ -426,76 +437,126 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   }
 
   /**
-   * SYSTEM tier: draw the streamed bodies as lit, rotating 3D spheres viewed by
-   * a perspective camera the user can orbit / tilt. `camera` is in the floating
-   * render-origin frame; orbits stay coplanar (z=0). Stars use a procedural
-   * self-lit surface shader and light their planets/moons via a point light at
-   * the star; the black hole is a dark shaded sphere. Bodies reuse pooled sphere
-   * meshes; the surplus is hidden.
+   * SYSTEM and STAR tiers, one perspective scene the user can orbit / tilt.
+   * The system layer draws the streamed bodies as lit, rotating spheres (stars
+   * with a procedural self-lit surface that lights their planets through a
+   * point light); the star layer draws every system in range as a bloomed
+   * sprite. `blend` cross-fades them: bodies and orbit lines fade out, star
+   * sprites fade in, and the focused star hands over from sphere to sprite.
+   * `camera` is in the floating render-origin frame. Returns the number of star
+   * sprites drawn.
    */
-  render(ctx: ThreeRenderContext): void {
+  render(ctx: ThreeRenderContext): number {
     if (!this.ready)
-      return;
-    const { azimuth, camera, focusZ, planeNormal, simSeconds, tilt, world } = ctx;
-    this.group.visible = true;
-    if (this.starMesh)
-      this.starMesh.visible = false;
+      return 0;
+    const { azimuth, blend, camera, focusZ, planeNormal, simSeconds, stars, tilt, world } = ctx;
+    const weights = layerWeights(blend);
+    const systemLayer = blend < 1;
+    this.group.visible = systemLayer;
     if (this.glowMesh)
       this.glowMesh.visible = false;
 
     const focusX = camera.x + camera.offsetX;
     const focusY = camera.y + camera.offsetY;
-    // Frustum reach = the focused system only (nearest star + the widest planet
-    // apoapsis), so the perspective far plane stays tight and neighbouring
-    // systems — light-years away — are clipped rather than drawn (bodies and
-    // labels) behind the current one.
-    const sceneRadius = this.focusedSystemReach(world, focusX, focusY);
+    // Star-field reach: the view's half-span, widened toward the horizon by the
+    // tilt, never below the neighbourhood the cross-fade band shows.
+    const halfSpan = Math.max(camera.viewportW, camera.viewportH) / camera.zoom / 2;
+    const starReach = stars
+      ? Math.min(Math.max(halfSpan * (1 + 2 * Math.abs(Math.sin(tilt))), STAR_MIN_REACH_LY * AU_PER_LY), STAR_MAX_REACH_LY * AU_PER_LY)
+      : 0;
+    // Frustum reach at the system tier = the focused system only (nearest star
+    // + the widest planet apoapsis), so the far plane stays tight and
+    // neighbouring systems — light-years away — are clipped rather than drawn
+    // behind the current one. Once the star layer shows, the far plane reaches
+    // the star field and the body passes cull the neighbours instead.
+    const systemReach = systemLayer ? this.focusedSystemReach(world, focusX, focusY, focusZ) : 0;
+    const sceneRadius = stars ? Math.max(systemReach, starReach + STAR_SLAB_HALF_AU) : systemReach;
     // Position the perspective camera up front: the star size-floor below needs
     // the camera's world position, and nothing between here and the final draw
     // depends on the previous frame's camera.
     this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ, planeNormal);
+    this.lastFocus.set(focusX, focusY, focusZ);
+    this.lastPlaneNormal.set(planeNormal[0], planeNormal[1], planeNormal[2]);
     // Anchor the starfield sky to the camera and fit its radius just inside the
     // far plane so it renders as a background: solid content (planets/stars) is
     // closer and occludes it via the depth test, while the sky fills everywhere
     // else. (A fixed origin-centred dome would fall beyond the far plane and be
-    // clipped away.)
+    // clipped away.) Its statistical point stars give way to the real ones.
     if (this.starfieldDome) {
       const p = this.perspective;
       this.starfieldDome.place(p.position.x, p.position.y, p.position.z, p.far * 0.95);
       this.starfieldDome.setVisible(true);
+      this.starfieldDome.setStarOpacity(1 - blend);
     }
     // World units per screen pixel factor: an object of world radius r at camera
     // distance d spans `pxFactor · r / d` pixels tall-half. Used to floor a
     // star's on-screen size so a distant star never shrinks to nothing.
     const pxFactor = this.viewH / (2 * Math.tan((CAMERA_FOV_DEG * DEG2RAD) / 2));
-    const frame: BodyFrame = {
-      cameraPosition: this.perspective.position,
-      focusX,
-      focusY,
-      pxFactor,
-      simSeconds,
-      wallClock: performance.now() / 1000,
-    };
-    const nearest = this.bodyPasses.renderStars(world, frame);
-    // One light at the focused system's star, tinted + scaled to it. Lights the
-    // planets/moons on their star-facing side without stacking (see `starLight`).
-    if (nearest.found) {
-      const light = this.obtainStarLight();
-      light.position.copy(nearest.position);
-      light.color.set(nearest.fill);
-      light.intensity = starLightIntensity(nearest.luminosity, LIGHT_STAR_BASE);
+    if (systemLayer) {
+      const frame: BodyFrame = {
+        cameraPosition: this.perspective.position,
+        cullRadius: blend > 0 ? SYSTEM_LAYER_REACH_AU : Infinity,
+        focusX,
+        focusY,
+        focusZ,
+        pxFactor,
+        simSeconds,
+        starScale: weights.focusedSphere,
+        wallClock: performance.now() / 1000,
+      };
+      const nearest = this.bodyPasses.renderStars(world, frame);
+      // One light at the focused system's star, tinted + scaled to it. Lights the
+      // planets/moons on their star-facing side without stacking (see `starLight`).
+      if (nearest.found) {
+        const light = this.obtainStarLight();
+        light.position.copy(nearest.position);
+        light.color.set(nearest.fill);
+        light.intensity = starLightIntensity(nearest.luminosity, LIGHT_STAR_BASE);
+      }
+      else if (this.starLight) {
+        this.starLight.visible = false;
+      }
+      this.bodyPasses.renderBodies(world, frame, this.starLight);
+      this.updateOrbitRings(world, camera, focusZ, weights.bodies, frame.cullRadius);
     }
-    else if (this.starLight) {
-      this.starLight.visible = false;
+    else {
+      if (this.starLight)
+        this.starLight.visible = false;
+      if (this.ringMesh)
+        this.ringMesh.visible = false;
     }
-    this.bodyPasses.renderBodies(world, frame, this.starLight);
-    this.updateOrbitRings(world, camera, focusZ);
+
+    let drawn = 0;
+    if (stars) {
+      const p = this.perspective;
+      drawn = this.starLayer.fill({
+        cache: stars.cache,
+        cameraPosition: p.position,
+        cameraQuaternion: p.quaternion,
+        focused: stars.focused,
+        focusedWeight: weights.focusedSprite,
+        focusX,
+        focusY,
+        focusZ,
+        horizontalReach: starReach,
+        originX: stars.originX,
+        originY: stars.originY,
+        originZ: stars.originZ,
+        pxFactor,
+        range: sectorsAround(focusX + stars.originX, focusY + stars.originY, starReach),
+        weight: weights.stars,
+      });
+    }
+    else {
+      this.starLayer.hide();
+    }
     // Render through the bloom pipeline once built; the scene pass inside it
     // uses the perspective camera positioned above.
     if (this.pipeline)
       this.pipeline.render();
     else
       this.renderer.render(this.scene, this.perspective);
+    return drawn;
   }
 
   /** GALAXY tier: aggregate galaxy-density glow (one draw call). */
@@ -522,8 +583,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.group.visible = false;
     if (this.ringMesh)
       this.ringMesh.visible = false;
-    if (this.starMesh)
-      this.starMesh.visible = false;
+    this.starLayer.hide();
 
     // Buffer the sprites in a single pass (the field is costly to evaluate),
     // then size the mesh and fill it.
@@ -565,70 +625,6 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return count;
   }
 
-  /**
-   * STAR tier: draw each visible system as an instanced disc — one draw call for
-   * the whole field, with per-star colour and a min-floored size. Returns the
-   * number of stars drawn.
-   */
-  renderStars(ctx: ThreeStarContext): number {
-    if (!this.ready)
-      return 0;
-    const { cache, camera, originX, originY, range } = ctx;
-    this.syncCamera(camera);
-    this.starfieldDome?.setVisible(false);
-    this.group.visible = false;
-    if (this.ringMesh)
-      this.ringMesh.visible = false;
-    if (this.glowMesh)
-      this.glowMesh.visible = false;
-
-    const sectors = this.starSectors;
-    sectors.length = 0;
-    let capacity = 0;
-    for (let sy = range.minSy; sy <= range.maxSy; sy++) {
-      for (let sx = range.minSx; sx <= range.maxSx; sx++) {
-        const sector = cache.get(sx, sy);
-        sectors.push(sector);
-        capacity += sector.systems.length;
-      }
-    }
-    const mesh = this.ensureStarMesh(capacity);
-
-    // Inline `worldToView` (no per-star allocation): screen = (local − topLeft) · zoom.
-    const { zoom } = camera;
-    const leftX = camera.x + camera.offsetX - camera.viewportW / zoom / 2;
-    const topY = camera.y + camera.offsetY - camera.viewportH / zoom / 2;
-    const minRadius = STAR_MIN_DOT_PX / zoom;
-    const maxX = camera.viewportW + STAR_CULL_PAD_PX;
-    const maxY = camera.viewportH + STAR_CULL_PAD_PX;
-    let i = 0;
-    for (const sector of sectors) {
-      for (const sys of sector.systems) {
-        const localX = sys.x - originX;
-        const localY = sys.y - originY;
-        const vx = (localX - leftX) * zoom;
-        const vy = (localY - topY) * zoom;
-        if (vx < -STAR_CULL_PAD_PX || vx > maxX || vy < -STAR_CULL_PAD_PX || vy > maxY)
-          continue;
-        const r = Math.max(minRadius, sys.radius);
-        this.dummy.position.set(localX, localY, 0);
-        this.dummy.scale.set(r, r, 1);
-        this.dummy.updateMatrix();
-        mesh.setMatrixAt(i, this.dummy.matrix);
-        mesh.setColorAt(i, this.starColor(sys.star.colorHex));
-        i++;
-      }
-    }
-    sectors.length = 0;
-    mesh.count = i;
-    mesh.visible = i > 0;
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor)
-      mesh.instanceColor.needsUpdate = true;
-    this.renderer.render(this.scene, this.camera);
-    return i;
-  }
-
   /** UNIVERSE tier: aggregate cosmic-web glow (one draw call). */
   renderUniverse(ctx: ThreeGlowContext): number {
     return this.renderGlowTier(ctx, forEachUniverseGlow);
@@ -642,18 +638,6 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // system view is fill-rate bound when a body fills the screen, and pixel
     // count dominates. Picking/labels use the logical size, so they're unaffected.
     this.renderer.setSize(Math.max(1, Math.round(width * RENDER_SCALE)), Math.max(1, Math.round(height * RENDER_SCALE)), false);
-  }
-
-  /** The parsed colour for a star's hex string, cached across frames. */
-  private starColor(hex: string): Color {
-    let color = this.starColors.get(hex);
-    if (!color) {
-      if (this.starColors.size >= STAR_COLOR_CACHE_CAP)
-        this.starColors.clear();
-      color = new Color(hex);
-      this.starColors.set(hex, color);
-    }
-    return color;
   }
 
   /**
@@ -678,12 +662,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
 
   /**
    * Configure the perspective camera to orbit the focus (the render-origin-frame
-   * camera x,y at z=0). Distance is derived from `zoom` so the framing roughly
-   * matches the 2D view. The orbit is anchored to the focused system's plane:
-   * `tilt` is the polar angle away from the plane normal (0 = looking straight
-   * down it, so orbits read as circles) and `azimuth` swings around it. Any tilt
-   * is valid: past π/2 the camera is under the disk, and past π it has rolled
-   * over the far pole (trackball style).
+   * camera x,y at height `focusZ`). Distance is derived from `zoom` so the
+   * framing roughly matches the 2D view. The orbit is anchored to the reference
+   * plane (`planeBasis`): `tilt` is the polar angle away from the plane normal
+   * (0 = looking straight down it, so orbits read as circles) and `azimuth`
+   * swings around it. Any tilt is valid: past π/2 the camera is under the
+   * plane, and past π it has rolled over the far pole (trackball style).
    */
   private syncPerspective(camera: Camera, azimuth: number, tilt: number, sceneRadius: number, focusZ: number, planeNormal: readonly [number, number, number]): void {
     const fovRad = CAMERA_FOV_DEG * DEG2RAD;
@@ -691,26 +675,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const distance = halfHeightWorld / Math.tan(fovRad / 2);
     const focusX = camera.x + camera.offsetX;
     const focusY = camera.y + camera.offsetY;
-    // Plane-anchored basis (u, v, N): N is the system's disk normal, and (u, v)
-    // span the plane. The camera offset from the focus is a tilt away from N
-    // toward the azimuth direction in the plane, so at tilt→0 it sits on N and
-    // looks straight down the disk (orbits appear as circles about the star).
-    const [nx, ny, nz] = planeNormal;
-    // Reference axis not parallel to N, to seed an in-plane basis via cross products.
-    const refZ = Math.abs(nz) < 0.999 ? 1 : 0;
-    const refX = refZ === 1 ? 0 : 1;
-    // u = ref × N, normalised.
-    let ux = -refZ * ny;
-    let uy = refZ * nx - refX * nz;
-    let uz = refX * ny;
-    const ulen = Math.hypot(ux, uy, uz) || 1;
-    ux /= ulen;
-    uy /= ulen;
-    uz /= ulen;
-    // v = N × u (already unit since N ⟂ u are orthonormal).
-    const vx = ny * uz - nz * uy;
-    const vy = nz * ux - nx * uz;
-    const vz = nx * uy - ny * ux;
+    // Plane-anchored basis (u, v, N): N is the reference-plane normal, and
+    // (u, v) span the plane. The camera offset from the focus is a tilt away
+    // from N toward the azimuth direction in the plane, so at tilt→0 it sits on
+    // N and looks straight down the plane (orbits appear as circles about the
+    // star). The controller pans in the same basis.
+    const { n: [nx, ny, nz], u: [ux, uy, uz], v: [vx, vy, vz] } = planeBasis(planeNormal);
     const sinTilt = Math.sin(tilt);
     const cosTilt = Math.cos(tilt);
     const cosA = Math.cos(azimuth);
@@ -751,7 +721,13 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * stored relative to the focus (the mesh sits there) so float32 keeps them
    * precise at deep zoom.
    */
-  private updateOrbitRings(world: EcsWorld, cam: Camera, focusZ: number): void {
+  private updateOrbitRings(world: EcsWorld, cam: Camera, focusZ: number, opacity: number, cullRadius: number): void {
+    if (opacity <= 0) {
+      if (this.ringMesh)
+        this.ringMesh.visible = false;
+      return;
+    }
+    this.ringMaterial.opacity = RING_OPACITY * opacity;
     const zoom = cam.zoom;
     const focusX = cam.x + cam.offsetX;
     const focusY = cam.y + cam.offsetY;
@@ -760,6 +736,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // circle (focus ± apoapsis) reaches the visible region.
     const isVisible = (orbit: OrbitElements): boolean => {
       if (orbit.a * zoom < RING_MIN_PX)
+        return false;
+      // Neighbouring systems' orbits go with their culled bodies (cross-fade band).
+      if (cullRadius !== Infinity && Math.hypot(orbit.cx, orbit.cy, orbit.cz) > cullRadius)
         return false;
       const apoapsisAu = orbit.a * (1 + orbit.e);
       return Math.hypot(orbit.cx - focusX, orbit.cy - focusY) - apoapsisAu <= visibleRadius;
@@ -846,9 +825,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
 
   /**
    * Update the background starfield dome for the current galaxy context, from
-   * the absolute camera position (AU). The dome is only drawn at the system
-   * tier, so call it only there: a regeneration costs hundreds of ms, and the
-   * zoomed-out tiers would cross its position buckets every frame.
+   * the absolute camera position (AU). Call it at the system tier only (the
+   * star tier uses `ensureStarfield`): a regeneration costs hundreds of ms, and
+   * the zoomed-out tiers would cross its position buckets every frame.
    */
   updateStarfield(seed: number, camAbsX: number, camAbsY: number): void {
     if (!this.ready)
@@ -871,5 +850,30 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       camAbsX,
       camAbsY,
     );
+  }
+
+  /**
+   * The render-origin-frame point a wheel zoom at the cursor (backing px)
+   * should close in on in the 3D view: the star sprite under the cursor if any
+   * (so zooming onto a star converges on it, height included), else the cursor
+   * ray's hit on the reference plane through the focus. Null when neither
+   * exists (e.g. the ray runs parallel to the plane).
+   */
+  zoomTargetAt(bx: number, by: number): { x: number; y: number; z: number } | null {
+    if (!this.ready)
+      return null;
+    const star = this.pickStar(bx, by);
+    if (star)
+      return { x: star.x, y: star.y, z: star.z };
+    this.tmpVec2.set((bx / this.viewW) * 2 - 1, -((by / this.viewH) * 2 - 1));
+    this.raycaster.setFromCamera(this.tmpVec2, this.perspective);
+    this.tmpPlane.setFromNormalAndCoplanarPoint(this.lastPlaneNormal, this.lastFocus);
+    const hit = this.raycaster.ray.intersectPlane(this.tmpPlane, this.tmpVec);
+    // A grazing ray near the horizon hits absurdly far away; one notch would
+    // then fling the view across many sectors, so fall back to the flat pin.
+    const camera = this.perspective.position;
+    if (!hit || hit.distanceTo(camera) > ZOOM_TARGET_MAX_DISTANCE_FACTOR * camera.distanceTo(this.lastFocus))
+      return null;
+    return { x: hit.x, y: hit.y, z: hit.z };
   }
 }

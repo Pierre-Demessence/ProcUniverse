@@ -122,6 +122,8 @@ export interface StarfieldGalaxy {
 
 export interface StarfieldDome {
   object: Group;
+  /** True once `update` has filled the dome for some galaxy context. */
+  readonly populated: boolean;
   dispose: () => void;
   /**
    * Recentre the dome on the camera and scale it to the given render-space
@@ -130,6 +132,11 @@ export interface StarfieldDome {
    * Star points keep a constant on-screen size regardless of the scale.
    */
   place: (x: number, y: number, z: number, radius: number) => void;
+  /**
+   * Fade the dome's point stars (0–1) while keeping the band glow: at the star
+   * tier real neighbour stars fill the foreground, so the statistical ones fade.
+   */
+  setStarOpacity: (opacity: number) => void;
   /** Show or hide the dome (hidden on the top-down map tiers). */
   setVisible: (visible: boolean) => void;
   /**
@@ -502,6 +509,13 @@ export function createStarfieldDome(): StarfieldDome {
     place: (x, y, z, radius) => {
       object.position.set(x, y, z);
       object.scale.setScalar(radius);
+    },
+    get populated() {
+      return lastKey !== '';
+    },
+    setStarOpacity: (opacity) => {
+      starMaterial.opacity = opacity;
+      stars.visible = opacity > 0;
     },
     setVisible: (visible) => {
       object.visible = visible;

@@ -7,7 +7,7 @@ import type { SelectionState } from '../../selection-state';
 import type { FrameCtx } from '../frame-context';
 import type { FrameState } from '../frame-state';
 
-import { selectTier } from '../../lod/tier';
+import { selectTier, tierBlend } from '../../lod/tier';
 import { after } from '../pipeline';
 
 interface SampledStats { sample: (dtMs: number) => void }
@@ -57,6 +57,7 @@ export function makeTierSelectSystem(camera: Camera, state: FrameState): Schedul
     run(ctx) {
       ctx.tier = selectTier(camera, state.currentTier);
       state.currentTier = ctx.tier;
+      ctx.blend = tierBlend(camera);
     },
   };
 }

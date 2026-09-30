@@ -64,6 +64,21 @@ describe('parseSave', () => {
     expect(save?.bookmarks[1]).toEqual({ name: 'NGC-12345', extentAu: 100, kind: 'galaxy', label: 'Test Galaxy', x: 500, y: 600 });
   });
 
+  it('keeps a bookmark height when present and leaves it absent on older bookmarks', () => {
+    const raw = JSON.stringify({
+      seed: 1,
+      bookmarks: [
+        { name: 'A', extentAu: 5, kind: 'planet', label: 'A', x: 1, y: 2, z: -300 },
+        { name: 'B', extentAu: 5, kind: 'planet', label: 'B', x: 1, y: 2 },
+        { name: 'C', extentAu: 5, kind: 'planet', label: 'C', x: 1, y: 2, z: 'high' },
+      ],
+    });
+    const save = parseSave(raw);
+    expect(save?.bookmarks[0].z).toBe(-300);
+    expect(save?.bookmarks[1]).not.toHaveProperty('z');
+    expect(save?.bookmarks[2]).not.toHaveProperty('z');
+  });
+
   it('defaults bookmarks to empty array when absent', () => {
     expect(parseSave('{"seed":1}')?.bookmarks).toEqual([]);
   });

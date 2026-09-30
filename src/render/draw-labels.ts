@@ -1,6 +1,8 @@
 import type { EcsWorld, EntityId } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 
+import type { GeneratedName } from '../generation/naming';
+
 import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
@@ -14,6 +16,8 @@ import { namingStyle } from '../settings';
 import { OrbitElementsDef } from '../sim/orbits';
 
 const GAP_PX = 6;
+// Star sprites are wider than a body marker; drop their labels clear of the glow.
+const STAR_LABEL_OFFSET_PX = 4;
 const STAR_FONT = '12px ui-monospace, monospace';
 const PLANET_FONT = '10px ui-monospace, monospace';
 const STAR_COLOR = 'rgba(214, 230, 255, 0.95)';
@@ -29,8 +33,38 @@ const MOON_LABEL_MIN_ORBIT_PX = 18;
 const GALAXY_LABEL_MIN_PX = 22;
 const GALAXY_LABEL_FILL = 'rgba(210, 224, 255, 0.85)';
 
+/** A star-tier star to label: its name and render-origin-frame position. */
+export interface LabelledStar {
+  system: { name: GeneratedName };
+  x: number;
+  y: number;
+  z: number;
+}
+
 /** Projects a render-origin-frame world point to backing-px screen coords; false if off/behind. */
 export type ScreenProjector = (x: number, y: number, z: number, out: { sx: number; sy: number }) => boolean;
+
+/**
+ * STAR tier: name the given stars (the brightest few, or the hovered one) just
+ * below their projected sprites. Callers set any fade via `globalAlpha`.
+ */
+export function drawStarLabels(ctx2d: CanvasRenderingContext2D, stars: readonly LabelledStar[], project: ScreenProjector): void {
+  if (stars.length === 0)
+    return;
+  const screen = { sx: 0, sy: 0 };
+  ctx2d.save();
+  ctx2d.textAlign = 'center';
+  ctx2d.textBaseline = 'top';
+  ctx2d.shadowColor = SHADOW;
+  ctx2d.shadowBlur = 3;
+  ctx2d.font = STAR_FONT;
+  ctx2d.fillStyle = STAR_COLOR;
+  for (const star of stars) {
+    if (project(star.x, star.y, star.z, screen))
+      ctx2d.fillText(displayName(star.system.name, namingStyle.value), screen.sx, screen.sy + GAP_PX + STAR_LABEL_OFFSET_PX);
+  }
+  ctx2d.restore();
+}
 
 /**
  * SYSTEM tier: draw each body's catalogue name just below its projected screen

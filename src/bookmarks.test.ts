@@ -9,7 +9,7 @@ import { EcsWorld } from '@pierre/ecs';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
-import { bookmarkFromSelection, removeBookmark, toggleBookmark } from './bookmarks';
+import { bookmarkFromSelection, bookmarkZ, removeBookmark, toggleBookmark } from './bookmarks';
 import { selectionFrame } from './camera/framing';
 import { GALAXY_SPRITE_SCALE } from './config/render';
 import { BlackHoleDef } from './generation/galaxies';
@@ -70,7 +70,7 @@ function worldWithPlanet(x: number, y: number): { id: EntityId; world: EcsWorld 
 describe('bookmarkFromSelection', () => {
   it('captures a planet at its absolute position with its frame extent', () => {
     const { id, world } = worldWithPlanet(3, 4);
-    const bm = bookmarkFromSelection({ id, kind: 'planet' }, world, 1000, 2000);
+    const bm = bookmarkFromSelection({ id, kind: 'planet' }, world, 1000, 2000, 300);
     expect(bm).toEqual({
       name: 'G2-ABC b',
       extentAu: selectionFrame({ id, kind: 'planet' }, world, 1000, 2000)?.extentAu,
@@ -78,6 +78,7 @@ describe('bookmarkFromSelection', () => {
       label: 'Aurelia',
       x: 1003,
       y: 2004,
+      z: 300,
     });
   });
 
@@ -91,6 +92,7 @@ describe('bookmarkFromSelection', () => {
       label: 'Andromeda',
       x: 5,
       y: 6,
+      z: 0,
     });
   });
 
@@ -123,5 +125,25 @@ describe('toggleBookmark / removeBookmark', () => {
     expect(removeBookmark(list, { name: 'A', extentAu: 9, kind: 'star', label: 'other', x: 5, y: 5 })).toBe(true);
     expect(list).toEqual([]);
     expect(removeBookmark(list, { name: 'A', extentAu: 1, kind: 'star', label: 'A', x: 0, y: 0 })).toBe(false);
+  });
+});
+
+describe('bookmarkZ', () => {
+  const cache = { get: () => ({ systems: [{ x: 10, y: 10, z: 777 }, { x: 5000, y: 10, z: -50 }] }) } as never;
+  const bm = (kind: Bookmark['kind'], z?: number): Bookmark => ({ name: 'N', extentAu: 1, kind, label: 'N', x: 12, y: 11, ...(z === undefined ? {} : { z }) });
+
+  it('uses the stored height when the bookmark has one', () => {
+    expect(bookmarkZ(bm('planet', 42), cache)).toBe(42);
+  });
+
+  it('recomputes an old body bookmark height from its nearest system', () => {
+    expect(bookmarkZ(bm('planet'), cache)).toBe(777);
+    expect(bookmarkZ(bm('star'), cache)).toBe(777);
+  });
+
+  it('puts galaxies, black holes and the universe on the galactic plane', () => {
+    expect(bookmarkZ(bm('galaxy'), cache)).toBe(0);
+    expect(bookmarkZ(bm('black-hole'), cache)).toBe(0);
+    expect(bookmarkZ(bm('universe'), cache)).toBe(0);
   });
 });

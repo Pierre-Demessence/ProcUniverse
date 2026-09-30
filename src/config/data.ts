@@ -31,6 +31,14 @@ export const GALAXY_ARMS_MAX = 4;
 export const GALAXY_ARM_PITCH_DEG = 18;
 export const GALAXY_ARM_STRENGTH = 0.7;
 
+// ── Star height (3D star tier) ─────────────────────────────────────────
+// Sectors and galaxies are flat; each system only gains a height `z` off the
+// galactic plane, spread over a slab `STAR_SLAB_THICKNESS_LY` thick (triangular,
+// peaked on the plane) so the star tier reads as a 3D neighbourhood. This is a
+// local look, not the galaxy's true thin disk (hundreds of ly thick): true 3D
+// sectors replace it later through the same `systemZ` seam.
+export const STAR_SLAB_THICKNESS_LY = 3;
+
 // ── Universe: galaxy field, black holes, stellar populations ─────────────
 // The universe tiles into galaxy cells of `GALAXY_CELL_LY` (~2 Mly, so galaxies
 // sit roughly Andromeda-distance apart); each cell holds one galaxy with

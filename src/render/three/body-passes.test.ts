@@ -76,10 +76,13 @@ const ORBIT: OrbitElements = {
 
 const FRAME: BodyFrame = {
   cameraPosition: new Vector3(0, 0, 100),
+  cullRadius: Infinity,
   focusX: 0,
   focusY: 0,
+  focusZ: 0,
   pxFactor: 500,
   simSeconds: 0,
+  starScale: 1,
   wallClock: 0,
 };
 
@@ -334,6 +337,34 @@ describe('bodyPasses', () => {
     expect(nearest.luminosity).toBe(2);
     const nearMesh = meshes(group).find(m => (m.userData as { id: number }).id === near)!;
     expect(nearMesh.scale.x).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('hides bodies beyond the cull radius in the cross-fade band, but never a black hole', () => {
+    const group = new Group();
+    const passes = new BodyPasses(makePools(), group);
+    const world = makeWorld();
+    const near = addPlanet(world, 3, 4);
+    const far = addPlanet(world, 5000, 0);
+    const hole = addBody(world, 9000, 0);
+    world.getStore(BlackHoleDef).set(hole, { eddingtonRatio: 0, mass: 1, schwarzschildRadius: 1, spin: 0 });
+    passes.renderBodies(world, { ...FRAME, cullRadius: 1000 }, null);
+    const visible = new Map(meshes(group).map(m => [(m.userData as { id: number }).id, m.visible]));
+    expect(visible.get(near)).toBe(true);
+    expect(visible.get(far)).toBe(false);
+    expect(visible.get(hole)).toBe(true);
+    passes.renderBodies(world, FRAME, null);
+    expect(meshes(group).every(m => m.visible)).toBe(true);
+  });
+
+  it('shrinks the star spheres by the handoff scale', () => {
+    const group = new Group();
+    const passes = new BodyPasses(makePools(), group);
+    const world = makeWorld();
+    addStar(world, 1, 0);
+    passes.renderStars(world, FRAME);
+    const full = meshes(group)[0]!.scale.x;
+    passes.renderStars(world, { ...FRAME, starScale: 0.25 });
+    expect(meshes(group)[0]!.scale.x).toBeCloseTo(full * 0.25);
   });
 
   it('reports no nearest star when there are none', () => {

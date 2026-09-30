@@ -82,11 +82,22 @@ export interface BodyPools {
 /** Per-frame inputs the passes read; set by the caller before each pass runs. */
 export interface BodyFrame {
   cameraPosition: Vector3;
+  /**
+   * Bodies farther than this from the render origin (the focused star) are
+   * hidden. Infinite at the system tier, where the far plane clips neighbouring
+   * systems; finite in the cross-fade band, where the far plane reaches the
+   * star field and neighbours are drawn as sprites instead. Black holes are
+   * never culled.
+   */
+  cullRadius: number;
   focusX: number;
   focusY: number;
+  focusZ: number;
   /** Screen pixels per world unit at unit distance; 0 before the first resize. */
   pxFactor: number;
   simSeconds: number;
+  /** Scale of the star spheres (1, shrinking to 0 as the focused star hands over to its sprite). */
+  starScale: number;
   wallClock: number;
 }
 
@@ -221,27 +232,36 @@ function meshGraph(group: Group): SceneGraph<PooledMesh<unknown>> {
  * `Scene3DRenderer` calls `select` once per world and re-iterates the result
  * every frame, so the one-shot generator is wrapped to restart on each pass.
  */
-function makePass<THandle, TRow extends unknown[]>(
+function makePass<THandle, TRow extends [BodyPose, ...unknown[]]>(
   pool: RecyclePool<Entry<THandle>>,
   select: (world: EcsWorld) => Iterable<Scene3DEntry<TRow>>,
   sync: (entry: Entry<THandle>, row: Scene3DEntry<TRow>, world: EcsWorld) => void,
+  inReach: (pose: BodyPose) => boolean,
 ): Scene3DRenderer<Entry<THandle>, TRow> {
   return new Scene3DRenderer<Entry<THandle>, TRow>({
-    sync,
     create: () => pool.take(),
     remove: entry => pool.give(entry),
     select: world => ({ [Symbol.iterator]: () => select(world)[Symbol.iterator]() }),
+    sync: (entry, row, world) => {
+      sync(entry, row, world);
+      entry.mesh.visible = inReach(row[1] as BodyPose);
+    },
   });
 }
 
 const INITIAL_FRAME: BodyFrame = {
   cameraPosition: new Vector3(),
+  cullRadius: Infinity,
   focusX: 0,
   focusY: 0,
+  focusZ: 0,
   pxFactor: 0,
   simSeconds: 0,
+  starScale: 1,
   wallClock: 0,
 };
+
+const ALWAYS = (): boolean => true;
 
 export class BodyPasses {
   private readonly atmospheres: Scene3DRenderer<Entry<AtmosphereMaterialHandle>, [BodyPose, PlanetPhysical, AtmosphereLook]>;
@@ -260,13 +280,17 @@ export class BodyPasses {
   constructor(pools: BodyPools, group: Group) {
     this.pools = pools;
     this.graph = meshGraph(group);
-    this.stars = makePass(pools.star, world => selectPosed(world, StarPhysicalDef), (entry, row) => this.syncStar(entry, row));
-    this.planets = makePass(pools.planet, world => selectPosed(world, PlanetPhysicalDef), (entry, row, world) => this.syncPlanet(entry, row, world));
-    this.clouds = makePass(pools.cloud, selectClouded, (entry, row, world) => this.syncClouds(entry, row, world));
-    this.atmospheres = makePass(pools.atmosphere, selectAtmospheric, (entry, row, world) => this.syncAtmosphere(entry, row, world));
-    this.rings = makePass(pools.ring, selectRinged, (entry, row) => this.syncRing(entry, row));
-    this.moons = makePass(pools.moon, world => selectPosed(world, MoonPhysicalDef), (entry, row, world) => this.syncMoon(entry, row, world));
-    this.blackHoles = makePass(pools.generic, world => selectPosed(world, BlackHoleDef), (entry, row) => this.syncGeneric(entry, row, 'black-hole'));
+    const inReach = (pose: BodyPose): boolean => {
+      const r = this.frame.cullRadius;
+      return r === Infinity || pose.x * pose.x + pose.y * pose.y + pose.z * pose.z <= r * r;
+    };
+    this.stars = makePass(pools.star, world => selectPosed(world, StarPhysicalDef), (entry, row) => this.syncStar(entry, row), inReach);
+    this.planets = makePass(pools.planet, world => selectPosed(world, PlanetPhysicalDef), (entry, row, world) => this.syncPlanet(entry, row, world), inReach);
+    this.clouds = makePass(pools.cloud, selectClouded, (entry, row, world) => this.syncClouds(entry, row, world), inReach);
+    this.atmospheres = makePass(pools.atmosphere, selectAtmospheric, (entry, row, world) => this.syncAtmosphere(entry, row, world), inReach);
+    this.rings = makePass(pools.ring, selectRinged, (entry, row) => this.syncRing(entry, row), inReach);
+    this.moons = makePass(pools.moon, world => selectPosed(world, MoonPhysicalDef), (entry, row, world) => this.syncMoon(entry, row, world), inReach);
+    this.blackHoles = makePass(pools.generic, world => selectPosed(world, BlackHoleDef), (entry, row) => this.syncGeneric(entry, row, 'black-hole'), ALWAYS);
   }
 
   /** Release every mesh, then free the GPU materials of everything ever built. */
@@ -420,14 +444,15 @@ export class BodyPasses {
     // where `pxFactor` is 0 (avoids an infinite radius).
     const distToCam = frame.cameraPosition.distanceTo(mesh.position);
     const minRadius = frame.pxFactor > 0 ? (STAR_MIN_SCREEN_PX * distToCam) / frame.pxFactor : 0;
-    mesh.scale.setScalar(Math.max(pose.radius, minRadius));
+    mesh.scale.setScalar(Math.max(pose.radius, minRadius) * frame.starScale);
     mesh.rotation.set(0, frame.simSeconds * STAR_SPIN_RATE, 0);
     handle.setStar(pose.fill, star.temperature);
     handle.setTime(frame.wallClock);
     stamp(mesh, id, 'star');
     const dx = pose.x - frame.focusX;
     const dy = pose.y - frame.focusY;
-    const distSq = dx * dx + dy * dy;
+    const dz = pose.z - frame.focusZ;
+    const distSq = dx * dx + dy * dy + dz * dz;
     const nearest = this.nearestStar;
     if (distSq < nearest.distSq) {
       nearest.distSq = distSq;

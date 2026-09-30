@@ -4,7 +4,6 @@ import type { FrameStats } from '@pierre/ecs/modules/stats';
 import type { SchedulableSystem } from '@pierre/ecs/scheduler';
 
 import type { Bookmark } from '../../bookmarks';
-import type { SectorCache } from '../../lod/sector-cache';
 import type { Tier } from '../../lod/tier';
 import type { ThreeBackend } from '../../render/three-backend';
 import type { ThreeRenderer } from '../../render/three/three-renderer';
@@ -32,7 +31,6 @@ const HINT = 'Drag to pan  ·  Scroll to zoom';
 export interface HudSystemDeps {
   bookmarkList: Pick<BookmarkList, 'update'>;
   bookmarks: readonly Bookmark[];
-  cache: SectorCache;
   camera: Camera;
   canvas: HTMLCanvasElement;
   ctx2d: CanvasRenderingContext2D;
@@ -52,7 +50,7 @@ export interface HudSystemDeps {
  * and frame-time sparkline stay live.
  */
 export function makeHudSystem(deps: HudSystemDeps): SchedulableSystem<FrameCtx> {
-  const { bookmarkList, bookmarks, cache, camera, canvas, ctx2d, frameStats, inspector, navTree, seed, selectionState, state, threeBackend, timeControls, world } = deps;
+  const { bookmarkList, bookmarks, camera, canvas, ctx2d, frameStats, inspector, navTree, seed, selectionState, state, threeBackend, timeControls, world } = deps;
   return {
     name: 'hud',
     runAfter: after('hud'),
@@ -68,7 +66,7 @@ export function makeHudSystem(deps: HudSystemDeps): SchedulableSystem<FrameCtx> 
 
       // The tree and the coordinate readout want the ABSOLUTE camera position.
       const camAbs = { ...camera, x: cameraAbsolute(state.renderOriginX, camera.x), y: cameraAbsolute(state.renderOriginY, camera.y) };
-      navTree.update(buildNavState(seed, cache, camAbs, ctx.tier, world, selection));
+      navTree.update(buildNavState(seed, ctx.focusedSystem, camAbs, ctx.tier, world, selection));
 
       // Perf monitor: top-right, just left of the sim-time panel (so the tree
       // owns the top-left). Knobs are CSS pixels; the overlay draws in backing

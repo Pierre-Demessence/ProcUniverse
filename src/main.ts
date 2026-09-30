@@ -1,5 +1,6 @@
 import type { Bookmark } from './bookmarks';
 import type { FrameCtx } from './frame/frame-context';
+import type { SystemData } from './generation/universe';
 import type { Save } from './persistence/save';
 import type { ThreeRenderer } from './render/three/three-renderer';
 import type { NavNode } from './ui/nav-tree';
@@ -12,12 +13,12 @@ import { AnimationFrameTickSource } from '@pierre/ecs/modules/tick';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { TickRunner } from '@pierre/ecs/tick-runner';
 
-import { removeBookmark, toggleBookmark } from './bookmarks';
+import { bookmarkZ, removeBookmark, toggleBookmark } from './bookmarks';
 import { createCameraController } from './camera/camera-controller';
 import { frameZoom } from './camera/focus';
 import { frameSelection } from './camera/framing';
 import { cameraAbsolute } from './camera/origin';
-import { CLICK_SLOP_PX, FRAME_MARGIN, MAX_ZOOM, MIN_ZOOM, SYSTEM_VIEW_AU } from './config/render';
+import { CLICK_SLOP_PX, DISC_FRAME_FACTOR, FRAME_MARGIN, MAX_ZOOM, MIN_ZOOM, SYSTEM_VIEW_AU } from './config/render';
 import { createFrameCtx } from './frame/frame-context';
 import { FrameState } from './frame/frame-state';
 import { buildFramePipeline } from './frame/pipeline';
@@ -140,6 +141,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   const frameOrigin = (): void => {
     state.renderOriginX = Math.round(homeFocus.x / SECTOR_SIZE) * SECTOR_SIZE;
     state.renderOriginY = Math.round(homeFocus.y / SECTOR_SIZE) * SECTOR_SIZE;
+    state.renderOriginZ = 0;
     controller.camera.x = homeFocus.x - state.renderOriginX;
     controller.camera.y = homeFocus.y - state.renderOriginY;
     controller.camera.zoom = canvas.height / SYSTEM_VIEW_AU;
@@ -149,7 +151,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   // visit. The saved view is absolute; anchor the origin to it and store the
   // small offset. A persisted zoom is clamped in case the config bounds changed.
   // The 3D orbit state (azimuth, tilt, focusZ) is also restored so the camera
-  // direction and focus height survive a reload.
+  // direction and focus height survive a reload; the origin starts on the
+  // galactic plane (z = 0), so the saved absolute focus height is the local one.
   const savedView = save.view;
   if (savedView) {
     state.renderOriginX = Math.round(savedView.x / SECTOR_SIZE) * SECTOR_SIZE;
@@ -206,7 +209,9 @@ export function start(container: HTMLElement, save: Save): () => void {
     const selection = selectionState.selection;
     if (!selection)
       return;
-    frameSelection(selection, world, camera, state.renderOriginX, state.renderOriginY);
+    const frame = frameSelection(selection, world, camera, state.renderOriginX, state.renderOriginY, state.renderOriginZ);
+    if (frame)
+      controller.setFocusZ(frame.z);
     // Pin a planet / moon so it stays centred — in x, y and out-of-plane z — as
     // it orbits; static bodies (star / galaxy / black hole) need no lock. The
     // per-frame lock re-centre also supplies the 3D camera's focus height, so a
@@ -216,7 +221,7 @@ export function start(container: HTMLElement, save: Save): () => void {
 
   const onToggleBookmark = (): void => {
     const selection = selectionState.selection;
-    if (selection && toggleBookmark(bookmarks, selection, world, state.renderOriginX, state.renderOriginY))
+    if (selection && toggleBookmark(bookmarks, selection, world, state.renderOriginX, state.renderOriginY, state.renderOriginZ))
       persistBookmarks();
   };
 
@@ -255,6 +260,11 @@ export function start(container: HTMLElement, save: Save): () => void {
       if (threeBackend.active && three)
         selectionState.select(three.pickAt(bx, by));
     }
+    else if (state.currentTier === 'star') {
+      const star = threeBackend.active ? threeBackend.renderer?.pickStar(bx, by) : null;
+      if (star)
+        onStarInspect(star.system);
+    }
     else if (state.currentTier === 'galaxy-field') {
       const galaxy = pickGalaxyAt(seed, localCam, state.renderOriginX, state.renderOriginY, bx, by);
       selectionState.select(galaxy ? { galaxy, kind: 'galaxy' } : null);
@@ -264,6 +274,24 @@ export function start(container: HTMLElement, save: Save): () => void {
     if (e.key === 'Escape')
       selectionState.select(null);
   };
+  // Star-tier hover: the reticle step marks and names the star under the pointer.
+  const onHoverMove = (e: PointerEvent): void => {
+    const { x, y } = projectPointer(e, canvas);
+    state.pointerX = x;
+    state.pointerY = y;
+  };
+  const onHoverLeave = (): void => {
+    state.pointerX = null;
+    state.pointerY = null;
+  };
+  canvas.addEventListener('pointermove', onHoverMove);
+  canvas.addEventListener('pointerleave', onHoverLeave);
+  // In the 3D star view the wheel zooms toward the star (or plane point) under
+  // the cursor in all three axes, so zooming onto a star lands in its system.
+  controller.setZoomTargetResolver((bx, by) => {
+    const three = threeBackend.renderer;
+    return state.currentTier === 'star' && threeBackend.active && three ? three.zoomTargetAt(bx, by) : null;
+  });
   canvas.addEventListener('pointerdown', onPickDown);
   window.addEventListener('pointermove', onLockPointerMove);
   window.addEventListener('pointerup', onPickUp);
@@ -316,14 +344,25 @@ export function start(container: HTMLElement, save: Save): () => void {
   const onBookmarkInspect = (bm: Bookmark): void => {
     camera.x = bm.x - state.renderOriginX;
     camera.y = bm.y - state.renderOriginY;
+    controller.setFocusZ(bookmarkZ(bm, cache) - state.renderOriginZ);
     camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
     const id = selectionState.openBookmark(bm, world, seed);
     const pos = id === null ? undefined : positions.get(id);
     if (pos) {
       camera.x = pos.x;
       camera.y = pos.y;
+      controller.setFocusZ(pos.z);
     }
   };
+
+  // A click on a star at the star tier flies into its system and selects the
+  // star, through the same path as a star bookmark (it resolves once streamed).
+  function onStarInspect(sys: SystemData): void {
+    let extentAu = sys.radius * DISC_FRAME_FACTOR;
+    for (const planet of sys.planets)
+      extentAu = Math.max(extentAu, planet.a * (1 + planet.e));
+    onBookmarkInspect({ name: sys.name.scientific, extentAu, kind: 'star', label: sys.name.human, x: sys.x, y: sys.y, z: sys.z });
+  }
 
   const onBookmarkRemove = (bm: Bookmark): void => {
     if (removeBookmark(bookmarks, bm))
@@ -339,15 +378,15 @@ export function start(container: HTMLElement, save: Save): () => void {
     makeSimClockSystem(state, timeControls, frameStats),
     makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
     makeTierSelectSystem(camera, state),
-    makeBackendSelectSystem({ controller, flattenButton, state, threeBackend }),
-    makeOriginRebaseSystem({ cache, camera, state, streamer }),
+    makeBackendSelectSystem({ camera, controller, flattenButton, state, threeBackend }),
+    makeOriginRebaseSystem({ cache, camera, controller, state, streamer }),
     makeStreamingSystem({ state, streamer, world }),
     makeOrbitsSystem(state, world),
-    makePendingBookmarkSystem({ camera, selectionState, world }),
+    makePendingBookmarkSystem({ camera, controller, selectionState, world }),
     makeOverlayClearSystem({ canvas, ctx2d }),
     makeRenderThreeSystem({ cache, camera, controller, ctx2d, seed, state, streamer, threeBackend, world }),
     makeReticleSystem({ camera, ctx2d, selectionState, state, threeBackend, world }),
-    makeHudSystem({ bookmarkList, bookmarks, cache, camera, canvas, ctx2d, frameStats, inspector, navTree, seed, selectionState, state, threeBackend, timeControls, world }),
+    makeHudSystem({ bookmarkList, bookmarks, camera, canvas, ctx2d, frameStats, inspector, navTree, seed, selectionState, state, threeBackend, timeControls, world }),
   ]);
   const runner = new TickRunner<FrameCtx>({
     scheduler,
@@ -360,7 +399,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   return (): void => {
     // Persist the final session state (camera, clock, speed) so the next visit
     // resumes here; this teardown is wired to `beforeunload`.
-    writeSave({ ...save, simSeconds: state.simSeconds, speedIndex: timeControls.speedIndex, view: { azimuth: controller.azimuth, focusZ: controller.focusZ, tilt: controller.tilt, x: cameraAbsolute(state.renderOriginX, camera.x), y: cameraAbsolute(state.renderOriginY, camera.y), zoom: camera.zoom } });
+    writeSave({ ...save, simSeconds: state.simSeconds, speedIndex: timeControls.speedIndex, view: { azimuth: controller.azimuth, focusZ: cameraAbsolute(state.renderOriginZ, controller.focusZ), tilt: controller.tilt, x: cameraAbsolute(state.renderOriginX, camera.x), y: cameraAbsolute(state.renderOriginY, camera.y), zoom: camera.zoom } });
     runner.stop();
     resizeObserver.disconnect();
     dprQuery?.removeEventListener('change', onDprChange);
@@ -368,6 +407,8 @@ export function start(container: HTMLElement, save: Save): () => void {
     window.removeEventListener('pointermove', onLockPointerMove);
     window.removeEventListener('pointerup', onPickUp);
     window.removeEventListener('keydown', onPickKey);
+    canvas.removeEventListener('pointermove', onHoverMove);
+    canvas.removeEventListener('pointerleave', onHoverLeave);
     controller.dispose();
     timeControls.dispose();
     inspector.dispose();

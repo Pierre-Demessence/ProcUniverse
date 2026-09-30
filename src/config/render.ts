@@ -194,6 +194,52 @@ export const GALAXY_FIELD_SECTORS = 300000;
 export const UNIVERSE_SECTORS = 100000000;
 export const TIER_HYSTERESIS = 1.25;
 
+// ── System ↔ star cross-fade & 3D star tier ─────────────────────────────
+// Rendering blends the system and star layers across a zoom band instead of
+// swapping at `SYSTEM_TIER_MAX_AU`: from `STAR_BLEND_MIN_AU` across (pure system)
+// to `STAR_BLEND_MAX_AU` across (pure stars), smooth-stepped in log zoom. The
+// band must enclose the tier boundary's hysteresis dead-band (pinned by a test),
+// so systems stay streamed wherever their layer is still visible. Over the band
+// the camera's reference plane swings from the focused disk to the galactic
+// plane. `STAR_HANDOFF_START` is the blend where the focused star's sphere
+// starts handing over to its sprite. Toward the galaxy tier the star-tier tilt
+// eases to top-down from `STAR_TILT_EASE_START_SECTORS` across, reaching it at
+// `GALAXY_TIER_SECTORS`, so the orthographic swap does not jump angle.
+export const STAR_BLEND_MIN_AU = 100;
+export const STAR_BLEND_MAX_AU = 900;
+export const STAR_HANDOFF_START = 0.6;
+export const STAR_TILT_EASE_START_SECTORS = 4;
+// Star-tier sprites: apparent brightness from luminosity and camera distance,
+// on a magnitude-like (log flux) scale. Flux is L☉ / ly², mapped linearly in
+// log10 between `STAR_LOG_FLUX_FAINT` (drawn at `STAR_SPRITE_MIN_INTENSITY`) and
+// `STAR_LOG_FLUX_BRIGHT` (drawn at `STAR_SPRITE_PEAK_INTENSITY`, past
+// `BLOOM_THRESHOLD` so the brightest stars glare), with `STAR_BRIGHTNESS_GAMMA`
+// steepening the bright end. Sprite diameter grows from `STAR_SPRITE_MIN_PX` to
+// `STAR_SPRITE_MAX_PX` with brightness. `STAR_SATURATION_BOOST` pushes the pale
+// blackbody tints apart for readability. `STAR_SPIKE_COUNT` brightest stars get
+// diffraction spikes (0 disables); `STAR_LABEL_COUNT` brightest are labelled.
+export const STAR_LOG_FLUX_FAINT = -4;
+export const STAR_LOG_FLUX_BRIGHT = 1.5;
+export const STAR_BRIGHTNESS_GAMMA = 1.6;
+export const STAR_SPRITE_MIN_INTENSITY = 0.35;
+export const STAR_SPRITE_PEAK_INTENSITY = 4;
+export const STAR_SPRITE_MIN_PX = 5;
+export const STAR_SPRITE_MAX_PX = 14;
+export const STAR_SATURATION_BOOST = 1.35;
+export const STAR_SPIKE_COUNT = 6;
+export const STAR_LABEL_COUNT = 8;
+// Star-field extent: stars are drawn out to the view's half-span widened by the
+// tilt (a tilted view sees toward the horizon), never less than
+// `STAR_MIN_REACH_LY` so the cross-fade band still shows the neighbourhood, and
+// never more than `STAR_MAX_REACH_LY` (the sectors in range must fit the sector
+// cache, pinned by a test).
+// Missing sectors are generated nearest-first within `STAR_SECTOR_BUDGET_MS` per
+// frame (a dense core sector costs ~1 ms), so a wide view fills in over a few
+// frames instead of hitching.
+export const STAR_MIN_REACH_LY = 2;
+export const STAR_MAX_REACH_LY = 20;
+export const STAR_SECTOR_BUDGET_MS = 4;
+
 // ── Visual disc sizing (non-physical, AU) ─────────────────────────────
 // Bodies are currently drawn at their true physical radius (see `scale.ts`), so
 // these are dormant. They are the tuning inputs for the planned zoom-aware

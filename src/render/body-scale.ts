@@ -70,9 +70,11 @@ export function drawnBodyRadiusAu(trueAu: number, zoom: number, mode: BodyScale,
  * floored-but-still-true-underneath markers. Runs each frame before the body
  * passes; the true radius is re-derived from each body's physical data, so the
  * data itself is never overwritten. Counts are bounded by the system tier, so a
- * per-body update is cheap.
+ * per-body update is cheap. `fade` (0–1) shrinks planets and moons as the
+ * system layer cross-fades into the star field; stars and black holes keep
+ * their size (the focused star hands over separately).
  */
-export function applyBodyScale(world: EcsWorld, zoom: number): void {
+export function applyBodyScale(world: EcsWorld, zoom: number, fade = 1): void {
   const mode = bodyScale.value;
   const visuals = world.getStore(BodyVisualDef);
 
@@ -85,7 +87,7 @@ export function applyBodyScale(world: EcsWorld, zoom: number): void {
   for (const [id, planet] of world.query(PlanetPhysicalDef)) {
     const visual = visuals.get(id);
     if (visual)
-      visual.radius = drawnBodyRadiusAu(planetVisualRadius(planet.radius), zoom, mode);
+      visual.radius = drawnBodyRadiusAu(planetVisualRadius(planet.radius), zoom, mode) * fade;
   }
 
   for (const [id, blackHole] of world.query(BlackHoleDef)) {
@@ -97,6 +99,6 @@ export function applyBodyScale(world: EcsWorld, zoom: number): void {
   for (const [id, moon] of world.query(MoonPhysicalDef)) {
     const visual = visuals.get(id);
     if (visual)
-      visual.radius = drawnBodyRadiusAu(planetVisualRadius(moon.radius), zoom, mode, MOON_FLOOR_MIN_PX);
+      visual.radius = drawnBodyRadiusAu(planetVisualRadius(moon.radius), zoom, mode, MOON_FLOOR_MIN_PX) * fade;
   }
 }

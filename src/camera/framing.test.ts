@@ -115,7 +115,7 @@ describe('selectionFrame', () => {
     addPlanet(world, { a: 1, cx: 5, cy: 5, e: 0 });
     addPlanet(world, { a: 10, cx: 5, cy: 5, e: 0.5 });
     const frame = selectionFrame({ id: star, kind: 'star' }, world, 0, 0);
-    expect(frame).toEqual({ extentAu: Math.max(15, starVisualRadius(STAR.radius) * DISC_FRAME_FACTOR), x: 5, y: 5 });
+    expect(frame).toEqual({ extentAu: Math.max(15, starVisualRadius(STAR.radius) * DISC_FRAME_FACTOR), x: 5, y: 5, z: 0 });
   });
 
   it('ignores planets of other stars', () => {
@@ -148,8 +148,8 @@ describe('selectionFrame', () => {
   it('frames a galaxy at its origin-local centre', () => {
     const world = makeWorld();
     const galaxy = { centerX: 1000, centerY: 2000, radius: 50 } as unknown as GalaxyParams;
-    const frame = selectionFrame({ galaxy, kind: 'galaxy' }, world, 900, 1900);
-    expect(frame).toEqual({ extentAu: 50 * GALAXY_SPRITE_SCALE, x: 100, y: 100 });
+    const frame = selectionFrame({ galaxy, kind: 'galaxy' }, world, 900, 1900, 40);
+    expect(frame).toEqual({ extentAu: 50 * GALAXY_SPRITE_SCALE, x: 100, y: 100, z: -40 });
   });
 
   it('returns null for the universe and for streamed-out bodies', () => {

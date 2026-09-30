@@ -22,6 +22,7 @@ import {
   PLANET_MAX,
   PLANET_MIN,
   STAR_DENSITY_PEAK,
+  STAR_SLAB_THICKNESS_LY,
 } from '../config/data';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
 import { planeToElements, tiltNormal } from '../sim/orbits';
@@ -31,6 +32,7 @@ import { generateMoons } from './moons';
 import { namePlanet, nameStar } from './naming';
 import { earthSimilarityIndex, escapeVelocity, frostLine, samplePlanet } from './planets';
 import { sampleStar } from './stars';
+import { AU_PER_LY } from './units';
 
 const TAU = Math.PI * 2;
 
@@ -68,6 +70,8 @@ export interface SystemData {
   star: StarPhysical;
   x: number;
   y: number;
+  /** Height off the galactic plane (AU); read it here, never re-derive it (see `systemZ`). */
+  z: number;
 }
 
 export interface BlackHoleData {
@@ -90,6 +94,17 @@ export interface SectorData {
 
 function choose(colors: readonly string[], rng: () => number): string {
   return colors[randomInt(colors.length, rng)];
+}
+
+/**
+ * A system's height off the galactic plane (AU): a triangular spread over the
+ * `STAR_SLAB_THICKNESS_LY` slab, peaked on the plane. The single source of star
+ * heights — true 3D sectors later replace this function, not its callers.
+ */
+export function systemZ(rng: () => number): number {
+  const u1 = rng();
+  const u2 = rng();
+  return (u1 + u2 - 1) * (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
 }
 
 /**
@@ -208,7 +223,11 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       }
     }
 
-    systems.push({ name: systemName, diskNormal: [diskNx, diskNy, diskZ], planets, radius, star, x, y });
+    // Drawn last so it never shifts any earlier draw: adding height left every
+    // other generated field unchanged.
+    const z = systemZ(srng);
+
+    systems.push({ name: systemName, diskNormal: [diskNx, diskNy, diskZ], planets, radius, star, x, y, z });
   }
 
   // A galaxy's central black hole lives in the one sector that holds its centre.

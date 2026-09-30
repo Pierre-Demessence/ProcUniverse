@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { STAR_SLAB_THICKNESS_LY } from '../config/data';
 import { SECTOR_SIZE } from '../scale';
 import { frostLine } from './planets';
-import { generateSectorData } from './universe';
+import { AU_PER_LY } from './units';
+import { generateSectorData, systemZ } from './universe';
 
 describe('generateSectorData', () => {
   it('is deterministic for the same seed and coordinates', () => {
@@ -183,5 +185,57 @@ describe('generateSectorData 3D orbital orientation', () => {
     expect(lowN).toBeGreaterThan(0);
     expect(highN).toBeGreaterThan(0);
     expect(highSum / highN).toBeGreaterThan(lowSum / lowN);
+  });
+});
+
+/** Two FNV-1a 32-bit hashes (different offsets) plus the length: a 64-bit+ content fingerprint. */
+function fingerprint(text: string): string {
+  let a = 0x811C9DC5;
+  let b = 0x01000193 ^ 0x5BD1E995;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c, 0x01000193) >>> 0;
+  }
+  return `${a.toString(16)}-${b.toString(16)}-${text.length}`;
+}
+
+describe('generateSectorData star height', () => {
+  it('leaves every pre-existing field unchanged (height is an appended draw)', () => {
+    // Fingerprint of these sectors taken before systems gained `z`: equal means
+    // no earlier draw moved and the universe is otherwise identical.
+    const parts: string[] = [];
+    for (const [sx, sy] of [[0, 0], [3, -2], [-40, 17], [1000, 5]]) {
+      const data = generateSectorData(12345, sx, sy);
+      parts.push(JSON.stringify(data, (key, value: unknown) => (key === 'z' ? undefined : value)));
+    }
+    expect(fingerprint(parts.join('|'))).toBe('5f7967de-88e930e9-1827978');
+  });
+
+  it('gives every system a stable height inside the slab, spread both sides of the plane', () => {
+    const half = (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
+    const first = generateSectorData(12345, 0, 0).systems;
+    const again = generateSectorData(12345, 0, 0).systems;
+    expect(first.length).toBeGreaterThan(10);
+    expect(again.map(s => s.z)).toEqual(first.map(s => s.z));
+    for (const sys of first) {
+      expect(Number.isFinite(sys.z)).toBe(true);
+      expect(Math.abs(sys.z)).toBeLessThanOrEqual(half);
+    }
+    expect(first.some(s => s.z > 0)).toBe(true);
+    expect(first.some(s => s.z < 0)).toBe(true);
+  });
+});
+
+describe('systemZ', () => {
+  it('maps its two draws onto a triangular spread over the slab', () => {
+    const half = (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
+    const draws = (a: number, b: number): (() => number) => {
+      const values = [a, b];
+      return () => values.shift() ?? 0;
+    };
+    expect(systemZ(draws(0.5, 0.5))).toBe(0);
+    expect(systemZ(draws(0, 0))).toBeCloseTo(-half);
+    expect(systemZ(draws(1, 1))).toBeCloseTo(half);
   });
 });

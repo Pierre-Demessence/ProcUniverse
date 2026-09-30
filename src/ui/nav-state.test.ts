@@ -12,12 +12,13 @@ import { nearestSystem } from '../lod/nearest-system';
 import { SECTOR_SIZE } from '../scale';
 import { buildNavState, selectionKey } from './nav-state';
 
-function system(x: number, y: number, name: string): SystemData {
+function system(x: number, y: number, name: string, z = 0): SystemData {
   return {
     name: { human: `Human ${name}`, scientific: name },
     planets: [{ name: { human: 'Planet', scientific: `${name} b` }, moons: [{ name: { human: 'Moon', scientific: `${name} b I` } }] }],
     x,
     y,
+    z,
   } as unknown as SystemData;
 }
 
@@ -37,11 +38,18 @@ describe('nearestSystem', () => {
   it('returns the closest system in the camera sector', () => {
     const near = system(10, 10, 'NEAR');
     const cache = cacheOf([system(900, 900, 'FAR'), near]);
-    expect(nearestSystem(cache, 12, 11)).toBe(near);
+    expect(nearestSystem(cache, 12, 11, 0)).toBe(near);
+  });
+
+  it('weighs height: a star far above the focus loses to a level one farther away in x, y', () => {
+    const above = system(10, 10, 'ABOVE', 5000);
+    const level = system(400, 10, 'LEVEL', 0);
+    expect(nearestSystem(cacheOf([above, level]), 10, 10, 0)).toBe(level);
+    expect(nearestSystem(cacheOf([above, level]), 10, 10, 4900)).toBe(above);
   });
 
   it('returns null for an empty sector', () => {
-    expect(nearestSystem(cacheOf([]), 0, 0)).toBeNull();
+    expect(nearestSystem(cacheOf([]), 0, 0, 0)).toBeNull();
   });
 
   it('looks up the sector containing the camera', () => {
@@ -50,7 +58,7 @@ describe('nearestSystem', () => {
       seen.push([sx, sy]);
       return { systems: [] } as unknown as SectorData;
     } };
-    nearestSystem(cache, SECTOR_SIZE * 2.5, -SECTOR_SIZE * 0.5);
+    nearestSystem(cache, SECTOR_SIZE * 2.5, -SECTOR_SIZE * 0.5, 0);
     expect(seen).toEqual([[2, -1]]);
   });
 });
@@ -76,7 +84,7 @@ describe('buildNavState', () => {
 
   it('lists the focused system with planets and moons at the system tier', () => {
     const { world } = worldWithName('X');
-    const nav = buildNavState(1, cacheOf([system(10, 10, 'SYS')]), camera, 'system', world, null);
+    const nav = buildNavState(1, system(10, 10, 'SYS'), camera, 'system', world, null);
     expect(nav.tier).toBe('system');
     expect(nav.system).toEqual({
       name: 'SYS',
@@ -87,7 +95,7 @@ describe('buildNavState', () => {
 
   it('omits the system above the system tier and carries the selection key', () => {
     const { id, world } = worldWithName('SYS');
-    const nav = buildNavState(1, cacheOf([system(10, 10, 'SYS')]), camera, 'star', world, { id, kind: 'star' });
+    const nav = buildNavState(1, system(10, 10, 'SYS'), camera, 'star', world, { id, kind: 'star' });
     expect(nav.system).toBeNull();
     expect(nav.selectedKey).toBe('SYS');
   });

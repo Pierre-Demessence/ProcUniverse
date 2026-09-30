@@ -286,6 +286,10 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
 - [ ] Add **Z** to generation **beyond the system tier** (sectors, cosmic web,
       galaxy disk thickness + inclination); keep determinism (append draws,
       never reorder).
+      - *Progress:* systems carry a per-system height (`systemZ`, a thin
+        local slab) and the star tier is a 3D perspective view cross-faded with
+        the system tier ([star-tier-3d.md](done/star-tier-3d.md)). True 3D
+        sectors replace `systemZ`; sectors / galaxies are still flat.
       - *Starfield realism (rides on this Z work):* once galaxies have real 3D
         structure, revisit the background starfield to (a) orient the Milky-Way
         band to **each galaxy's own disk plane** instead of the fixed world XY,

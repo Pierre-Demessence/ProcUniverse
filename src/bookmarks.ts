@@ -9,6 +9,7 @@
 
 import type { EcsWorld } from '@pierre/ecs';
 
+import type { SectorCache } from './lod/sector-cache';
 import type { Selection } from './pick';
 
 import { selectionFrame } from './camera/framing';
@@ -33,6 +34,8 @@ export interface Bookmark {
   /** Absolute world position (AU), for camera centring on zoom-to. */
   x: number;
   y: number;
+  /** Absolute height off the galactic plane (AU); absent on bookmarks saved before stars had height (see `bookmarkZ`). */
+  z?: number;
 }
 
 /** Opaque compound key that uniquely identifies a bookmark within a seed. */
@@ -63,9 +66,9 @@ export function selectionBookmarkKey(selection: Selection, world: EcsWorld): str
  * zoomed-to and inspected later, even when the body is not streamed. Absolute
  * world positions and the framing extent are captured once.
  */
-export function bookmarkFromSelection(sel: Selection, world: EcsWorld, originX: number, originY: number): Bookmark | null {
+export function bookmarkFromSelection(sel: Selection, world: EcsWorld, originX: number, originY: number, originZ = 0): Bookmark | null {
   if (sel.kind === 'universe')
-    return { name: '', extentAu: SECTOR_SIZE * 10, kind: 'universe', label: 'Universe', x: 0, y: 0 };
+    return { name: '', extentAu: SECTOR_SIZE * 10, kind: 'universe', label: 'Universe', x: 0, y: 0, z: 0 };
   if (sel.kind === 'galaxy') {
     return {
       name: sel.galaxy.name,
@@ -74,9 +77,10 @@ export function bookmarkFromSelection(sel: Selection, world: EcsWorld, originX: 
       label: sel.galaxy.humanName,
       x: sel.galaxy.centerX,
       y: sel.galaxy.centerY,
+      z: 0,
     };
   }
-  const frame = selectionFrame(sel, world, originX, originY);
+  const frame = selectionFrame(sel, world, originX, originY, originZ);
   const identity = world.getStore(NameDef).get(sel.id);
   if (!frame || !identity)
     return null;
@@ -87,11 +91,35 @@ export function bookmarkFromSelection(sel: Selection, world: EcsWorld, originX: 
     label: identity.human,
     x: cameraAbsolute(originX, frame.x),
     y: cameraAbsolute(originY, frame.y),
+    z: cameraAbsolute(originZ, frame.z),
   };
 }
 
+/**
+ * The absolute height (AU) to aim the camera focus at for a bookmark. Older
+ * bookmarks carry no `z`: a body bookmark then takes the height of the system
+ * nearest its `(x, y)` — its own star, recomputed from the seed via the sector
+ * cache. Galaxies and the universe sit on the galactic plane.
+ */
+export function bookmarkZ(bm: Bookmark, cache: Pick<SectorCache, 'get'>): number {
+  if (bm.z !== undefined)
+    return bm.z;
+  if (bm.kind === 'galaxy' || bm.kind === 'universe' || bm.kind === 'black-hole')
+    return 0;
+  let best = Infinity;
+  let z = 0;
+  for (const sys of cache.get(Math.floor(bm.x / SECTOR_SIZE), Math.floor(bm.y / SECTOR_SIZE)).systems) {
+    const d = Math.hypot(sys.x - bm.x, sys.y - bm.y);
+    if (d < best) {
+      best = d;
+      z = sys.z;
+    }
+  }
+  return z;
+}
+
 /** Add the selection's bookmark, or remove it if present. True when `bookmarks` changed. */
-export function toggleBookmark(bookmarks: Bookmark[], sel: Selection, world: EcsWorld, originX: number, originY: number): boolean {
+export function toggleBookmark(bookmarks: Bookmark[], sel: Selection, world: EcsWorld, originX: number, originY: number, originZ = 0): boolean {
   const key = selectionBookmarkKey(sel, world);
   if (!key)
     return false;
@@ -100,7 +128,7 @@ export function toggleBookmark(bookmarks: Bookmark[], sel: Selection, world: Ecs
     bookmarks.splice(idx, 1);
     return true;
   }
-  const bm = bookmarkFromSelection(sel, world, originX, originY);
+  const bm = bookmarkFromSelection(sel, world, originX, originY, originZ);
   if (!bm)
     return false;
   bookmarks.push(bm);
