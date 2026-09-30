@@ -6,6 +6,8 @@
  * changes the view. The universe-defining knobs live in `data.ts`.
  */
 
+import type { AtmosphereKind, AtmosphereLook } from '../render/three/planet-surface';
+
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
 // (planet inspection out to the whole cosmic web). Rapid consecutive notches
@@ -49,6 +51,17 @@ export const SPHERE_HEIGHT_SEGMENTS = 24;
 // Width (px) of a planet's baked equirectangular surface map (height = width/2);
 // see docs/plans/planet-surfaces.md §3.2.
 export const PLANET_SURFACE_MAP_WIDTH = 1024;
+// Atmosphere rim glow per atmosphere family (docs/plans/planet-surfaces.md
+// Phase 1): a soft halo just outside the limb on the sunlit side. Scale heights
+// are exaggerated far beyond the real ~0.1 % of a radius so the glow reads at
+// system-view sizes. Tuned in the planet lab (`/lab.html`).
+export const ATMOSPHERE_LOOKS: Readonly<Record<AtmosphereKind, AtmosphereLook>> = {
+  'co2-runaway': { intensity: 0.9, scaleHeight: 0.04, tint: '#f0dca0', twilight: 0.35 },
+  'hydrogen': { intensity: 0.6, scaleHeight: 0.03, tint: '#d9e2ff', twilight: 0.2 },
+  'methane': { intensity: 0.8, scaleHeight: 0.03, tint: '#8fe3ee', twilight: 0.2 },
+  'n2-co2': { intensity: 1, scaleHeight: 0.025, tint: '#6fa8ff', twilight: 0.25 },
+  'thin-n2': { intensity: 0.5, scaleHeight: 0.012, tint: '#a9bcdc', twilight: 0.1 },
+};
 export const STAR_SPIN_RATE = 5e-8;
 export const LIGHT_AMBIENT = 0.15;
 export const LIGHT_STAR_BASE = 3;

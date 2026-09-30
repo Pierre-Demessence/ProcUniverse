@@ -17,16 +17,18 @@ import type { PlanetPhysical } from '../../generation/planets';
 import type { StarPhysical } from '../../generation/stars';
 import type { BodyKind } from '../../pick';
 import type { OrbitElements } from '../../sim/orbits';
+import type { AtmosphereMaterialHandle } from './atmosphere-material';
 import type { PlanetMaterialHandle } from './planet-material';
 import type { RingMaterialHandle } from './planet-rings';
+import type { AtmosphereLook } from './planet-surface';
 import type { RecyclePool } from './recycle-pool';
 import type { StarMaterialHandle } from './star-material';
 
 import { Scene3DRenderer } from '@pierre/ecs/modules/render-scene3d';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
-import { Quaternion, Vector3 } from 'three/webgpu';
+import { Color, Quaternion, Vector3 } from 'three/webgpu';
 
-import { STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
+import { ATMOSPHERE_LOOKS, STAR_MIN_SCREEN_PX, STAR_SPIN_RATE } from '../../config/render';
 import { BodyVisualDef } from '../../generation/body-visual';
 import { BlackHoleDef } from '../../generation/galaxies';
 import { MoonPhysicalDef } from '../../generation/moons';
@@ -35,6 +37,7 @@ import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, tiltNormal } from '../../sim/orbits';
 import { oblatePolarScale } from '../body-scale';
 import { ringOuterRadius, ringVariety } from './planet-rings';
+import { atmosphereKind } from './planet-surface';
 
 const DEFAULT_FILL = '#ffffff';
 const DEG2RAD = Math.PI / 180;
@@ -43,6 +46,8 @@ const TAU = Math.PI * 2;
 const SPHERE_POLE = new Vector3(0, 1, 0);
 /** A ring lies in its local XY plane (normal +Z); it is re-oriented so +Z points along the planet's spin axis. */
 const RING_POLE = new Vector3(0, 0, 1);
+/** Light colour for an atmosphere with no star light in the scene: the glow is starlight scattered by the air, so it goes dark. */
+const NO_LIGHT = new Color(0, 0, 0);
 
 const tmpAxis = new Vector3();
 const tmpQuat = new Quaternion();
@@ -55,6 +60,7 @@ export interface PooledMesh<THandle> {
 }
 
 export interface BodyPools {
+  atmosphere: RecyclePool<PooledMesh<AtmosphereMaterialHandle>>;
   generic: RecyclePool<PooledMesh<MeshStandardMaterial>>;
   planet: RecyclePool<PooledMesh<PlanetMaterialHandle>>;
   ring: RecyclePool<PooledMesh<RingMaterialHandle>>;
@@ -108,6 +114,14 @@ function* selectPosed<TPhysical>(world: EcsWorld, physicalDef: ComponentDef<TPhy
       y: position.y,
       z: position.z,
     }, physical];
+  }
+}
+
+function* selectAtmospheric(world: EcsWorld): Generator<Scene3DEntry<[BodyPose, PlanetPhysical, AtmosphereLook]>> {
+  for (const [id, pose, planet] of selectPosed(world, PlanetPhysicalDef)) {
+    const kind = atmosphereKind(planet);
+    if (kind)
+      yield [id, pose, planet, ATMOSPHERE_LOOKS[kind]];
   }
 }
 
@@ -186,6 +200,7 @@ const INITIAL_FRAME: BodyFrame = {
 };
 
 export class BodyPasses {
+  private readonly atmospheres: Scene3DRenderer<Entry<AtmosphereMaterialHandle>, [BodyPose, PlanetPhysical, AtmosphereLook]>;
   private readonly blackHoles: Scene3DRenderer<Entry<MeshStandardMaterial>, [BodyPose, BlackHolePhysical]>;
   private frame = INITIAL_FRAME;
   private readonly graph: SceneGraph<PooledMesh<unknown>>;
@@ -202,6 +217,7 @@ export class BodyPasses {
     this.graph = meshGraph(group);
     this.stars = makePass(pools.star, world => selectPosed(world, StarPhysicalDef), (entry, row) => this.syncStar(entry, row));
     this.planets = makePass(pools.planet, world => selectPosed(world, PlanetPhysicalDef), (entry, row, world) => this.syncPlanet(entry, row, world));
+    this.atmospheres = makePass(pools.atmosphere, selectAtmospheric, (entry, row, world) => this.syncAtmosphere(entry, row, world));
     this.rings = makePass(pools.ring, selectRinged, (entry, row) => this.syncRing(entry, row));
     this.moons = makePass(pools.generic, world => selectPosed(world, MoonPhysicalDef), (entry, row) => this.syncGeneric(entry, row, 'moon'));
     this.blackHoles = makePass(pools.generic, world => selectPosed(world, BlackHoleDef), (entry, row) => this.syncGeneric(entry, row, 'black-hole'));
@@ -212,6 +228,7 @@ export class BodyPasses {
     this.releaseAll();
     this.pools.star.forEach(entry => entry.handle.dispose());
     this.pools.planet.forEach(entry => entry.handle.dispose());
+    this.pools.atmosphere.forEach(entry => entry.handle.dispose());
     this.pools.ring.forEach(entry => entry.handle.dispose());
     this.pools.generic.forEach(entry => entry.handle.dispose());
   }
@@ -220,17 +237,19 @@ export class BodyPasses {
   releaseAll(): void {
     this.stars.dispose(this.graph);
     this.planets.dispose(this.graph);
+    this.atmospheres.dispose(this.graph);
     this.rings.dispose(this.graph);
     this.moons.dispose(this.graph);
     this.blackHoles.dispose(this.graph);
   }
 
-  /** Planets, rings, moons and black holes. `light` is the star light, or null when none is placed. */
+  /** Planets, their atmospheres, rings, moons and black holes. `light` is the star light, or null when none is placed. */
   renderBodies(world: EcsWorld, frame: BodyFrame, light: PointLight | null): void {
     this.frame = frame;
     this.light = light;
     const context = { graph: this.graph, world };
     this.planets.render(context);
+    this.atmospheres.render(context);
     this.rings.render(context);
     this.moons.render(context);
     this.blackHoles.render(context);
@@ -244,6 +263,27 @@ export class BodyPasses {
     nearest.found = false;
     this.stars.render({ graph: this.graph, world });
     return nearest;
+  }
+
+  /**
+   * The rim-glow shell: the planet's pose, oblate scale and spin, enlarged to
+   * the family's shell radius. Not stamped, so picking ignores it.
+   */
+  private syncAtmosphere({ handle, mesh }: Entry<AtmosphereMaterialHandle>, [id, pose, planet, look]: Scene3DEntry<[BodyPose, PlanetPhysical, AtmosphereLook]>, world: EcsWorld): void {
+    const shell = handle.setLook(look);
+    mesh.position.set(pose.x, pose.y, pose.z);
+    mesh.scale.setScalar(pose.radius * shell);
+    mesh.scale.y = mesh.scale.x * oblatePolarScale(oblateness(planet.rotationPeriod, planet.mass, planet.radius));
+    const orbit = world.getStore(OrbitElementsDef).get(id);
+    if (orbit)
+      orientPlanet(mesh, planet, orbit, this.frame.simSeconds);
+    else
+      mesh.rotation.set(0, 0, 0);
+    const light = this.light;
+    if (light && light.visible)
+      handle.setLight(light.position, light.color);
+    else
+      handle.setLight(mesh.position, NO_LIGHT);
   }
 
   private syncGeneric({ handle, mesh }: Entry<MeshStandardMaterial>, [id, pose]: Scene3DEntry<[BodyPose, unknown]>, kind: BodyKind): void {

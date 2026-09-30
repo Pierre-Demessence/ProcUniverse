@@ -194,18 +194,28 @@ later phase reuses.
 The highest value-to-risk slice: a thin, soft coloured halo at the limb makes a
 ball read as a world.
 
-- [ ] Rim glow on worlds with `retainsAtmosphere` (and on gas/ice giants,
+- [x] Rim glow on worlds with `retainsAtmosphere` (and on gas/ice giants,
       whose whole visible surface is atmosphere), tinted by `atmosphereType`
       (e.g. Earth-like → pale blue, CO₂-thick → hazy yellow-white, methane →
-      cyan).
-- [ ] Glow strength follows the lit side — bright at the sunlit limb, fading
+      cyan) and by the star light's colour.
+- [x] Glow strength follows the lit side — bright at the sunlit limb, fading
       into the night side (a faint twilight wrap past the terminator), so it
       never looks like a uniform neon outline.
-- [ ] Thickness/intensity scale plausibly with atmosphere type; airless worlds
+- [x] Thickness/intensity scale plausibly with atmosphere type; airless worlds
       get none.
-- [ ] Implementation (Fresnel term on the planet material vs a slightly larger
-      back-faced shell mesh) chosen in the lab by look.
-- [ ] Parameters tuned by Pierre in the lab; defaults in `config/render`.
+- [x] Implementation: an additive **shell mesh** (planet pose × oblate scale ×
+      `shellRadius`) in `atmosphere-material.ts`. Per fragment, the sight line's
+      closest approach `d` to the planet centre gives the atmosphere column
+      (`atmosphereColumn`: `exp(−(d−1)/H)` past the limb, normalised slant path
+      across the disc), lit by where that air faces the star. A Fresnel term on
+      the planet material was rejected: it cannot glow outside the silhouette,
+      which is the main cue.
+- [x] Per-family looks (`tint`, `intensity`, `scaleHeight`, `twilight`) in
+      `ATMOSPHERE_LOOKS` (`config/render`); editable live in the lab's
+      "Atmosphere" folder, with a detected-family readout and a force-family
+      override.
+- [ ] Parameters tuned by Pierre in the lab; the copied JSON's `atmosphere`
+      table becomes the `ATMOSPHERE_LOOKS` defaults.
 
 ## 7. Phase 2 — Rocky / terrestrial surfaces
 
@@ -284,7 +294,6 @@ ball read as a world.
 
 ## 11. Open questions
 
-- **Rim glow implementation** — Fresnel term vs shell mesh (Phase 1).
 - **Cloud layer** — shell mesh vs material layer (Phase 4).
 - **Gas-giant hybrid** — only if procedural falls short (Phase 5).
 - **Band-motion timebase** — wall-clock vs sim time (Phase 6).
@@ -303,3 +312,4 @@ ball read as a world.
 | 2026-09-29 | Thermal glow | Hottest worlds add an `emissiveNode` on top of the lit albedo; the material stays lit. |
 | 2026-09-29 | Lab form | Separate dev-only `lab.html` entry (never in the build); `lil-gui` devDependency for sliders. |
 | 2026-09-29 | Albedo source | **Baked per-planet maps** (mipmapped). Lab comparison: neither path flickered at 16–48 px, baked was smoother; octave-8 detail at 1024-wide maps looks good even close up. |
+| 2026-09-30 | Rim glow form | Additive shell mesh with an analytic atmosphere-column profile (glows past the silhouette); Fresnel-only rejected. |

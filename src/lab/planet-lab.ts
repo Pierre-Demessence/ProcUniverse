@@ -1,12 +1,14 @@
 /**
  * Planet lab — a dev-only page (`/lab.html`, not part of the production build)
- * for tuning planet surface looks by eye (docs/plans/planet-surfaces.md Phase 0).
+ * for tuning planet surface and atmosphere looks by eye
+ * (docs/plans/planet-surfaces.md).
  * One planet, large, lit by a movable point light, with live sliders driving the
  * same material the app uses; tuned values are copied out as JSON.
  */
 
 import type { PlanetPhysical } from '../generation/planets';
 import type { AlbedoSource } from '../render/three/planet-material';
+import type { AtmosphereKind, AtmosphereLook } from '../render/three/planet-surface';
 import type { LabPlanet } from './lab-planets';
 import type { ProbeParams } from './probe-surface';
 
@@ -15,12 +17,13 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { uv } from 'three/tsl';
 import { AmbientLight, ColorManagement, Group, Mesh, MeshBasicNodeMaterial, OrthographicCamera, PerspectiveCamera, PlaneGeometry, PointLight, Scene, SphereGeometry, WebGPURenderer } from 'three/webgpu';
 
-import { CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS } from '../config/render';
+import { ATMOSPHERE_LOOKS, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, RENDER_ANTIALIAS, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS } from '../config/render';
 import { oblateness } from '../generation/planets';
 import { parseSave, SAVE_KEY } from '../persistence/save';
 import { oblatePolarScale } from '../render/body-scale';
+import { createAtmosphereMaterial } from '../render/three/atmosphere-material';
 import { createPlanetMaterial } from '../render/three/planet-material';
-import { planetVarietySeed } from '../render/three/planet-surface';
+import { ATMOSPHERE_KINDS, atmosphereKind, planetVarietySeed } from '../render/three/planet-surface';
 import { sphereDirFromUv } from '../render/three/surface-bake';
 import { scanPlanets } from './lab-planets';
 import { distanceForDiameter } from './lab-view';
@@ -36,8 +39,12 @@ const MAP_MARGIN_PX = 8;
 const DEG2RAD = Math.PI / 180;
 
 type SizePreset = 'free' | '150' | '48' | '16';
+/** Which atmosphere family to show: the planet's own (`auto`), a forced one, or none. */
+type AtmosphereMode = 'auto' | 'off' | AtmosphereKind;
 
 interface LabState {
+  atmosphere: Record<AtmosphereKind, AtmosphereLook>;
+  atmosphereMode: AtmosphereMode;
   fill: string;
   planet: PlanetPhysical;
   probe: ProbeParams;
@@ -78,7 +85,10 @@ function defaultState(): LabState {
     seed = parseSave(localStorage.getItem(SAVE_KEY))?.seed ?? 1;
   }
   catch {}
+  const atmosphere = Object.fromEntries(ATMOSPHERE_KINDS.map(kind => [kind, { ...ATMOSPHERE_LOOKS[kind] }])) as Record<AtmosphereKind, AtmosphereLook>;
   return {
+    atmosphere,
+    atmosphereMode: 'auto',
     fill: '#c9b88f',
     planet: { ...JUPITER_LIKE },
     probe: { ...PROBE_DEFAULTS },
@@ -156,6 +166,10 @@ async function start(root: HTMLElement): Promise<void> {
   const handle = createPlanetMaterial();
   const mesh = new Mesh(geometry, handle.material);
   tilt.add(mesh);
+  // Child of the planet mesh, so it inherits the oblate scale and spin exactly.
+  const atmosphere = createAtmosphereMaterial();
+  const atmosphereMesh = new Mesh(geometry, atmosphere.material);
+  mesh.add(atmosphereMesh);
 
   const probe = createProbeSurface();
 
@@ -179,12 +193,30 @@ async function start(root: HTMLElement): Promise<void> {
     handle.refreshSurface();
   };
 
+  const atmosphereStatus = { detected: '' };
+  let lookKind: AtmosphereKind | null = null;
+  let rebuildLookFolder: (kind: AtmosphereKind | null) => void = () => {};
+  const applyAtmosphere = (): void => {
+    const detected = atmosphereKind(state.planet);
+    atmosphereStatus.detected = detected ?? 'none';
+    const mode = state.atmosphereMode;
+    const kind = mode === 'auto' ? detected : mode === 'off' ? null : mode;
+    atmosphereMesh.visible = kind !== null;
+    if (kind)
+      atmosphereMesh.scale.setScalar(atmosphere.setLook(state.atmosphere[kind]));
+    if (kind !== lookKind) {
+      lookKind = kind;
+      rebuildLookFolder(kind);
+    }
+  };
+
   const applyPlanet = (): void => {
     handle.setFill(state.fill);
     const p = state.planet;
     mesh.scale.set(1, oblatePolarScale(oblateness(p.rotationPeriod, p.mass, p.radius)), 1);
     tilt.rotation.set(0, 0, p.obliquity * DEG2RAD);
     applySurface();
+    applyAtmosphere();
   };
 
   const applyLight = (): void => {
@@ -192,6 +224,7 @@ async function start(root: HTMLElement): Promise<void> {
     const el = state.view.lightElevation * DEG2RAD;
     light.position.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)).multiplyScalar(LIGHT_DISTANCE);
     light.color.set(state.view.lightColor);
+    atmosphere.setLight(light.position, light.color);
   };
 
   const applyView = (): void => {
@@ -250,6 +283,7 @@ async function start(root: HTMLElement): Promise<void> {
   editFolder.add(state.planet, 'equilibriumTemp', 20, 2500, 1).name('Teq (K)').onChange(applyPlanet);
   editFolder.add(state.planet, 'rotationPeriod', 2, 2000, 0.1).name('rotation (h)').onChange(applyPlanet);
   editFolder.add(state.planet, 'waterState', ['ice', 'liquid', 'vapour']).onChange(applyPlanet);
+  editFolder.add(state.planet, 'insolation').name('insolation (S⊕)').onChange(applyPlanet);
   editFolder.add(state.planet, 'mass', 0.01, 4000, 0.01).name('mass (M⊕)').onChange(applyPlanet);
   editFolder.add(state.planet, 'radius', 0.1, 25, 0.01).name('radius (R⊕)').onChange(applyPlanet);
   editFolder.add(state.planet, 'obliquity', 0, 180, 0.5).name('obliquity (°)').onChange(applyPlanet);
@@ -267,6 +301,23 @@ async function start(root: HTMLElement): Promise<void> {
   probeFolder.addColor(state.probe, 'capColor').onChange(applySurface);
   probeFolder.add(state.probe, 'capStart', 0, 1, 0.01).name('cap start |y|').onChange(applySurface);
   probeFolder.add(state.probe, 'capSoftness', 0, 0.5, 0.005).onChange(applySurface);
+
+  const atmosphereFolder = gui.addFolder('Atmosphere (rim glow)');
+  atmosphereFolder.add(atmosphereStatus, 'detected').name('planet has').disable().listen();
+  atmosphereFolder.add(state, 'atmosphereMode', ['auto', 'off', ...ATMOSPHERE_KINDS]).name('show').onChange(applyAtmosphere);
+  let lookFolder: GUI | null = null;
+  rebuildLookFolder = (kind) => {
+    lookFolder?.destroy();
+    lookFolder = null;
+    if (!kind)
+      return;
+    const look = state.atmosphere[kind];
+    lookFolder = atmosphereFolder.addFolder(`Look: ${kind}`);
+    lookFolder.addColor(look, 'tint').onChange(applyAtmosphere);
+    lookFolder.add(look, 'intensity', 0, 4, 0.01).onChange(applyAtmosphere);
+    lookFolder.add(look, 'scaleHeight', 0.002, 0.2, 0.001).name('thickness (radii)').onChange(applyAtmosphere);
+    lookFolder.add(look, 'twilight', 0, 1, 0.01).name('night wrap').onChange(applyAtmosphere);
+  };
 
   const viewFolder = gui.addFolder('View');
   viewFolder.add(state.view, 'size', { '16 px': '16', '48 px': '48', '150 px': '150', 'free (orbit + zoom)': 'free' }).name('planet size').onChange(applyView);

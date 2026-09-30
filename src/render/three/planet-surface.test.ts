@@ -1,7 +1,8 @@
 import { SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 
-import { equirectDirection, planetVarietySeed, VARIETY_SEED_RANGE } from './planet-surface';
+import { ATMOSPHERE_LOOKS } from '../../config/render';
+import { ATMOSPHERE_KINDS, atmosphereColumn, atmosphereKind, equirectDirection, planetVarietySeed, shellRadius, VARIETY_SEED_RANGE } from './planet-surface';
 
 const JUPITER = { equilibriumTemp: 110, mass: 317.8, radius: 11.2, rotationPeriod: 9.9 };
 
@@ -42,5 +43,42 @@ describe('equirectDirection', () => {
   it('puts v = 1 on the +Y pole', () => {
     expect(equirectDirection(0.3, 1)[1]).toBeCloseTo(1);
     expect(equirectDirection(0.3, 0)[1]).toBeCloseTo(-1);
+  });
+});
+
+describe('atmosphereKind', () => {
+  it('gives giants their hydrogen / methane families', () => {
+    expect(atmosphereKind({ ...JUPITER, insolation: 0.04, type: 'gas-giant' })).toBe('hydrogen');
+    expect(atmosphereKind({ equilibriumTemp: 60, insolation: 0.003, mass: 17, radius: 3.9, type: 'ice-giant' })).toBe('methane');
+  });
+
+  it('gives an Earth twin N₂/CO₂ and strips a small hot rock', () => {
+    expect(atmosphereKind({ equilibriumTemp: 255, insolation: 1, mass: 1, radius: 1, type: 'rocky' })).toBe('n2-co2');
+    expect(atmosphereKind({ equilibriumTemp: 900, insolation: 3000, mass: 0.05, radius: 0.4, type: 'rocky' })).toBeNull();
+  });
+});
+
+describe('aTMOSPHERE_LOOKS', () => {
+  it('covers every atmosphere kind', () => {
+    for (const kind of ATMOSPHERE_KINDS)
+      expect(ATMOSPHERE_LOOKS[kind]).toBeDefined();
+  });
+});
+
+describe('atmosphereColumn', () => {
+  const H = 0.03;
+
+  it('meets at the limb from both sides', () => {
+    expect(atmosphereColumn(1, H)).toBeCloseTo(1);
+    expect(atmosphereColumn(1 - 1e-6, H)).toBeCloseTo(1);
+  });
+
+  it('fades to nothing at the shell edge', () => {
+    expect(atmosphereColumn(shellRadius(H), H)).toBeLessThan(0.01);
+  });
+
+  it('is a faint haze at the disc centre, thickening toward the limb', () => {
+    expect(atmosphereColumn(0, H)).toBeLessThan(0.1);
+    expect(atmosphereColumn(0.9, H)).toBeGreaterThan(atmosphereColumn(0, H));
   });
 });

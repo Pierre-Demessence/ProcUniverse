@@ -4,6 +4,7 @@ import type { MoonPhysical } from '../../generation/moons';
 import type { PlanetPhysical } from '../../generation/planets';
 import type { StarPhysical } from '../../generation/stars';
 import type { OrbitElements } from '../../sim/orbits';
+import type { AtmosphereMaterialHandle } from './atmosphere-material';
 import type { BodyFrame, BodyPools, PooledMesh } from './body-passes';
 import type { PlanetMaterialHandle } from './planet-material';
 import type { RingMaterialHandle } from './planet-rings';
@@ -35,12 +36,14 @@ const STAR: StarPhysical = {
   temperature: 5772,
 };
 
+// Airless (stripped by extreme insolation), so only the planet mesh is drawn;
+// atmospheres are exercised with `EARTH` below.
 const PLANET: PlanetPhysical = {
   density: 5.5,
   equilibriumTemp: 280,
   hasRings: false,
   inHabitableZone: true,
-  insolation: 1,
+  insolation: 1e6,
   mass: 1,
   moonRichness: 0.5,
   obliquity: 23,
@@ -51,6 +54,8 @@ const PLANET: PlanetPhysical = {
   type: 'rocky',
   waterState: 'liquid',
 };
+
+const EARTH: PlanetPhysical = { ...PLANET, insolation: 1 };
 
 const MOON: MoonPhysical = { density: 3.3, mass: 0.012, radius: 0.27, tidallyLocked: true };
 
@@ -81,7 +86,9 @@ function makePools(): BodyPools {
   const starHandle = () => ({ dispose: vi.fn(), setStar: vi.fn(), setTime: vi.fn() }) as unknown as StarMaterialHandle;
   const planetHandle = () => ({ dispose: vi.fn(), setFill: vi.fn() }) as unknown as PlanetMaterialHandle;
   const ringHandle = () => ({ dispose: vi.fn(), setRing: vi.fn() }) as unknown as RingMaterialHandle;
+  const atmosphereHandle = () => ({ dispose: vi.fn(), setLight: vi.fn(), setLook: vi.fn(() => 1.15) }) as unknown as AtmosphereMaterialHandle;
   return {
+    atmosphere: new RecyclePool(() => ({ handle: atmosphereHandle(), mesh: new Mesh() })),
     generic: new RecyclePool(() => ({ handle: new MeshStandardMaterial(), mesh: new Mesh() })),
     planet: new RecyclePool(() => ({ handle: planetHandle(), mesh: new Mesh() })),
     ring: new RecyclePool(() => ({ handle: ringHandle(), mesh: new Mesh() })),
@@ -221,6 +228,36 @@ describe('bodyPasses', () => {
     const kinds = meshes(group).map(m => (m.userData as { kind?: string }).kind);
     expect(kinds.filter(k => k === 'planet')).toHaveLength(3);
     expect(kinds.filter(k => k === undefined)).toHaveLength(1);
+  });
+
+  it('wraps a planet with an atmosphere in an unpickable, oblate glow shell', () => {
+    const group = new Group();
+    const passes = new BodyPasses(makePools(), group);
+    const world = makeWorld();
+    const earth = { ...EARTH, rotationPeriod: 5 };
+    addPlanet(world, 2, 3, earth);
+    passes.renderBodies(world, FRAME, null);
+    const planet = meshes(group).find(m => (m.userData as { kind?: string }).kind === 'planet')!;
+    const shell = meshes(group).find(m => m !== planet)!;
+    expect(meshes(group)).toHaveLength(2);
+    expect((shell.userData as { kind?: string }).kind).toBeUndefined();
+    expect(shell.position.toArray()).toEqual([2, 3, 0]);
+    expect(shell.scale.x).toBeCloseTo(0.5 * 1.15);
+    expect(planet.scale.y).toBeLessThan(planet.scale.x);
+    expect(shell.scale.y / shell.scale.x).toBeCloseTo(planet.scale.y / planet.scale.x);
+    expect(shell.quaternion.angleTo(planet.quaternion)).toBeCloseTo(0);
+  });
+
+  it('darkens the glow when no star light is placed', () => {
+    const pools = makePools();
+    const passes = new BodyPasses(pools, new Group());
+    const world = makeWorld();
+    addPlanet(world, 0, 0, EARTH);
+    passes.renderBodies(world, FRAME, null);
+    const handles: AtmosphereMaterialHandle[] = [];
+    pools.atmosphere.forEach(e => handles.push(e.handle));
+    const [, color] = (handles[0]!.setLight as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect([color.r, color.g, color.b]).toEqual([0, 0, 0]);
   });
 
   it('draws moons and black holes from the generic pool with their kinds', () => {

@@ -33,6 +33,7 @@ import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AM
 import { galaxyAt } from '../../generation/galaxies';
 import { StarPhysicalDef } from '../../generation/stars';
 import { OrbitElementsDef, ringSegmentCount } from '../../sim/orbits';
+import { createAtmosphereMaterial } from './atmosphere-material';
 import { BodyPasses } from './body-passes';
 import { perspectiveClipPlanes } from './clip-planes';
 import { forEachGalaxyFieldGlow, forEachGalaxyGlow, forEachUniverseGlow } from './glow-fields';
@@ -205,6 +206,10 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.starMaterial = new MeshBasicMaterial({ side: DoubleSide });
     this.planetRingGeometry = new RingGeometry(RING_INNER_FRAC, 1, RING_SEGMENTS);
     this.bodyPasses = new BodyPasses({
+      atmosphere: new RecyclePool(() => {
+        const handle = createAtmosphereMaterial();
+        return { handle, mesh: new Mesh(this.sphereGeometry, handle.material) };
+      }),
       generic: new RecyclePool(() => {
         const handle = new MeshStandardMaterial({ metalness: 0, roughness: 0.95 });
         return { handle, mesh: new Mesh(this.sphereGeometry, handle) };
