@@ -1,8 +1,9 @@
 /**
- * Smallest allowed `near / far` ratio. A 24-bit (or float32) depth buffer resolves
- * about 6e-8 near 1.0, and the starfield dome sits just inside `far`, so a ratio
- * much below ~1e-7 makes whole dome facets round to the cleared depth, fail the
- * depth test, and vanish. 5e-7 leaves the dome several depth steps of margin.
+ * Preferred smallest `near / far` ratio. The renderer uses a reversed float
+ * depth buffer, which resolves the far dome even at much smaller ratios (deep
+ * zoom caps `near` at a tenth of the focus distance regardless), but a
+ * standard 24-bit buffer — the WebGL2 fallback without `EXT_clip_control` —
+ * resolves only ~6e-8 near 1.0 and would drop dome facets below ~1e-7.
  */
 const MIN_NEAR_OVER_FAR = 5e-7;
 

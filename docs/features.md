@@ -6,7 +6,7 @@ Shipped features. Planned work is in [roadmap.md](roadmap.md).
 
 | Feature | Description |
 | ------- | ----------- |
-| Pan and zoom camera | Left-drag pans; scroll zooms toward the cursor, with rapid scrolls accelerating so the full zoom range is a quick flick. |
+| Pan and zoom camera | Left-drag pans; scroll zooms toward the cursor, with rapid scrolls accelerating so the full zoom range is a quick flick. Zoom reaches ~150 m per pixel, so even the smallest moon can fill the screen. |
 | 3D system view | Three.js (WebGPU with WebGL2 fallback) draws each planetary system in 3D — lit rotating spheres and inclined orbits; right-drag orbits and tilts the view freely (trackball style — over the poles and under the disk, no stops). A contextual "Flatten" button snaps straight top-down and back to the prior angle. |
 | Renderer | Three.js renders every tier; labels, the selection reticle and the HUD draw on a transparent 2D overlay. If neither WebGPU nor WebGL is available, a notice says so. |
 | LOD streaming | Zoom-bounded tiers (systems → star dots → galaxy glow → galaxy field → cosmic web) with sector streaming and a floating render origin. |

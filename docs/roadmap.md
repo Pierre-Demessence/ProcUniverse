@@ -51,6 +51,10 @@ remove it from here once it ships. Links point to the design context.
   the loop): gas / ice giant bands, rocky surfaces with ice caps and oceans,
   atmospheres (rim glow, clouds), moon surfaces.
   [planet-surfaces.md](plans/planet-surfaces.md)
+- **Close-up surface detail:** moon maps bake at 256 px wide (memory: a giant
+  can hold dozens of moons), so a moon filling the screen at deep zoom looks
+  soft. Re-bake the focused / nearest body at a higher width while it is large
+  on screen, and release it after.
 - **Ring polish:** edge-on Fresnel transparency; backlit glow.
   [planet-rings.md](plans/done/planet-rings.md)
 - **Eclipses / cast shadows** (optional, costly).

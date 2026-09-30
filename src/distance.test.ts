@@ -13,6 +13,8 @@ describe('formatDistance', () => {
     expect(formatDistance(5, 'adaptive')).toBe('5 AU');
     expect(formatDistance(2 * AU_PER_LY, 'adaptive')).toBe('2 ly');
     expect(formatDistance(5000 * AU_PER_LY, 'adaptive')).toBe('5 kly');
+    expect(formatDistance(kmToAu(0.25), 'adaptive')).toBe('250 m');
+    expect(formatDistance(kmToAu(1), 'adaptive')).toBe('1 km');
   });
 
   it('shows a fixed unit with its label', () => {

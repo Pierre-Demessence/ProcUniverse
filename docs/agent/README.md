@@ -42,6 +42,13 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
 - Camera and pointer math run in canvas backing pixels; keep
   `camera.viewportW/H == canvas.width/height`.
 - Renderers receive render-origin-relative coordinates, never raw absolutes.
+- At the system tier the render origin is the focused star, so bodies sit tens
+  of AU out while zoom reaches ~150 m/px. The Three renderer runs with
+  `highPrecision` (float64 CPU model-view) and a reversed float depth buffer.
+  Never feed float32 world positions (`positionWorld`, `cameraPosition`, raw
+  vertex buffers) into close-up maths: use object-local offsets or buffers
+  relative to the focus (see orbit rings, atmosphere, ring shadow). Clip labels
+  on view-space depth, not NDC z (reversed depth maps far to 0).
 - Three.js (`src/render/three/`) is the only scene renderer. The 2D canvas is a
   transparent overlay for labels, the reticle and the HUD; it is cleared every
   frame by the `overlay-clear` step.

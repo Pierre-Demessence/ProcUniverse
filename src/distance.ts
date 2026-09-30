@@ -56,12 +56,14 @@ export function unitToAu(value: number, unit: FixedDistanceUnit): number {
   return value;
 }
 
-/** A signed AU distance auto-scaled to km / Mkm / AU / ly / kly / Mly by magnitude. */
+/** A signed AU distance auto-scaled to m / km / Mkm / AU / ly / kly / Mly by magnitude. */
 function formatAdaptive(au: number): string {
   const absAu = Math.abs(au);
   if (absAu < SCALE_KM_BELOW_AU) {
     const km = auToKm(au);
-    return Math.abs(km) >= 1e6 ? `${threeSigFigs(km / 1e6)} Mkm` : `${threeSigFigs(km)} km`;
+    if (Math.abs(km) >= 1e6)
+      return `${threeSigFigs(km / 1e6)} Mkm`;
+    return Math.abs(km) >= 1 || km === 0 ? `${threeSigFigs(km)} km` : `${threeSigFigs(km * 1000)} m`;
   }
   if (absAu < SCALE_LY_ABOVE_AU)
     return `${threeSigFigs(au)} AU`;

@@ -5,7 +5,7 @@ import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
 import { SECONDS_PER_YEAR } from '../generation/units';
-import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, planeToElements, ringSegmentCount, tiltNormal, updateOrbits, writeOrbitPosition } from './orbits';
+import { apoapsis, insolationSwing, meanOrbitalSpeed, orbitalPeriod, OrbitElementsDef, periapsis, planeToElements, ringArc, ringSegmentCount, tiltNormal, updateOrbits, writeOrbitEllipsePoint, writeOrbitPosition } from './orbits';
 
 function makeOrbit(overrides: Partial<OrbitElements> = {}): OrbitElements {
   return { a: 100, argPeriapsis: 0, cx: 0, cy: 0, cz: 0, e: 0, inclination: 0, longitudeAscendingNode: 0, meanAnomaly0: 0, parent: -1, starMass: 1, ...overrides };
@@ -133,6 +133,31 @@ describe('ringSegmentCount', () => {
     expect(big).toBeGreaterThan(small);
     expect(small).toBeGreaterThanOrEqual(64);
     expect(big).toBeLessThanOrEqual(4096);
+  });
+});
+
+describe('ringArc', () => {
+  const TAU = Math.PI * 2;
+
+  it('draws a ring that fits the segment budget whole', () => {
+    const arc = ringArc(makeOrbit({ a: 1 }), 0, 0, 0, 1, 100);
+    expect(arc).toEqual({ segments: ringSegmentCount(100), span: TAU, start: 0 });
+  });
+
+  it('draws only the arc nearest the focus when zoomed far into a big ring', () => {
+    const orbit = makeOrbit({ a: 1, argPeriapsis: 0.7, e: 0.3, inclination: 0.2, longitudeAscendingNode: 1.1 });
+    const onOrbit = { x: 0, y: 0, z: 0 };
+    writeOrbitEllipsePoint(orbit, 2, onOrbit);
+    const zoom = 1e9;
+    const reach = 3000 / zoom;
+    const arc = ringArc(orbit, onOrbit.x, onOrbit.y, onOrbit.z, reach, zoom);
+    expect(arc.span).toBeLessThan(1e-4);
+    expect(arc.start + arc.span / 2).toBeCloseTo(2, 9);
+    // Each chord sags under a pixel from the true curve (sagitta c²/8R, with R
+    // at least the ellipse's tightest curvature radius b²/a).
+    const semiMinor = orbit.a * Math.sqrt(1 - orbit.e ** 2);
+    const chordPx = (arc.span * orbit.a * zoom) / arc.segments;
+    expect(chordPx ** 2 / (8 * (semiMinor ** 2 / orbit.a) * zoom)).toBeLessThan(1);
   });
 });
 

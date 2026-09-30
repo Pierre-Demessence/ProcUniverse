@@ -19,7 +19,7 @@ import type { SectorData } from '../../generation/universe';
 import type { SectorCache } from '../../lod/sector-cache';
 import type { SectorRange } from '../../lod/tier';
 import type { BodyKind, PickResult } from '../../pick';
-import type { OrbitElements } from '../../sim/orbits';
+import type { OrbitElements, RingArc } from '../../sim/orbits';
 import type { BodyFrame } from './body-passes';
 import type { GlowField } from './glow-fields';
 import type { StarfieldDome } from './starfield';
@@ -32,7 +32,7 @@ import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, Canvas
 import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH } from '../../config/render';
 import { galaxyAt } from '../../generation/galaxies';
 import { StarPhysicalDef } from '../../generation/stars';
-import { OrbitElementsDef, ringSegmentCount } from '../../sim/orbits';
+import { OrbitElementsDef, ringArc } from '../../sim/orbits';
 import { createAtmosphereMaterial } from './atmosphere-material';
 import { BodyPasses } from './body-passes';
 import { perspectiveClipPlanes } from './clip-planes';
@@ -54,7 +54,6 @@ const BACKGROUND = 0x05060D;
  */
 const CAMERA_DEPTH = 1000;
 const DEG2RAD = Math.PI / 180;
-const TAU = Math.PI * 2;
 /** Orbit rings: skipped below this on-screen radius (px); faint styling below. */
 const RING_MIN_PX = 3;
 // Cull a ring whose bounding circle is more than this many viewport-spans from
@@ -161,6 +160,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   /** True once `init()` has resolved; `render` is a no-op before then. */
   ready = false;
   private readonly renderer: WebGPURenderer;
+  /** Per-frame scratch: the arc chosen for each visible ring, in query order. */
+  private readonly ringArcs: RingArc[] = [];
   private ringCapacity = 0;
   private readonly ringMaterial: LineBasicMaterial;
   private ringMesh: LineSegments | null = null;
@@ -194,7 +195,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     ColorManagement.enabled = false;
     this.canvas = document.createElement('canvas');
     this.canvas.style.cssText = 'position:absolute; inset:0; display:none; width:100%; height:100%; pointer-events:none;';
-    this.renderer = new WebGPURenderer({ antialias: RENDER_ANTIALIAS, canvas: this.canvas });
+    // Bodies sit tens of AU from the star-anchored render origin, so the default
+    // GPU float32 model-view (≈300 km steps at 30 AU) shakes at deep zoom:
+    // `highPrecision` builds it per object in float64 on the CPU instead. Reversed
+    // float depth keeps ordering valid across the ~1e-7 → 100+ AU near/far range.
+    this.renderer = new WebGPURenderer({ antialias: RENDER_ANTIALIAS, canvas: this.canvas, reversedDepthBuffer: true });
+    this.renderer.highPrecision = true;
     this.renderer.setPixelRatio(1);
     this.renderer.setClearColor(BACKGROUND, 1);
     this.scene = new Scene();
@@ -407,10 +413,16 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * when the point is behind/beyond the camera. Used to place 3D body labels.
    */
   projectToScreen(x: number, y: number, z: number, out: { sx: number; sy: number }): boolean {
-    this.tmpVec.set(x, y, z).project(this.perspective);
+    const p = this.perspective;
+    // Clip on view-space depth, not NDC z: the reversed depth buffer maps far to
+    // 0, so beyond-far points (neighbouring systems) no longer read as z ≥ 1.
+    const depth = -this.tmpVec.set(x, y, z).applyMatrix4(p.matrixWorldInverse).z;
+    if (depth <= p.near || depth >= p.far)
+      return false;
+    this.tmpVec.set(x, y, z).project(p);
     out.sx = (this.tmpVec.x * 0.5 + 0.5) * this.viewW;
     out.sy = (this.tmpVec.y * -0.5 + 0.5) * this.viewH;
-    return this.tmpVec.z < 1;
+    return true;
   }
 
   /**
@@ -477,7 +489,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       this.starLight.visible = false;
     }
     this.bodyPasses.renderBodies(world, frame, this.starLight);
-    this.updateOrbitRings(world, camera);
+    this.updateOrbitRings(world, camera, focusZ);
     // Render through the bloom pipeline once built; the scene pass inside it
     // uses the perspective camera positioned above.
     if (this.pipeline)
@@ -734,9 +746,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * a·√(1−e²), rotated by argPeriapsis) in the z=0 plane. Rings whose bounding
    * circle is fully off-screen are culled, and the per-orbit
    * orientation trig is hoisted out of the per-segment loop, so a system zoomed
-   * right in (huge on-screen orbits, most off-screen) stays cheap.
+   * right in (huge on-screen orbits, most off-screen) stays cheap. A ring far
+   * larger than the view is drawn only near the focus (`ringArc`). Vertices are
+   * stored relative to the focus (the mesh sits there) so float32 keeps them
+   * precise at deep zoom.
    */
-  private updateOrbitRings(world: EcsWorld, cam: Camera): void {
+  private updateOrbitRings(world: EcsWorld, cam: Camera, focusZ: number): void {
     const zoom = cam.zoom;
     const focusX = cam.x + cam.offsetX;
     const focusY = cam.y + cam.offsetY;
@@ -750,12 +765,18 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       return Math.hypot(orbit.cx - focusX, orbit.cy - focusY) - apoapsisAu <= visibleRadius;
     };
 
-    // First pass: total line vertices needed (2 per segment), with each ring's
-    // segment count adapted to its on-screen size so it stays smooth at any zoom.
+    // First pass: pick each visible ring's arc + segment count (adapted to its
+    // on-screen size so it stays smooth at any zoom) and total the line vertices
+    // needed (2 per segment).
+    const arcs = this.ringArcs;
+    arcs.length = 0;
     let totalVerts = 0;
     for (const [, orbit] of world.query(OrbitElementsDef)) {
-      if (isVisible(orbit))
-        totalVerts += ringSegmentCount(orbit.a * zoom) * 2;
+      if (!isVisible(orbit))
+        continue;
+      const arc = ringArc(orbit, focusX, focusY, focusZ, visibleRadius, zoom);
+      arcs.push(arc);
+      totalVerts += arc.segments * 2;
     }
     if (totalVerts === 0) {
       if (this.ringMesh)
@@ -766,16 +787,21 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     const mesh = this.ensureRingMesh(totalVerts);
     const attribute = mesh.geometry.getAttribute('position') as BufferAttribute;
     const array = attribute.array as Float32Array;
+    mesh.position.set(focusX, focusY, focusZ);
     let v = 0;
+    let arcIndex = 0;
     for (const [, orbit] of world.query(OrbitElementsDef)) {
       if (!isVisible(orbit))
         continue;
-      const segments = ringSegmentCount(orbit.a * zoom);
+      const { segments, span, start } = arcs[arcIndex++];
       // Hoist the ellipse + perifocal→world orientation constants out of the loop
       // (writeOrbitEllipsePoint recomputes all six trig terms per point). The body
       // below mirrors `perifocalToWorld`: x' = a·cosθ − a·e, y' = b·sinθ, then
       // R_z(Ω)·R_x(i)·R_z(ω) + focus.
-      const { a, argPeriapsis, cx, cy, cz, e, inclination, longitudeAscendingNode } = orbit;
+      const { a, argPeriapsis, e, inclination, longitudeAscendingNode } = orbit;
+      const cx = orbit.cx - focusX;
+      const cy = orbit.cy - focusY;
+      const cz = orbit.cz - focusZ;
       const semiMinor = a * Math.sqrt(1 - e * e);
       const focalShift = a * e;
       const cosW = Math.cos(argPeriapsis);
@@ -788,7 +814,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       let prevY = 0;
       let prevZ = 0;
       for (let k = 0; k <= segments; k++) {
-        const theta = ((k % segments) / segments) * TAU;
+        const theta = start + (k / segments) * span;
         const xOrbit = a * Math.cos(theta) - focalShift;
         const yOrbit = semiMinor * Math.sin(theta);
         const x1 = xOrbit * cosW - yOrbit * sinW;

@@ -289,3 +289,68 @@ export function ringSegmentCount(radiusPx: number): number {
   const target = Math.ceil((TAU * radiusPx) / RING_CHORD_PX);
   return Math.min(RING_MAX_SEGMENTS, Math.max(RING_MIN_SEGMENTS, target));
 }
+
+/** The stretch of an orbit ring to tessellate: `span` radians of the ellipse parameter from `start`, in `segments` chords. */
+export interface RingArc {
+  segments: number;
+  span: number;
+  start: number;
+}
+
+const RING_ARC_COARSE_SAMPLES = 256;
+const RING_ARC_REFINE_STEPS = 60;
+
+/**
+ * Which part of an orbit ring to draw at `zoom` (px/AU). A ring that fits the
+ * segment budget is drawn whole. A larger one (zoomed right in) is drawn only
+ * ±`reachAu` of arc around its point closest to the focus: whole-ring chords
+ * would each span many pixels and cut visibly inside the curve, so the planet
+ * riding the true orbit would sit off its line.
+ */
+export function ringArc(orbit: OrbitElements, focusX: number, focusY: number, focusZ: number, reachAu: number, zoom: number): RingArc {
+  if (Math.ceil((TAU * orbit.a * zoom) / RING_CHORD_PX) <= RING_MAX_SEGMENTS)
+    return { segments: ringSegmentCount(orbit.a * zoom), span: TAU, start: 0 };
+  const semiMinor = orbit.a * Math.sqrt(1 - orbit.e * orbit.e);
+  // Arc length per radian is at least the semi-minor axis, so this half-width
+  // covers at least `reach` of curve on each side of the closest point.
+  const halfSpan = reachAu / semiMinor;
+  if (halfSpan >= Math.PI)
+    return { segments: RING_MAX_SEGMENTS, span: TAU, start: 0 };
+
+  const point = { x: 0, y: 0, z: 0 };
+  const distSq = (theta: number): number => {
+    writeOrbitEllipsePoint(orbit, theta, point);
+    return (point.x - focusX) ** 2 + (point.y - focusY) ** 2 + (point.z - focusZ) ** 2;
+  };
+  let best = 0;
+  let bestD = Infinity;
+  for (let k = 0; k < RING_ARC_COARSE_SAMPLES; k++) {
+    const theta = (k / RING_ARC_COARSE_SAMPLES) * TAU;
+    const d = distSq(theta);
+    if (d < bestD) {
+      best = theta;
+      bestD = d;
+    }
+  }
+  // Pattern search: step toward whichever neighbour is closer, halving the step
+  // when neither is, until it is far below the arc's own resolution.
+  let step = TAU / RING_ARC_COARSE_SAMPLES;
+  for (let k = 0; k < RING_ARC_REFINE_STEPS; k++) {
+    const lo = distSq(best - step);
+    const hi = distSq(best + step);
+    if (lo < bestD && lo <= hi) {
+      best -= step;
+      bestD = lo;
+    }
+    else if (hi < bestD) {
+      best += step;
+      bestD = hi;
+    }
+    else {
+      step /= 2;
+    }
+  }
+  // Arc length per radian is at most `a`, so this bounds the on-screen length.
+  const segments = Math.min(RING_MAX_SEGMENTS, Math.max(1, Math.ceil((2 * halfSpan * orbit.a * zoom) / RING_CHORD_PX)));
+  return { segments, span: 2 * halfSpan, start: best - halfSpan };
+}

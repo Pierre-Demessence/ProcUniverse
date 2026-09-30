@@ -10,16 +10,17 @@ import type { AtmosphereKind, AtmosphereLook, CloudKind, CloudLook, MoonTuning, 
 
 // ── Camera & zoom (pixels per AU) ─────────────────────────────────────
 // `ZOOM_STEP` is the multiplier per wheel notch; the min/max bound the range
-// (planet inspection out to the whole cosmic web). Rapid consecutive notches
-// accelerate: the factor ramps from `ZOOM_STEP` to `ZOOM_STEP_MAX` over
-// `ZOOM_STREAK_MAX` notches (chained while the gap stays under
-// `ZOOM_STREAK_WINDOW_MS`), so the ~10¹⁶ range is a quick flick rather than
+// (moon close-ups at ~150 m/px — the smallest moon fills the screen — out to the
+// whole cosmic web). Rapid consecutive notches accelerate: the factor ramps from
+// `ZOOM_STEP` to `ZOOM_STEP_MAX` over `ZOOM_STREAK_MAX` notches (chained while
+// the gap stays under `ZOOM_STREAK_WINDOW_MS`), so the ~10²¹ range is a quick
+// flick rather than
 // hundreds of notches; a pause or direction change resets to the gentle step.
 // `SYSTEM_VIEW_AU` is the world height framed at startup; `REBASE_SECTORS` is how
 // far the camera may drift (in sectors) before the floating origin re-snaps when
 // zoomed out.
 export const MIN_ZOOM = 1e-12;
-export const MAX_ZOOM = 1e7;
+export const MAX_ZOOM = 1e9;
 export const ZOOM_STEP = 1.12;
 export const ZOOM_STEP_MAX = 2.5;
 export const ZOOM_STREAK_MAX = 16;

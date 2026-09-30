@@ -14,13 +14,14 @@
 import type { AtmosphereLook } from './planet-surface';
 
 import { Color, Vector3 } from 'three';
-import { cameraPosition, exp, max, modelWorldMatrixInverse, positionLocal, select, smoothstep, sqrt, uniform, vec4 } from 'three/tsl';
+import { exp, max, modelWorldMatrixInverse, positionLocal, select, smoothstep, sqrt, uniform, vec4 } from 'three/tsl';
 import { AdditiveBlending, FrontSide, MeshBasicNodeMaterial } from 'three/webgpu';
 
 import { shellRadius } from './planet-surface';
 
 /** Scratch colour for parsing hex tints without allocating. */
 const SCRATCH_COLOR = new Color();
+const SCRATCH_CAMERA = new Vector3();
 
 /** Where the lit side reaches full glow, as a cosine past the terminator. */
 const FULL_GLOW_COS = 0.35;
@@ -45,9 +46,14 @@ export function createAtmosphereMaterial(): AtmosphereMaterialHandle {
 
   // Local frame scaled so the planet is the unit sphere (the shell geometry is
   // the unit sphere scaled by `uShell` relative to the planet).
-  const toLocal = (world: typeof cameraPosition) => modelWorldMatrixInverse.mul(vec4(world, 1)).xyz.mul(uShell);
+  const toLocal = (world: typeof uLightPos) => modelWorldMatrixInverse.mul(vec4(world, 1)).xyz.mul(uShell);
+  // The camera sits a planet-radius or so away while both are tens of AU from
+  // the render origin, so its local position is derived per object in float64
+  // on the CPU: the float32 GPU transform would shimmer by whole radii at deep zoom.
+  const uCameraLocal = uniform(new Vector3()).onObjectUpdate(({ camera, object }) =>
+    camera && object ? object.worldToLocal(SCRATCH_CAMERA.setFromMatrixPosition(camera.matrixWorld)) : undefined);
   const p = positionLocal.mul(uShell);
-  const view = p.sub(toLocal(cameraPosition)).normalize();
+  const view = p.sub(uCameraLocal.mul(uShell)).normalize();
   const along = p.dot(view);
   const closest = p.sub(view.mul(along));
   const d = closest.length();

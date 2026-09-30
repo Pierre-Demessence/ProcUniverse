@@ -15,7 +15,7 @@
  */
 
 import { Vector3 } from 'three';
-import { positionLocal, positionWorld, sin, smoothstep, step, uniform } from 'three/tsl';
+import { modelWorldMatrix, positionLocal, sin, smoothstep, step, uniform, vec4 } from 'three/tsl';
 import { DoubleSide, MeshBasicNodeMaterial } from 'three/webgpu';
 
 import { clamp } from './star-surface';
@@ -199,7 +199,10 @@ export function createRingMaterial(): RingMaterialHandle {
   // infinity). A fragment is shadowed when it lies behind the planet (away from
   // the star) and within the planet's silhouette (perpendicular distance from
   // the shadow axis < planet radius).
-  const toFrag = positionWorld.sub(uPlanetCenter);
+  // The ring mesh is centred on the planet, so the model matrix's linear part
+  // alone gives the offset — precise at deep zoom, unlike `positionWorld −
+  // centre`, where both terms are tens of AU in float32.
+  const toFrag = modelWorldMatrix.mul(vec4(positionLocal, 0)).xyz;
   const lightDir = uStarPos.sub(uPlanetCenter).normalize();
   const along = toFrag.dot(lightDir);
   const perp = toFrag.sub(lightDir.mul(along)).length();
