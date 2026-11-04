@@ -12,25 +12,26 @@ function mix(input: number): number {
 }
 
 /** Fold a world seed and integer sector coordinates into a uint32 seed. */
-export function hashSector(worldSeed: number, sx: number, sy: number): number {
+export function hashSector(worldSeed: number, sx: number, sy: number, sz: number): number {
   let h = (worldSeed ^ 0x9E3779B9) >>> 0;
   h = mix(h ^ (sx | 0));
   h = mix(h ^ ((sy | 0) + 0x85EBCA77));
+  h = mix(h ^ ((sz | 0) + 0x165667B1));
   return h >>> 0;
 }
 
 /**
- * Fold a world seed, sector coordinates, and intra-sector cell coordinates into
- * a uint32 that uniquely tags a single system. Independent of the generation
- * rng stream, so deriving a stable catalogue name from it never perturbs the
- * deterministic physics draws.
+ * Fold a world seed, sector coordinates, and a system's index within its sector
+ * into a uint32 that uniquely tags a single system. Independent of the
+ * generation rng stream, so deriving a stable catalogue name from it never
+ * perturbs the deterministic physics draws.
  */
-export function hashSystem(worldSeed: number, sx: number, sy: number, gx: number, gy: number): number {
+export function hashSystem(worldSeed: number, sx: number, sy: number, sz: number, index: number): number {
   let h = (worldSeed ^ 0x9E3779B9) >>> 0;
   h = mix(h ^ (sx | 0));
   h = mix(h ^ ((sy | 0) + 0x85EBCA77));
-  h = mix(h ^ ((gx | 0) + 0xC2B2AE35));
-  h = mix(h ^ ((gy | 0) + 0x27D4EB2F));
+  h = mix(h ^ ((sz | 0) + 0x165667B1));
+  h = mix(h ^ ((index | 0) + 0xC2B2AE35));
   return h >>> 0;
 }
 
@@ -39,10 +40,11 @@ export function hashSystem(worldSeed: number, sx: number, sy: number, gx: number
  * seed, kept distinct from any sector or system hash so a galaxy's shape
  * parameters never collide with a cell's star stream.
  */
-export function hashGalaxy(worldSeed: number, gx: number, gy: number): number {
+export function hashGalaxy(worldSeed: number, gx: number, gy: number, gz: number): number {
   let h = (worldSeed ^ 0x68E31DA4) >>> 0;
   h = mix(h ^ (gx | 0));
   h = mix(h ^ ((gy | 0) + 0x9E3779B9));
+  h = mix(h ^ ((gz | 0) + 0x27D4EB2F));
   return h >>> 0;
 }
 

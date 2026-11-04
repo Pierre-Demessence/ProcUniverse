@@ -11,12 +11,14 @@ import {
   environmentClass,
   estimatedStarCount,
   evaporationTime,
-  galaxiesInRect,
+  galaxiesInBox,
   galaxyActivityAt,
   galaxyActivityOf,
   galaxyAt,
   galaxyCenteredIn,
   galaxyDensityAt,
+  galaxyDensityBound,
+  galaxyDensityBoundAt,
   galaxyDensityOf,
   galaxyDiameterLy,
   galaxyInCell,
@@ -43,40 +45,46 @@ const spiral: GalaxyParams = {
   name: 'NGC-TEST0',
   arms: 2,
   armStrength: 0.7,
+  axisU: [1, 0, 0],
+  axisV: [0, 1, 0],
   blackHoleEddingtonRatio: 0.01,
   blackHoleMass: 1e7,
   blackHoleSpin: 0.5,
   centerX: 1000,
   centerY: 1000,
+  centerZ: 1000,
   cosmicDensity: 0.5,
+  diskNormal: [0, 0, 1],
   dwarf: false,
   ellipticity: 1,
+  flattening: 1,
   humanName: 'Testo',
   orientation: 0,
   phase: 0,
   pitch: (18 * Math.PI) / 180,
   radius: 1000,
+  scaleHeight: 30,
   scaleLength: 300,
   schwarzschildRadius: 0.2,
   type: 'spiral',
 };
-const elliptical: GalaxyParams = { ...spiral, ellipticity: 0.6, type: 'elliptical' };
+const elliptical: GalaxyParams = { ...spiral, ellipticity: 0.6, flattening: 0.4, type: 'elliptical' };
 
 describe('galaxyDensityOf', () => {
   it('peaks at the core and vanishes beyond the radius', () => {
-    expect(galaxyDensityOf(spiral, 1000, 1000)).toBe(1);
-    expect(galaxyDensityOf(spiral, 3000, 1000)).toBe(0);
-    expect(galaxyDensityOf(spiral, 1000, 3000)).toBe(0);
+    expect(galaxyDensityOf(spiral, 1000, 1000, 1000)).toBe(1);
+    expect(galaxyDensityOf(spiral, 3000, 1000, 1000)).toBe(0);
+    expect(galaxyDensityOf(spiral, 1000, 3000, 1000)).toBe(0);
   });
 
   it('falls off with distance from the core', () => {
-    expect(galaxyDensityOf(spiral, 1100, 1000)).toBeGreaterThan(galaxyDensityOf(spiral, 1600, 1000));
+    expect(galaxyDensityOf(spiral, 1100, 1000, 1000)).toBeGreaterThan(galaxyDensityOf(spiral, 1600, 1000, 1000));
   });
 
   it('stays within [0, 1] across the disc', () => {
     for (let dx = -1000; dx <= 1000; dx += 137) {
       for (let dy = -1000; dy <= 1000; dy += 137) {
-        const d = galaxyDensityOf(spiral, 1000 + dx, 1000 + dy);
+        const d = galaxyDensityOf(spiral, 1000 + dx, 1000 + dy, 1000);
         expect(d).toBeGreaterThanOrEqual(0);
         expect(d).toBeLessThanOrEqual(1);
       }
@@ -84,24 +92,24 @@ describe('galaxyDensityOf', () => {
   });
 
   it('squashes an elliptical galaxy along its minor axis', () => {
-    expect(galaxyDensityOf(elliptical, 1300, 1000)).toBeGreaterThan(galaxyDensityOf(elliptical, 1000, 1300));
+    expect(galaxyDensityOf(elliptical, 1300, 1000, 1000)).toBeGreaterThan(galaxyDensityOf(elliptical, 1000, 1300, 1000));
   });
 });
 
 describe('galaxyActivityOf', () => {
   it('is low and uniform for an elliptical (old, red population)', () => {
-    const a = galaxyActivityOf(elliptical, 1300, 1000);
-    expect(a).toBe(galaxyActivityOf(elliptical, 1000, 1300));
+    const a = galaxyActivityOf(elliptical, 1300, 1000, 1000);
+    expect(a).toBe(galaxyActivityOf(elliptical, 1000, 1300, 1000));
     expect(a).toBeLessThan(0.2);
   });
 
   it('varies across a spiral and rises above the quiescent baseline on arms', () => {
-    const baseline = galaxyActivityOf(elliptical, 1300, 1000);
+    const baseline = galaxyActivityOf(elliptical, 1300, 1000, 1000);
     let maxA = 0;
     let minA = 1;
     for (let deg = 0; deg < 360; deg += 15) {
       const rad = (deg * Math.PI) / 180;
-      const a = galaxyActivityOf(spiral, 1000 + 300 * Math.cos(rad), 1000 + 300 * Math.sin(rad));
+      const a = galaxyActivityOf(spiral, 1000 + 300 * Math.cos(rad), 1000 + 300 * Math.sin(rad), 1000);
       maxA = Math.max(maxA, a);
       minA = Math.min(minA, a);
       expect(a).toBeGreaterThanOrEqual(0);
@@ -125,7 +133,7 @@ describe('blackHoleMassFromSize', () => {
 
 describe('makeGalaxy', () => {
   it('always fills the home cell, centred on the origin', () => {
-    const home = makeGalaxy(SEED, 0, 0);
+    const home = makeGalaxy(SEED, 0, 0, 0);
     expect(home).not.toBeNull();
     if (home) {
       expect(home.centerX).toBe(0);
@@ -134,12 +142,12 @@ describe('makeGalaxy', () => {
   });
 
   it('is deterministic per cell and leaves some cells empty', () => {
-    expect(makeGalaxy(SEED, 3, 5)).toEqual(makeGalaxy(SEED, 3, 5));
+    expect(makeGalaxy(SEED, 3, 5, 0)).toEqual(makeGalaxy(SEED, 3, 5, 0));
     let nulls = 0;
     let filled = 0;
     for (let gx = -4; gx <= 4; gx++) {
       for (let gy = -4; gy <= 4; gy++) {
-        if (makeGalaxy(SEED, gx, gy))
+        if (makeGalaxy(SEED, gx, gy, 0))
           filled++;
         else
           nulls++;
@@ -152,7 +160,7 @@ describe('makeGalaxy', () => {
   it('regenerates every cell byte-identically regardless of morphology branch', () => {
     for (let gx = -3; gx <= 3; gx++) {
       for (let gy = -3; gy <= 3; gy++)
-        expect(makeGalaxy(SEED, gx, gy)).toEqual(makeGalaxy(SEED, gx, gy));
+        expect(makeGalaxy(SEED, gx, gy, 0)).toEqual(makeGalaxy(SEED, gx, gy, 0));
     }
   });
 
@@ -160,7 +168,7 @@ describe('makeGalaxy', () => {
     const types = new Set<string>();
     for (let gx = -10; gx <= 10; gx++) {
       for (let gy = -10; gy <= 10; gy++) {
-        const g = makeGalaxy(SEED, gx, gy);
+        const g = makeGalaxy(SEED, gx, gy, 0);
         if (g)
           types.add(g.type);
       }
@@ -171,30 +179,28 @@ describe('makeGalaxy', () => {
 
 describe('galaxyInCell cache', () => {
   it('matches makeGalaxy for near, negative and beyond-key-range cells', () => {
-    for (const [gx, gy] of [[0, 0], [3, -7], [-12, 5], [2 ** 25, 1], [-1, -(2 ** 25) - 3]] as const)
-      expect(galaxyInCell(SEED, gx, gy)).toEqual(makeGalaxy(SEED, gx, gy));
+    for (const [gx, gy, gz] of [[0, 0, 0], [3, -7, 2], [-12, 5, -4], [2 ** 16, 1, 0], [-1, 0, -(2 ** 16) - 3]] as const)
+      expect(galaxyInCell(SEED, gx, gy, gz)).toEqual(makeGalaxy(SEED, gx, gy, gz));
   });
 
   it('keeps cells whose coordinates would alias under a naive key apart', () => {
-    expect(galaxyInCell(SEED, 1, 0)).toEqual(makeGalaxy(SEED, 1, 0));
-    expect(galaxyInCell(SEED, 0, 2 ** 26 - 1)).toEqual(makeGalaxy(SEED, 0, 2 ** 26 - 1));
-    expect(galaxyInCell(SEED, 0, -1)).toEqual(makeGalaxy(SEED, 0, -1));
-    expect(galaxyInCell(SEED, -1, 2 ** 25 - 1)).toEqual(makeGalaxy(SEED, -1, 2 ** 25 - 1));
+    for (const [gx, gy, gz] of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, -1, 0], [0, 0, -1], [-1, 2 ** 16 - 1, 0], [0, -1, 2 ** 16 - 1]] as const)
+      expect(galaxyInCell(SEED, gx, gy, gz)).toEqual(makeGalaxy(SEED, gx, gy, gz));
   });
 
   it('never serves a cached galaxy for another seed', () => {
     const other = SEED + 1;
     for (let gx = 1; gx <= 6; gx++) {
-      expect(galaxyInCell(SEED, gx, 2)).toEqual(makeGalaxy(SEED, gx, 2));
-      expect(galaxyInCell(other, gx, 2)).toEqual(makeGalaxy(other, gx, 2));
+      expect(galaxyInCell(SEED, gx, 2, 0)).toEqual(makeGalaxy(SEED, gx, 2, 0));
+      expect(galaxyInCell(other, gx, 2, 0)).toEqual(makeGalaxy(other, gx, 2, 0));
     }
   });
 });
 
 describe('galaxyAt / galaxyDensityAt / galaxyCenteredIn', () => {
   it('finds the home galaxy at the origin', () => {
-    expect(galaxyDensityAt(SEED, 0, 0)).toBeCloseTo(1, 5);
-    expect(galaxyAt(SEED, 0, 0)?.centerX).toBe(0);
+    expect(galaxyDensityAt(SEED, 0, 0, 0)).toBeCloseTo(1, 5);
+    expect(galaxyAt(SEED, 0, 0, 0)?.centerX).toBe(0);
   });
 
   it('returns nothing in an empty cell far from any galaxy', () => {
@@ -202,7 +208,7 @@ describe('galaxyAt / galaxyDensityAt / galaxyCenteredIn', () => {
     let empty: [number, number] | null = null;
     for (let gx = 1; gx <= 30 && !empty; gx++) {
       for (let gy = 0; gy <= 30 && !empty; gy++) {
-        if (!makeGalaxy(SEED, gx, gy))
+        if (!makeGalaxy(SEED, gx, gy, 0))
           empty = [gx, gy];
       }
     }
@@ -210,21 +216,22 @@ describe('galaxyAt / galaxyDensityAt / galaxyCenteredIn', () => {
     if (empty) {
       const x = (empty[0] + 0.5) * cell;
       const y = (empty[1] + 0.5) * cell;
-      expect(galaxyDensityAt(SEED, x, y)).toBe(0);
-      expect(galaxyAt(SEED, x, y)).toBeNull();
+      expect(galaxyDensityAt(SEED, x, y, 0)).toBe(0);
+      expect(galaxyAt(SEED, x, y, 0)).toBeNull();
     }
   });
 
   it('reports a galaxy centre inside its own sector box only', () => {
-    expect(galaxyCenteredIn(SEED, 0, 0, SECTOR_SIZE, SECTOR_SIZE)?.centerX).toBe(0);
-    expect(galaxyCenteredIn(SEED, 7 * SECTOR_SIZE, 0, 8 * SECTOR_SIZE, SECTOR_SIZE)).toBeNull();
+    expect(galaxyCenteredIn(SEED, 0, 0, 0, SECTOR_SIZE, SECTOR_SIZE, SECTOR_SIZE)?.centerX).toBe(0);
+    expect(galaxyCenteredIn(SEED, 7 * SECTOR_SIZE, 0, 0, 8 * SECTOR_SIZE, SECTOR_SIZE, SECTOR_SIZE)).toBeNull();
+    expect(galaxyCenteredIn(SEED, 0, 0, SECTOR_SIZE, SECTOR_SIZE, SECTOR_SIZE, 2 * SECTOR_SIZE)).toBeNull();
   });
 
   it('galaxySampleAt matches galaxyDensityAt and galaxyActivityAt, including the void', () => {
     const cell = GALAXY_CELL_LY * AU_PER_LY;
     const points: [number, number][] = [[0, 0], [5000 * AU_PER_LY, 2000 * AU_PER_LY], [30000 * AU_PER_LY, -12000 * AU_PER_LY], [0.5 * cell, 0.5 * cell]];
     for (const [x, y] of points) {
-      expect(galaxySampleAt(SEED, x, y)).toEqual({ activity: galaxyActivityAt(SEED, x, y), density: galaxyDensityAt(SEED, x, y) });
+      expect(galaxySampleAt(SEED, x, y, 0)).toEqual({ activity: galaxyActivityAt(SEED, x, y, 0), density: galaxyDensityAt(SEED, x, y, 0) });
     }
   });
 });
@@ -244,9 +251,9 @@ describe('galaxy-field helpers', () => {
     expect(galaxyRepresentativeActivity(spiral)).toBeGreaterThan(galaxyRepresentativeActivity(elliptical));
   });
 
-  it('iterates galaxies overlapping a rect, including the home galaxy', () => {
+  it('iterates galaxies overlapping a box, including the home galaxy', () => {
     const cell = GALAXY_CELL_LY * AU_PER_LY;
-    const found = [...galaxiesInRect(SEED, -cell, -cell, cell, cell)];
+    const found = [...galaxiesInBox(SEED, -cell, -cell, -cell, cell, cell, cell)];
     expect(found.length).toBeGreaterThan(0);
     expect(found.some(g => g.centerX === 0 && g.centerY === 0)).toBe(true);
   });
@@ -285,14 +292,14 @@ describe('galaxy derived quantities', () => {
   });
 
   it('exposes the home galaxy cosmic-web density in [0, 1]', () => {
-    const home = makeGalaxy(SEED, 0, 0);
+    const home = makeGalaxy(SEED, 0, 0, 0);
     expect(home?.cosmicDensity).toBeGreaterThanOrEqual(0);
     expect(home?.cosmicDensity).toBeLessThanOrEqual(1);
   });
 
   it('assigns each galaxy a black-hole spin in [0, 1)', () => {
     for (let gx = 0; gx <= 5; gx++) {
-      const g = makeGalaxy(SEED, gx, 0);
+      const g = makeGalaxy(SEED, gx, 0, 0);
       if (g) {
         expect(g.blackHoleSpin).toBeGreaterThanOrEqual(0);
         expect(g.blackHoleSpin).toBeLessThan(1);
@@ -306,7 +313,7 @@ describe('galaxy population stats', () => {
     // Realistically-sized galaxies so the per-sector star estimate (and the SFR
     // that scales from it) is non-zero at the interstellar sector scale.
     const realScale = GALAXY_SCALE_LENGTH_LY * AU_PER_LY;
-    const realSpiral = { ...spiral, scaleLength: realScale };
+    const realSpiral = { ...spiral, scaleHeight: realScale / 10, scaleLength: realScale };
     const realElliptical = { ...elliptical, scaleLength: realScale };
     expect(starFormationRate(realSpiral)).toBeGreaterThan(starFormationRate(realElliptical));
     expect(gasFraction(spiral)).toBeGreaterThan(gasFraction(elliptical));
@@ -323,7 +330,7 @@ describe('black-hole accretion', () => {
 
   it('assigns each galaxy an Eddington ratio in (0, 1]', () => {
     for (let gx = 0; gx <= 5; gx++) {
-      const g = makeGalaxy(SEED, gx, 0);
+      const g = makeGalaxy(SEED, gx, 0, 0);
       if (g) {
         expect(g.blackHoleEddingtonRatio).toBeGreaterThan(0);
         expect(g.blackHoleEddingtonRatio).toBeLessThanOrEqual(1);
@@ -346,12 +353,12 @@ describe('cosmicDensity & clustering', () => {
   it('is smooth and within [0, 1]', () => {
     for (let gx = -5; gx <= 5; gx++) {
       for (let gy = -5; gy <= 5; gy++) {
-        const c = cosmicDensity(SEED, gx, gy);
+        const c = cosmicDensity(SEED, gx, gy, 0);
         expect(c).toBeGreaterThanOrEqual(0);
         expect(c).toBeLessThanOrEqual(1);
       }
     }
-    expect(Math.abs(cosmicDensity(SEED, 0, 0) - cosmicDensity(SEED, 1, 0))).toBeLessThan(0.2);
+    expect(Math.abs(cosmicDensity(SEED, 0, 0, 0) - cosmicDensity(SEED, 1, 0, 0))).toBeLessThan(0.2);
   });
 
   it('clusters galaxies and skews them spheroidal where the web is dense', () => {
@@ -362,8 +369,8 @@ describe('cosmicDensity & clustering', () => {
     let voidTot = 0;
     for (let gx = -40; gx <= 40; gx++) {
       for (let gy = -40; gy <= 40; gy++) {
-        const c = cosmicDensity(SEED, gx, gy);
-        const g = makeGalaxy(SEED, gx, gy);
+        const c = cosmicDensity(SEED, gx, gy, 0);
+        const g = makeGalaxy(SEED, gx, gy, 0);
         if (c > 0.6) {
           denseTot++;
           if (g) {
@@ -383,5 +390,115 @@ describe('cosmicDensity & clustering', () => {
     expect(voidTot).toBeGreaterThan(0);
     expect(denseGal / denseTot).toBeGreaterThan(voidGal / voidTot);
     expect(denseSph / denseGal).toBeGreaterThan(0.4);
+  });
+});
+
+describe('3D galaxy structure', () => {
+  const barred: GalaxyParams = { ...spiral, type: 'barred-spiral' };
+  const lenticular: GalaxyParams = { ...spiral, scaleHeight: 60, type: 'lenticular' };
+  // The fixture spiral with its disk turned edge-on: pole along +x.
+  const edgeOn: GalaxyParams = { ...spiral, axisU: [0, 1, 0], axisV: [0, 0, 1], diskNormal: [1, 0, 0] };
+
+  it('thins the disk above and below the mid-plane, symmetrically', () => {
+    const inPlane = galaxyDensityOf(spiral, 1500, 1000, 1000);
+    const above = galaxyDensityOf(spiral, 1500, 1000, 1000 + 3 * spiral.scaleHeight);
+    expect(above).toBeLessThan(inPlane * 0.1);
+    expect(galaxyDensityOf(spiral, 1500, 1000, 1000 - 3 * spiral.scaleHeight)).toBeCloseTo(above, 12);
+  });
+
+  it('follows the disk normal, not the world axes', () => {
+    // The edge-on galaxy's major axis is world y and its pole world x: the same
+    // in-galaxy point, so the same density, sits along a different world axis.
+    expect(galaxyDensityOf(edgeOn, 1000, 1500, 1000)).toBeCloseTo(galaxyDensityOf(spiral, 1500, 1000, 1000), 12);
+    expect(galaxyDensityOf(edgeOn, 1500, 1000, 1000)).toBeLessThan(galaxyDensityOf(edgeOn, 1000, 1500, 1000) * 0.1);
+  });
+
+  it('keeps a faint halo above the disk where the disk has vanished', () => {
+    const high = galaxyDensityOf(spiral, 1000, 1000, 1000 + 20 * spiral.scaleHeight);
+    expect(high).toBeGreaterThan(0);
+    expect(high).toBeLessThan(0.2);
+  });
+
+  it('squashes an elliptical along all three axes', () => {
+    const alongMajor = galaxyDensityOf(elliptical, 1300, 1000, 1000);
+    const alongMinor = galaxyDensityOf(elliptical, 1000, 1300, 1000);
+    const alongPole = galaxyDensityOf(elliptical, 1000, 1000, 1300);
+    expect(alongMajor).toBeGreaterThan(alongMinor);
+    expect(alongMinor).toBeGreaterThan(alongPole);
+  });
+
+  it('bounds the density everywhere inside the ball it is asked about', () => {
+    let seed = 7;
+    const rand = (): number => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+    for (const g of [spiral, barred, lenticular, elliptical, edgeOn]) {
+      for (let k = 0; k < 200; k++) {
+        const cx = 1000 + (rand() - 0.5) * 2400;
+        const cy = 1000 + (rand() - 0.5) * 2400;
+        const cz = 1000 + (rand() - 0.5) * 600;
+        const reach = rand() * 200;
+        const bound = galaxyDensityBound(g, cx, cy, cz, reach);
+        for (let j = 0; j < 10; j++) {
+          const dx = rand() - 0.5;
+          const dy = rand() - 0.5;
+          const dz = rand() - 0.5;
+          const scale = (reach * rand()) / Math.max(1e-9, Math.hypot(dx, dy, dz));
+          expect(galaxyDensityOf(g, cx + dx * scale, cy + dy * scale, cz + dz * scale)).toBeLessThanOrEqual(bound + 1e-12);
+        }
+      }
+    }
+  });
+
+  it('bounds the seeded density field too, and is zero in the void', () => {
+    const cell = GALAXY_CELL_LY * AU_PER_LY;
+    const reach = 3 * AU_PER_LY;
+    for (const [x, y, z] of [[0, 0, 0], [8000 * AU_PER_LY, 3000 * AU_PER_LY, 400 * AU_PER_LY]] as const)
+      expect(galaxyDensityBoundAt(SEED, x, y, z, reach)).toBeGreaterThanOrEqual(galaxyDensityAt(SEED, x + reach / 2, y, z));
+    let empty: [number, number] | null = null;
+    for (let gx = 1; gx <= 30 && !empty; gx++) {
+      if (!makeGalaxy(SEED, gx, 0, 0) && !makeGalaxy(SEED, gx, 0, -1))
+        empty = [gx, 0];
+    }
+    expect(empty).not.toBeNull();
+    if (empty)
+      expect(galaxyDensityBoundAt(SEED, (empty[0] + 0.5) * cell, 0.5 * cell, 0.5 * cell, reach)).toBe(0);
+  });
+
+  it('gives the home galaxy a +z pole and every galaxy an orthonormal frame inside its cell', () => {
+    const home = makeGalaxy(SEED, 0, 0, 0);
+    expect(home?.diskNormal).toEqual([0, 0, 1]);
+    expect(home?.centerZ).toBe(0);
+    const cell = GALAXY_CELL_LY * AU_PER_LY;
+    const dot = (a: readonly number[], b: readonly number[]): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let checked = 0;
+    for (let gz = -2; gz <= 2; gz++) {
+      for (let gx = -2; gx <= 2; gx++) {
+        const g = makeGalaxy(SEED, gx, 1, gz);
+        if (!g)
+          continue;
+        checked++;
+        expect(g.centerZ).toBeGreaterThanOrEqual(gz * cell);
+        expect(g.centerZ).toBeLessThan((gz + 1) * cell);
+        for (const v of [g.axisU, g.axisV, g.diskNormal])
+          expect(dot(v, v)).toBeCloseTo(1, 9);
+        expect(dot(g.axisU, g.axisV)).toBeCloseTo(0, 9);
+        expect(dot(g.axisU, g.diskNormal)).toBeCloseTo(0, 9);
+        expect(dot(g.axisV, g.diskNormal)).toBeCloseTo(0, 9);
+        expect(g.scaleHeight).toBeGreaterThan(0);
+        expect(g.flattening).toBeLessThanOrEqual(g.ellipticity);
+      }
+    }
+    expect(checked).toBeGreaterThan(5);
+  });
+
+  it('varies the cosmic web smoothly along z', () => {
+    for (let gz = -5; gz <= 5; gz++) {
+      const c = cosmicDensity(SEED, 2, 3, gz);
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(1);
+      expect(Math.abs(cosmicDensity(SEED, 2, 3, gz + 1) - c)).toBeLessThan(0.2);
+    }
   });
 });

@@ -37,7 +37,7 @@ export function* spiralSectors(maxRing: number): Generator<[number, number]> {
 export function scanPlanets(seed: number, limit: number, maxRing = 40): LabPlanet[] {
   const found: LabPlanet[] = [];
   for (const [sx, sy] of spiralSectors(maxRing)) {
-    for (const system of generateSectorData(seed, sx, sy).systems) {
+    for (const system of generateSectorData(seed, sx, sy, 0).systems) {
       for (const planet of system.planets) {
         const p = planet.physical;
         found.push({

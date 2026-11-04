@@ -9,7 +9,7 @@ describe('pickGalaxyAt', () => {
   it('selects the home galaxy at the world origin', () => {
     const fieldCam = makeCamera({ viewportH: 600, viewportW: 800, x: 0, y: 0, zoom: 1e-5 });
     const { vx, vy } = worldToView(0, 0, fieldCam);
-    const galaxy = pickGalaxyAt(1337, fieldCam, 0, 0, vx, vy);
+    const galaxy = pickGalaxyAt(1337, fieldCam, 0, 0, 0, vx, vy);
     expect(galaxy?.centerX).toBe(0);
     expect(galaxy?.centerY).toBe(0);
   });

@@ -32,7 +32,6 @@ import { pass } from 'three/tsl';
 import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
 import { planeBasis } from '../../camera/plane-basis';
-import { STAR_SLAB_THICKNESS_LY } from '../../config/data';
 import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, PICK_PX, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH, STAR_MAX_REACH_LY, STAR_MIN_REACH_LY } from '../../config/render';
 import { galaxyAt } from '../../generation/galaxies';
 import { StarPhysicalDef } from '../../generation/stars';
@@ -74,8 +73,6 @@ const RING_OPACITY = 0.14;
 const RING_INITIAL_VERTS = 8192;
 /** A plane zoom target farther than this many focus distances from the camera is ignored. */
 const ZOOM_TARGET_MAX_DISTANCE_FACTOR = 4;
-/** Half the star slab's thickness (AU): how far above / below the plane stars reach. */
-const STAR_SLAB_HALF_AU = (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
 /** Initial glow-sprite instance capacity; grown on demand, never shrunk. */
 const GLOW_INITIAL_CAPACITY = 1024;
 /** Values per buffered glow sprite: x, y, radius, then r, g, b pre-multiplied by alpha. */
@@ -126,6 +123,8 @@ export interface ThreeRenderContext {
 /** Per-frame inputs for the aggregate glow tiers (galaxy / galaxy-field / universe). */
 export interface ThreeGlowContext {
   camera: Camera;
+  /** Absolute height of the camera focus (AU): the flat glow tiers show the space around it. */
+  focusZ: number;
   originX: number;
   originY: number;
   seed: number;
@@ -345,9 +344,9 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * tier keeps whatever sky the system tier last built (the band barely moves
    * over the star tier's few light-years) instead of rebuilding it every frame.
    */
-  ensureStarfield(seed: number, camAbsX: number, camAbsY: number): void {
+  ensureStarfield(seed: number, camAbsX: number, camAbsY: number, camAbsZ: number): void {
     if (!this.starfieldDome?.populated)
-      this.updateStarfield(seed, camAbsX, camAbsY);
+      this.updateStarfield(seed, camAbsX, camAbsY, camAbsZ);
   }
 
   /**
@@ -470,7 +469,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // behind the current one. Once the star layer shows, the far plane reaches
     // the star field and the body passes cull the neighbours instead.
     const systemReach = systemLayer ? this.focusedSystemReach(world, focusX, focusY, focusZ) : 0;
-    const sceneRadius = stars ? Math.max(systemReach, starReach + STAR_SLAB_HALF_AU) : systemReach;
+    const sceneRadius = stars ? Math.max(systemReach, starReach) : systemReach;
     // Position the perspective camera up front: the star size-floor below needs
     // the camera's world position, and nothing between here and the final draw
     // depends on the previous frame's camera.
@@ -538,12 +537,12 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
         focusX,
         focusY,
         focusZ,
-        horizontalReach: starReach,
         originX: stars.originX,
         originY: stars.originY,
         originZ: stars.originZ,
         pxFactor,
-        range: sectorsAround(focusX + stars.originX, focusY + stars.originY, starReach),
+        range: sectorsAround(focusX + stars.originX, focusY + stars.originY, focusZ + stars.originZ, starReach),
+        reach: starReach,
         weight: weights.stars,
       });
     }
@@ -577,7 +576,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   private renderGlowTier(ctx: ThreeGlowContext, forEach: GlowField): number {
     if (!this.ready)
       return 0;
-    const { camera, originX, originY, seed } = ctx;
+    const { camera, focusZ, originX, originY, seed } = ctx;
     this.syncCamera(camera);
     this.starfieldDome?.setVisible(false);
     this.group.visible = false;
@@ -588,7 +587,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // Buffer the sprites in a single pass (the field is costly to evaluate),
     // then size the mesh and fill it.
     let count = 0;
-    forEach(camera, seed, originX, originY, (x, y, radius, r, g, b, alpha) => {
+    forEach(camera, seed, originX, originY, focusZ, (x, y, radius, r, g, b, alpha) => {
       if ((count + 1) * GLOW_STRIDE > this.glowScratch.length) {
         const grown = new Float64Array(this.glowScratch.length * 2);
         grown.set(this.glowScratch);
@@ -829,24 +828,25 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
    * star tier uses `ensureStarfield`): a regeneration costs hundreds of ms, and
    * the zoomed-out tiers would cross its position buckets every frame.
    */
-  updateStarfield(seed: number, camAbsX: number, camAbsY: number): void {
+  updateStarfield(seed: number, camAbsX: number, camAbsY: number, camAbsZ: number): void {
     if (!this.ready)
       return;
     if (!this.starfieldDome) {
       this.starfieldDome = createStarfieldDome();
       this.scene.add(this.starfieldDome.object);
     }
-    const g = galaxyAt(seed, camAbsX, camAbsY);
+    const g = galaxyAt(seed, camAbsX, camAbsY, camAbsZ);
     this.starfieldDome.update(
       seed,
       g
         ? {
             centerX: g.centerX,
             centerY: g.centerY,
+            centerZ: g.centerZ,
             orientation: g.orientation,
             void: false,
           }
-        : { centerX: 0, centerY: 0, orientation: 0, void: true },
+        : { centerX: 0, centerY: 0, centerZ: 0, orientation: 0, void: true },
       camAbsX,
       camAbsY,
     );

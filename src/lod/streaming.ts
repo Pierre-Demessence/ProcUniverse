@@ -56,10 +56,8 @@ export class SystemStreamer {
   update(range: SectorRange, originX: number, originY: number, originZ: number): void {
     // Despawn sectors that left the range (deleting during Map iteration is safe).
     for (const [key, ids] of this.active) {
-      const comma = key.indexOf(',');
-      const sx = Number(key.slice(0, comma));
-      const sy = Number(key.slice(comma + 1));
-      if (sx < range.minSx || sx > range.maxSx || sy < range.minSy || sy > range.maxSy) {
+      const [sx, sy, sz] = key.split(',').map(Number);
+      if (sx < range.minSx || sx > range.maxSx || sy < range.minSy || sy > range.maxSy || sz < range.minSz || sz > range.maxSz) {
         for (const id of ids)
           this.world.queueDestroy(id);
         const stars = this.starsPerSector.get(key) ?? 0;
@@ -71,17 +69,19 @@ export class SystemStreamer {
     }
 
     // Spawn sectors that entered the range.
-    for (let sy = range.minSy; sy <= range.maxSy; sy++) {
-      for (let sx = range.minSx; sx <= range.maxSx; sx++) {
-        const key = `${sx},${sy}`;
-        if (this.active.has(key))
-          continue;
-        const data = this.cache.get(sx, sy);
-        const ids = spawnSector(this.world, data, originX, originY, originZ);
-        this.active.set(key, ids);
-        this.starsPerSector.set(key, data.systems.length);
-        this.starCount += data.systems.length;
-        this.planetCount += ids.length - data.systems.length;
+    for (let sz = range.minSz; sz <= range.maxSz; sz++) {
+      for (let sy = range.minSy; sy <= range.maxSy; sy++) {
+        for (let sx = range.minSx; sx <= range.maxSx; sx++) {
+          const key = `${sx},${sy},${sz}`;
+          if (this.active.has(key))
+            continue;
+          const data = this.cache.get(sx, sy, sz);
+          const ids = spawnSector(this.world, data, originX, originY, originZ);
+          this.active.set(key, ids);
+          this.starsPerSector.set(key, data.systems.length);
+          this.starCount += data.systems.length;
+          this.planetCount += ids.length - data.systems.length;
+        }
       }
     }
   }

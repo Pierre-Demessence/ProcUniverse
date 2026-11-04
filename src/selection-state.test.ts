@@ -125,9 +125,9 @@ describe('selectionState', () => {
 
   it('opens a galaxy bookmark at the galaxy under its position', () => {
     let seed = 1;
-    while (seed < 1000 && !galaxyAt(seed, 0, 0))
+    while (seed < 1000 && !galaxyAt(seed, 0, 0, 0))
       seed++;
-    const g = galaxyAt(seed, 0, 0);
+    const g = galaxyAt(seed, 0, 0, 0);
     if (!g)
       throw new Error('no seed with a galaxy at the origin');
     const s = new SelectionState();

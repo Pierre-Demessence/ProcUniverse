@@ -20,18 +20,19 @@ export function formatCoord(au: number): string {
 }
 
 /**
- * Bottom-left readout of the view-centre world position: absolute coordinates
+ * Bottom-left readout of the view-centre world position (`cam` x / y and the
+ * focus height `focusZ`, absolute AU): absolute coordinates
  * from the world origin (the home galaxy's centre) on top, and below them the
  * current galaxy plus the offset from its centre — or "intergalactic space" in
  * the void. Screen space, in canvas backing pixels, stacked just above the scale
  * bar to match the hint / scale-bar HUD.
  */
-export function drawCoords(ctx2d: CanvasRenderingContext2D, cam: Camera, seed: number): void {
-  const galaxy = galaxyAt(seed, cam.x, cam.y);
+export function drawCoords(ctx2d: CanvasRenderingContext2D, cam: Camera, focusZ: number, seed: number): void {
+  const galaxy = galaxyAt(seed, cam.x, cam.y, focusZ);
   const epoch = `Universe age ${threeSigFigs(universeAge(seed) / 1e9)} Gyr`;
-  const absolute = `X ${formatCoord(cam.x)}   Y ${formatCoord(cam.y)}`;
+  const absolute = `X ${formatCoord(cam.x)}   Y ${formatCoord(cam.y)}   Z ${formatCoord(focusZ)}`;
   const context = galaxy
-    ? `\u0394 ${formatCoord(cam.x - galaxy.centerX)}, ${formatCoord(cam.y - galaxy.centerY)} in ${namingStyle.value === 'human' ? galaxy.humanName : galaxy.name}`
+    ? `\u0394 ${formatCoord(cam.x - galaxy.centerX)}, ${formatCoord(cam.y - galaxy.centerY)}, ${formatCoord(focusZ - galaxy.centerZ)} in ${namingStyle.value === 'human' ? galaxy.humanName : galaxy.name}`
     : 'intergalactic space';
 
   ctx2d.save();

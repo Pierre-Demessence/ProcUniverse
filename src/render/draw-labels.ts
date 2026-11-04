@@ -7,7 +7,7 @@ import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
 import { GALAXY_SPRITE_SCALE } from '../config/render';
-import { BlackHoleDef, galaxiesInRect } from '../generation/galaxies';
+import { BlackHoleDef, galaxiesInBox } from '../generation/galaxies';
 import { MoonPhysicalDef } from '../generation/moons';
 import { displayName, NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
@@ -129,16 +129,18 @@ export function drawGalaxyFieldLabels(
   seed: number,
   originX: number,
   originY: number,
+  focusZ: number,
 ): void {
   const rect = cameraViewRect(cam);
   const minX = rect.x + originX;
   const minY = rect.y + originY;
+  const halfDepth = Math.max(rect.w, rect.h) / 2;
   ctx2d.save();
   ctx2d.font = '12px ui-monospace, monospace';
   ctx2d.fillStyle = GALAXY_LABEL_FILL;
   ctx2d.textAlign = 'center';
   ctx2d.textBaseline = 'top';
-  for (const g of galaxiesInRect(seed, minX, minY, minX + rect.w, minY + rect.h)) {
+  for (const g of galaxiesInBox(seed, minX, minY, focusZ - halfDepth, minX + rect.w, minY + rect.h, focusZ + halfDepth)) {
     const radiusPx = g.radius * cam.zoom * GALAXY_SPRITE_SCALE;
     if (radiusPx * 2 < GALAXY_LABEL_MIN_PX)
       continue;

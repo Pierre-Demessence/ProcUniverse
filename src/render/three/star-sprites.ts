@@ -78,14 +78,14 @@ export interface StarLayerFrame {
   focusX: number;
   focusY: number;
   focusZ: number;
-  /** Stars farther than this (in x, y) from the focus are dropped, fading out before it. */
-  horizontalReach: number;
   originX: number;
   originY: number;
   originZ: number;
   /** Screen pixels per world unit at unit distance. */
   pxFactor: number;
   range: SectorRange;
+  /** Stars farther than this from the focus are dropped, fading out before it. */
+  reach: number;
   /** Weight of every non-focused star (the star layer's fade-in). */
   weight: number;
 }
@@ -107,7 +107,7 @@ export class StarSpriteLayer {
   private readonly geometry = new PlaneGeometry(1, 1);
   private readonly group: Group;
   private mesh: InstancedMesh | null = null;
-  /** Sector coordinates (sx, sy pairs) not yet generated this frame. */
+  /** Sector coordinates (sx, sy, sz triples) not yet generated this frame. */
   private readonly missing: number[] = [];
   /** Local positions (x, y, z) of the drawn stars, in draw order. */
   private positions = new Float64Array(INITIAL_CAPACITY * 3);
@@ -185,13 +185,15 @@ export class StarSpriteLayer {
     const sectors = this.sectors;
     sectors.length = 0;
     let capacity = 0;
-    for (let sy = f.range.minSy; sy <= f.range.maxSy; sy++) {
-      for (let sx = f.range.minSx; sx <= f.range.maxSx; sx++) {
-        const sector = f.cache.peek(sx, sy);
-        if (!sector)
-          continue;
-        sectors.push(sector);
-        capacity += sector.systems.length;
+    for (let sz = f.range.minSz; sz <= f.range.maxSz; sz++) {
+      for (let sy = f.range.minSy; sy <= f.range.maxSy; sy++) {
+        for (let sx = f.range.minSx; sx <= f.range.maxSx; sx++) {
+          const sector = f.cache.peek(sx, sy, sz);
+          if (!sector)
+            continue;
+          sectors.push(sector);
+          capacity += sector.systems.length;
+        }
       }
     }
     const mesh = this.ensureMesh(capacity);
@@ -201,7 +203,7 @@ export class StarSpriteLayer {
     this.topSize.length = 0;
     this.systems.length = 0;
     const cam = f.cameraPosition;
-    const fadeStart = f.horizontalReach * EDGE_FADE_START;
+    const fadeStart = f.reach * EDGE_FADE_START;
     let i = 0;
     for (const sector of sectors) {
       for (const sys of sector.systems) {
@@ -210,11 +212,11 @@ export class StarSpriteLayer {
         const x = sys.x - f.originX;
         const y = sys.y - f.originY;
         const z = sys.z - f.originZ;
-        const horizontal = Math.hypot(x - f.focusX, y - f.focusY);
-        if (horizontal > f.horizontalReach)
+        const fromFocus = Math.hypot(x - f.focusX, y - f.focusY, z - f.focusZ);
+        if (fromFocus > f.reach)
           continue;
-        if (horizontal > fadeStart)
-          weight *= 1 - (horizontal - fadeStart) / (f.horizontalReach - fadeStart);
+        if (fromFocus > fadeStart)
+          weight *= 1 - (fromFocus - fadeStart) / (f.reach - fadeStart);
         if (weight <= 0)
           continue;
         const distance = Math.hypot(x - cam.x, y - cam.y, z - cam.z);
@@ -282,21 +284,25 @@ export class StarSpriteLayer {
   private generateMissing(f: StarLayerFrame): void {
     const missing = this.missing;
     missing.length = 0;
-    for (let sy = f.range.minSy; sy <= f.range.maxSy; sy++) {
-      for (let sx = f.range.minSx; sx <= f.range.maxSx; sx++) {
-        if (!f.cache.peek(sx, sy))
-          missing.push(sx, sy);
+    for (let sz = f.range.minSz; sz <= f.range.maxSz; sz++) {
+      for (let sy = f.range.minSy; sy <= f.range.maxSy; sy++) {
+        for (let sx = f.range.minSx; sx <= f.range.maxSx; sx++) {
+          if (!f.cache.peek(sx, sy, sz))
+            missing.push(sx, sy, sz);
+        }
       }
     }
     if (missing.length === 0)
       return;
     const fx = Math.floor((f.focusX + f.originX) / SECTOR_SIZE);
     const fy = Math.floor((f.focusY + f.originY) / SECTOR_SIZE);
-    const order = Array.from({ length: missing.length / 2 }, (_, k) => k);
-    order.sort((a, b) => Math.hypot(missing[a * 2] - fx, missing[a * 2 + 1] - fy) - Math.hypot(missing[b * 2] - fx, missing[b * 2 + 1] - fy));
+    const fz = Math.floor((f.focusZ + f.originZ) / SECTOR_SIZE);
+    const distance = (k: number): number => Math.hypot(missing[k * 3] - fx, missing[k * 3 + 1] - fy, missing[k * 3 + 2] - fz);
+    const order = Array.from({ length: missing.length / 3 }, (_, k) => k);
+    order.sort((a, b) => distance(a) - distance(b));
     const deadline = performance.now() + STAR_SECTOR_BUDGET_MS;
     for (const k of order) {
-      f.cache.get(missing[k * 2], missing[k * 2 + 1]);
+      f.cache.get(missing[k * 3], missing[k * 3 + 1], missing[k * 3 + 2]);
       if (performance.now() >= deadline)
         break;
     }

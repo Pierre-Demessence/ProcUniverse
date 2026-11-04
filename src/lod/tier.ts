@@ -3,7 +3,8 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
 import { DISK_OUTER_MAX_AU } from '../config/data';
-import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_TILT_EASE_START_SECTORS, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_SECTORS } from '../config/render';
+import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_TILT_EASE_START_LY, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
+import { AU_PER_LY } from '../generation/units';
 import { SECTOR_SIZE } from '../scale';
 
 /**
@@ -17,11 +18,14 @@ import { SECTOR_SIZE } from '../scale';
  */
 export type Tier = 'galaxy' | 'galaxy-field' | 'star' | 'system' | 'universe';
 
+/** Inclusive box of cubic sector coordinates. */
 export interface SectorRange {
   maxSx: number;
   maxSy: number;
+  maxSz: number;
   minSx: number;
   minSy: number;
+  minSz: number;
 }
 
 /**
@@ -33,29 +37,29 @@ export interface SectorRange {
 export const SYSTEM_LAYER_REACH_AU = DISK_OUTER_MAX_AU * 4;
 
 // The system→star boundary is configured in AU (a realistic system is a
-// vanishing fraction of a sector) and converted to sectors-across here.
-const STAR_AT = SYSTEM_TIER_MAX_AU / SECTOR_SIZE;
+// vanishing fraction of a light-year) and converted to light-years here.
+const STAR_AT = SYSTEM_TIER_MAX_AU / AU_PER_LY;
 
 /**
- * Sector span of the larger viewport axis at the current zoom. Selecting the
- * tier from the larger axis bounds the visible-sector count on BOTH axes
+ * Light-year span of the larger viewport axis at the current zoom. Selecting
+ * the tier from the larger axis bounds the visible content on BOTH axes
  * regardless of the viewport's aspect ratio.
  */
-export function sectorsAcross(cam: Camera): number {
-  return (Math.max(cam.viewportW, cam.viewportH) / cam.zoom) / SECTOR_SIZE;
+export function lyAcross(cam: Camera): number {
+  return (Math.max(cam.viewportW, cam.viewportH) / cam.zoom) / AU_PER_LY;
 }
 
-// Tiers ordered by zoom (in → out); `BOUNDARIES[i]` is the sectors-across value
-// separating `TIER_ORDER[i]` from the next tier out.
+// Tiers ordered by zoom (in → out); `BOUNDARIES[i]` is the light-years-across
+// value separating `TIER_ORDER[i]` from the next tier out.
 const TIER_ORDER = ['system', 'star', 'galaxy', 'galaxy-field', 'universe'] as const;
-const BOUNDARIES = [STAR_AT, GALAXY_TIER_SECTORS, GALAXY_FIELD_SECTORS, UNIVERSE_SECTORS];
+const BOUNDARIES = [STAR_AT, GALAXY_TIER_LY, GALAXY_FIELD_LY, UNIVERSE_LY];
 
 /**
  * Choose the tier from zoom, with a hysteresis dead-band around the boundaries
  * so a zoom hovering at one doesn't thrash (each crossing re-streams the view).
  */
 export function selectTier(cam: Camera, prev: Tier): Tier {
-  const across = sectorsAcross(cam);
+  const across = lyAcross(cam);
   let idx = BOUNDARIES.length;
   for (let i = 0; i < BOUNDARIES.length; i++) {
     const b = BOUNDARIES[i];
@@ -74,24 +78,33 @@ export function selectTier(cam: Camera, prev: Tier): Tier {
   return TIER_ORDER[idx] ?? prev;
 }
 
-/** Inclusive range of sector coordinates overlapping the camera view. */
-export function visibleSectors(cam: Camera): SectorRange {
+/**
+ * Inclusive range of sector coordinates overlapping the camera view, extended
+ * through the focus height `focusZ` (absolute AU) by half the larger view span
+ * on either side — the cube of space the view is looking into.
+ */
+export function visibleSectors(cam: Camera, focusZ: number): SectorRange {
   const r = cameraViewRect(cam);
+  const halfDepth = Math.max(r.w, r.h) / 2;
   return {
     maxSx: Math.floor((r.x + r.w) / SECTOR_SIZE),
     maxSy: Math.floor((r.y + r.h) / SECTOR_SIZE),
+    maxSz: Math.floor((focusZ + halfDepth) / SECTOR_SIZE),
     minSx: Math.floor(r.x / SECTOR_SIZE),
     minSy: Math.floor(r.y / SECTOR_SIZE),
+    minSz: Math.floor((focusZ - halfDepth) / SECTOR_SIZE),
   };
 }
 
-/** Inclusive range of sector coordinates overlapping the square `(cx, cy) ± halfExtent` (absolute AU). */
-export function sectorsAround(cx: number, cy: number, halfExtent: number): SectorRange {
+/** Inclusive range of sector coordinates overlapping the cube `(cx, cy, cz) ± halfExtent` (absolute AU). */
+export function sectorsAround(cx: number, cy: number, cz: number, halfExtent: number): SectorRange {
   return {
     maxSx: Math.floor((cx + halfExtent) / SECTOR_SIZE),
     maxSy: Math.floor((cy + halfExtent) / SECTOR_SIZE),
+    maxSz: Math.floor((cz + halfExtent) / SECTOR_SIZE),
     minSx: Math.floor((cx - halfExtent) / SECTOR_SIZE),
     minSy: Math.floor((cy - halfExtent) / SECTOR_SIZE),
+    minSz: Math.floor((cz - halfExtent) / SECTOR_SIZE),
   };
 }
 
@@ -108,17 +121,17 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
  * selection, the HUD and labels.
  */
 export function tierBlend(cam: Camera): number {
-  const acrossAu = sectorsAcross(cam) * SECTOR_SIZE;
+  const acrossAu = lyAcross(cam) * AU_PER_LY;
   return smoothstep(Math.log(STAR_BLEND_MIN_AU), Math.log(STAR_BLEND_MAX_AU), Math.log(acrossAu));
 }
 
 /**
  * Fraction of the user's tilt kept at the star tier: 1 up to
- * `STAR_TILT_EASE_START_SECTORS` across, easing (in log zoom) to 0 — top-down —
- * at the galaxy boundary, where the orthographic galaxy view takes over.
+ * `STAR_TILT_EASE_START_LY` across, easing (in log zoom) to 0 — top-down — at
+ * the galaxy boundary, where the orthographic galaxy view takes over.
  */
 export function starTierTiltScale(cam: Camera): number {
-  return 1 - smoothstep(Math.log(STAR_TILT_EASE_START_SECTORS), Math.log(GALAXY_TIER_SECTORS), Math.log(sectorsAcross(cam)));
+  return 1 - smoothstep(Math.log(STAR_TILT_EASE_START_LY), Math.log(GALAXY_TIER_LY), Math.log(lyAcross(cam)));
 }
 
 /** How strongly each layer draws at a given `tierBlend` (all in [0, 1]). */

@@ -2,41 +2,42 @@ import { makeCamera } from '@pierre/ecs/modules/camera';
 import { describe, expect, it } from 'vitest';
 
 import { LY_PER_SECTOR } from '../config/data';
-import { GALAXY_FIELD_SECTORS, GALAXY_TIER_SECTORS, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_MAX_REACH_LY, STAR_TILT_EASE_START_SECTORS, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_SECTORS } from '../config/render';
+import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_MAX_REACH_LY, STAR_TILT_EASE_START_LY, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
+import { AU_PER_LY } from '../generation/units';
 import { SECTOR_SIZE } from '../scale';
 import { SECTOR_CACHE_CAPACITY } from './sector-cache';
 import { layerWeights, sectorsAround, selectTier, starTierTiltScale, tierBlend } from './tier';
 
-// A camera whose larger viewport axis spans `across` sectors.
+// A camera whose larger viewport axis spans `across` light-years.
 function camAcross(across: number): ReturnType<typeof makeCamera> {
   const viewportW = 800;
   const viewportH = 600;
-  const zoom = Math.max(viewportW, viewportH) / (across * SECTOR_SIZE);
+  const zoom = Math.max(viewportW, viewportH) / (across * AU_PER_LY);
   return makeCamera({ viewportH, viewportW, x: 0, y: 0, zoom });
 }
 
 describe('selectTier', () => {
-  const STAR_AT = SYSTEM_TIER_MAX_AU / SECTOR_SIZE;
+  const STAR_AT = SYSTEM_TIER_MAX_AU / AU_PER_LY;
 
-  it('selects each tier by zoom (sectors across)', () => {
+  it('selects each tier by zoom (light-years across)', () => {
     // Sample a value comfortably inside each tier's band, derived from the
     // boundary constants so the test tracks any rescale of the spatial model.
     expect(selectTier(camAcross(STAR_AT * 0.4), 'system')).toBe('system');
-    expect(selectTier(camAcross(Math.sqrt(STAR_AT * GALAXY_TIER_SECTORS)), 'system')).toBe('star');
-    expect(selectTier(camAcross(Math.sqrt(GALAXY_TIER_SECTORS * GALAXY_FIELD_SECTORS)), 'system')).toBe('galaxy');
-    expect(selectTier(camAcross(Math.sqrt(GALAXY_FIELD_SECTORS * UNIVERSE_SECTORS)), 'system')).toBe('galaxy-field');
-    expect(selectTier(camAcross(UNIVERSE_SECTORS * 2), 'system')).toBe('universe');
+    expect(selectTier(camAcross(Math.sqrt(STAR_AT * GALAXY_TIER_LY)), 'system')).toBe('star');
+    expect(selectTier(camAcross(Math.sqrt(GALAXY_TIER_LY * GALAXY_FIELD_LY)), 'system')).toBe('galaxy');
+    expect(selectTier(camAcross(Math.sqrt(GALAXY_FIELD_LY * UNIVERSE_LY)), 'system')).toBe('galaxy-field');
+    expect(selectTier(camAcross(UNIVERSE_LY * 2), 'system')).toBe('universe');
   });
 
   it('holds the previous tier within the hysteresis dead-band at a boundary', () => {
-    const nearGalaxy = GALAXY_TIER_SECTORS * 1.1; // just past the star → galaxy edge
+    const nearGalaxy = GALAXY_TIER_LY * 1.1; // just past the star → galaxy edge
     expect(selectTier(camAcross(nearGalaxy), 'star')).toBe('star');
     expect(selectTier(camAcross(nearGalaxy), 'galaxy')).toBe('galaxy');
   });
 });
 
 describe('tierBlend', () => {
-  const auAcross = (au: number): ReturnType<typeof makeCamera> => camAcross(au / SECTOR_SIZE);
+  const auAcross = (au: number): ReturnType<typeof makeCamera> => camAcross(au / AU_PER_LY);
 
   it('is 0 inside the system view, 1 in the star field, and rises monotonically between', () => {
     expect(tierBlend(auAcross(STAR_BLEND_MIN_AU * 0.5))).toBe(0);
@@ -78,25 +79,25 @@ describe('layerWeights', () => {
 
 describe('starTierTiltScale', () => {
   it('keeps the tilt near the system view and eases it to top-down at the galaxy boundary', () => {
-    expect(starTierTiltScale(camAcross(STAR_TILT_EASE_START_SECTORS / 2))).toBe(1);
-    expect(starTierTiltScale(camAcross(GALAXY_TIER_SECTORS))).toBe(0);
-    const mid = starTierTiltScale(camAcross(Math.sqrt(STAR_TILT_EASE_START_SECTORS * GALAXY_TIER_SECTORS)));
+    expect(starTierTiltScale(camAcross(STAR_TILT_EASE_START_LY / 2))).toBe(1);
+    expect(starTierTiltScale(camAcross(GALAXY_TIER_LY))).toBe(0);
+    const mid = starTierTiltScale(camAcross(Math.sqrt(STAR_TILT_EASE_START_LY * GALAXY_TIER_LY)));
     expect(mid).toBeGreaterThan(0);
     expect(mid).toBeLessThan(1);
   });
 });
 
 describe('sectorsAround', () => {
-  it('covers the square around a point, across negative coordinates', () => {
-    expect(sectorsAround(0, SECTOR_SIZE * 2.5, SECTOR_SIZE)).toEqual({ maxSx: 1, maxSy: 3, minSx: -1, minSy: 1 });
+  it('covers the cube around a point, across negative coordinates', () => {
+    expect(sectorsAround(0, SECTOR_SIZE * 2.5, -SECTOR_SIZE * 0.5, SECTOR_SIZE)).toEqual({ maxSx: 1, maxSy: 3, maxSz: 0, minSx: -1, minSy: 1, minSz: -2 });
   });
 });
 
 describe('star-tier reach', () => {
   it('keeps the widest star-field range inside the sector cache', () => {
-    // A range of reach r spans at most (2·ceil(r) + 2)² sectors; evicting any of
+    // A range of reach r spans at most (2·ceil(r) + 2)³ sectors; evicting any of
     // them while still in view would regenerate sectors every frame.
     const side = 2 * Math.ceil(STAR_MAX_REACH_LY / LY_PER_SECTOR) + 2;
-    expect(side * side).toBeLessThan(SECTOR_CACHE_CAPACITY);
+    expect(side ** 3).toBeLessThan(SECTOR_CACHE_CAPACITY);
   });
 });

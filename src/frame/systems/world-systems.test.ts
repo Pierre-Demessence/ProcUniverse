@@ -4,7 +4,8 @@ import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it, vi } from 'vitest';
 
 import { cameraAbsolute } from '../../camera/origin';
-import { REBASE_SECTORS } from '../../config/render';
+import { REBASE_LY } from '../../config/render';
+import { AU_PER_LY } from '../../generation/units';
 import { SECTOR_SIZE } from '../../scale';
 import { createFrameCtx } from '../frame-context';
 import { FrameState } from '../frame-state';
@@ -57,10 +58,12 @@ describe('origin-rebase system', () => {
     expect(state.renderOriginX).toBe(0);
     expect(clear).not.toHaveBeenCalled();
 
-    const far = camera(SECTOR_SIZE * (REBASE_SECTORS + 1), 0, 1e-30);
+    // The first sector multiple past the rebase threshold.
+    const beyond = SECTOR_SIZE * (Math.ceil((REBASE_LY * AU_PER_LY) / SECTOR_SIZE) + 1);
+    const far = camera(beyond, 0, 1e-30);
     const ctxFar = createFrameCtx(16, 'universe');
     makeOriginRebaseSystem({ cache: emptyCache, camera: far, controller: focusController(), state, streamer: { clear } }).run(ctxFar);
-    expect(state.renderOriginX).toBe(SECTOR_SIZE * (REBASE_SECTORS + 1));
+    expect(state.renderOriginX).toBe(beyond);
     expect(far.x).toBeCloseTo(0);
     expect(clear).toHaveBeenCalledOnce();
   });

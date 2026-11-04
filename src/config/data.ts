@@ -10,38 +10,41 @@
  */
 
 // ── Stellar field density & galaxy shape ────────────────────────────────────
-// A sector spans `LY_PER_SECTOR` light-years — set to a realistic ~1 ly so stars
-// sit ~0.1 ly (dense cores) to a few ly (disc) apart. Stars are placed by a
-// seeded galaxy **density field** rather than a lattice: per sector,
-// `STAR_DENSITY_PEAK` candidate positions are drawn and each is kept with
-// probability equal to the normalised density there (1 at the core, 0 past the
-// rim) — ~10¹¹ stars in a full galaxy. The galaxy is a finite disc of radius
-// `GALAXY_RADIUS_LY` (Milky-Way-sized) with an exponential falloff
-// `GALAXY_SCALE_LENGTH_LY`; spiral / barred-spiral galaxies add
+// Space is cut into cubic sectors `LY_PER_SECTOR` light-years on a side (4 ly:
+// the cheapest edge to fill a star-tier view, measured in
+// docs/plans/universe-3d.md). Stars are placed by a seeded 3D galaxy **density
+// field** rather than a lattice: each sector draws a Poisson number of
+// candidates from an upper bound of the density over the cube and thins each by
+// the true density there. `STAR_DENSITY_PEAK` is the star count per ly³ where
+// the normalised density is 1 (a galaxy core); it is calibrated so the
+// azimuth-averaged disk mid-plane 25,000 ly out holds ~0.004 stars / ly³, as
+// near the Sun. `STAR_DENSITY_SCALE` multiplies it (a feel knob; 1 = realistic).
+// Each disk galaxy is a thin disk of radius `GALAXY_RADIUS_LY` (Milky-Way-sized)
+// with an exponential radial falloff `GALAXY_SCALE_LENGTH_LY` and a `sech²`
+// vertical profile of scale height `GALAXY_DISK_SCALE_HEIGHT_LY`
+// × `GALAXY_DISK_PUFF` (1 = realistic; raise it for a chunkier disk), plus a
+// spheroidal bulge and a faint halo (`GALAXY_HALO_DENSITY`, the halo's
+// normalised density at the centre). Spiral / barred-spiral galaxies add
 // `GALAXY_ARMS_MIN`–`GALAXY_ARMS_MAX` logarithmic arms of pitch
-// `GALAXY_ARM_PITCH_DEG` and contrast `GALAXY_ARM_STRENGTH`; the morphology mix
-// (spiral / barred / elliptical / lenticular) is drawn by realistic field
-// fractions in `galaxies.ts`.
-export const LY_PER_SECTOR = 1;
-export const STAR_DENSITY_PEAK = 100;
+// `GALAXY_ARM_PITCH_DEG` and contrast `GALAXY_ARM_STRENGTH`; ellipticals are
+// triaxial ellipsoids; the morphology mix is drawn by realistic field fractions
+// in `galaxies.ts`.
+export const LY_PER_SECTOR = 4;
+export const STAR_DENSITY_PEAK = 0.09;
+export const STAR_DENSITY_SCALE = 1;
 export const GALAXY_RADIUS_LY = 50000;
 export const GALAXY_SCALE_LENGTH_LY = 10000;
+export const GALAXY_DISK_SCALE_HEIGHT_LY = 1000;
+export const GALAXY_DISK_PUFF = 1;
+export const GALAXY_HALO_DENSITY = 0.12;
 export const GALAXY_ARMS_MIN = 2;
 export const GALAXY_ARMS_MAX = 4;
 export const GALAXY_ARM_PITCH_DEG = 18;
 export const GALAXY_ARM_STRENGTH = 0.7;
 
-// ── Star height (3D star tier) ─────────────────────────────────────────
-// Sectors and galaxies are flat; each system only gains a height `z` off the
-// galactic plane, spread over a slab `STAR_SLAB_THICKNESS_LY` thick (triangular,
-// peaked on the plane) so the star tier reads as a 3D neighbourhood. This is a
-// local look, not the galaxy's true thin disk (hundreds of ly thick): true 3D
-// sectors replace it later through the same `systemZ` seam.
-export const STAR_SLAB_THICKNESS_LY = 3;
-
 // ── Universe: galaxy field, black holes, stellar populations ─────────────
-// The universe tiles into galaxy cells of `GALAXY_CELL_LY` (~2 Mly, so galaxies
-// sit roughly Andromeda-distance apart); each cell holds one galaxy with
+// The universe tiles into cubic galaxy cells of `GALAXY_CELL_LY` (~2 Mly, so
+// galaxies sit roughly Andromeda-distance apart); each cell holds one galaxy with
 // probability `GALAXY_OCCUPANCY`, its centre jittered within the cell, and
 // `GALAXY_DWARF_CHANCE` of them are smaller dwarfs. Each galaxy hosts a central
 // black hole whose mass spans `BLACK_HOLE_MASS_MIN`–`MAX` (M☉, scaled from

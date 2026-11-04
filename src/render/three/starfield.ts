@@ -116,6 +116,8 @@ export interface StarfieldGalaxy {
   /** Absolute galaxy centre (AU), in the same frame as the camera position. */
   centerX: number;
   centerY: number;
+  /** Height of the galaxy's centre; the dome samples the galaxy's density at this height. */
+  centerZ: number;
   orientation: number;
   void: boolean;
 }
@@ -305,7 +307,7 @@ function generateStars(
       activity = 0.5;
     }
     else {
-      const sample = galaxySampleAt(seed, probeX, probeY);
+      const sample = galaxySampleAt(seed, probeX, probeY, galaxy.centerZ);
       const structure = sky ? sampleSkyMap(sky, dx, dy, z, skySample) : skySample;
       // The (wavy) band sets the plane → pole gradient; star clouds and the bulge
       // clump it, dust hides what lies behind. A small ambient floor of

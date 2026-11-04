@@ -21,18 +21,15 @@ import {
   ORBIT_RATIO_OUTER_MIN,
   PLANET_MAX,
   PLANET_MIN,
-  STAR_DENSITY_PEAK,
-  STAR_SLAB_THICKNESS_LY,
 } from '../config/data';
 import { blackHoleVisualRadius, planetVisualRadius, SECTOR_SIZE, starVisualRadius } from '../scale';
 import { planeToElements, tiltNormal } from '../sim/orbits';
-import { galaxyActivityAt, galaxyCenteredIn, galaxyDensityAt, universeAge } from './galaxies';
+import { galaxyCenteredIn, galaxyDensityBoundAt, galaxySampleAt, STAR_PEAK_PER_AU3, universeAge } from './galaxies';
 import { hashMoon, hashSector, hashSystem } from './hash';
 import { generateMoons } from './moons';
 import { namePlanet, nameStar } from './naming';
 import { earthSimilarityIndex, escapeVelocity, frostLine, samplePlanet } from './planets';
 import { sampleStar } from './stars';
-import { AU_PER_LY } from './units';
 
 const TAU = Math.PI * 2;
 
@@ -70,7 +67,6 @@ export interface SystemData {
   star: StarPhysical;
   x: number;
   y: number;
-  /** Height off the galactic plane (AU); read it here, never re-derive it (see `systemZ`). */
   z: number;
 }
 
@@ -83,6 +79,7 @@ export interface BlackHoleData {
   spin: number;
   x: number;
   y: number;
+  z: number;
 }
 
 export interface SectorData {
@@ -90,52 +87,79 @@ export interface SectorData {
   sx: number;
   sy: number;
   systems: SystemData[];
+  sz: number;
 }
 
 function choose(colors: readonly string[], rng: () => number): string {
   return colors[randomInt(colors.length, rng)];
 }
 
-/**
- * A system's height off the galactic plane (AU): a triangular spread over the
- * `STAR_SLAB_THICKNESS_LY` slab, peaked on the plane. The single source of star
- * heights — true 3D sectors later replace this function, not its callers.
- */
-export function systemZ(rng: () => number): number {
-  const u1 = rng();
-  const u2 = rng();
-  return (u1 + u2 - 1) * (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
-}
+// Above this mean, a Poisson count is drawn from its normal approximation
+// (Knuth's product method costs one draw per unit of mean).
+const POISSON_NORMAL_MEAN = 30;
 
 /**
- * Generate the systems of one sector as plain data. Pure and deterministic:
- * the same `(worldSeed, sx, sy)` always yields a structurally identical result,
- * which is the property the streaming layer relies on (and the unit test
- * asserts). Spawning entities from this data is a separate step (`spawnSector`).
+ * A Poisson-distributed count with the given mean, drawn from `rng`: Knuth's
+ * product method for small means, a rounded normal approximation for large ones.
  */
-export function generateSectorData(worldSeed: number, sx: number, sy: number): SectorData {
-  const rng = makeSeededRng(hashSector(worldSeed, sx, sy));
+export function samplePoisson(mean: number, rng: () => number): number {
+  if (mean <= 0)
+    return 0;
+  if (mean > POISSON_NORMAL_MEAN) {
+    const u1 = rng();
+    const u2 = rng();
+    const gaussian = Math.sqrt(-2 * Math.log(1 - u1)) * Math.cos(2 * Math.PI * u2);
+    return Math.max(0, Math.round(mean + Math.sqrt(mean) * gaussian));
+  }
+  const limit = Math.exp(-mean);
+  let count = 0;
+  let product = rng();
+  while (product > limit) {
+    count++;
+    product *= rng();
+  }
+  return count;
+}
+
+const SECTOR_VOLUME = SECTOR_SIZE ** 3;
+const SECTOR_HALF_DIAGONAL = (SECTOR_SIZE * Math.sqrt(3)) / 2;
+
+/**
+ * Generate the systems of one cubic sector as plain data. Pure and
+ * deterministic: the same `(worldSeed, sx, sy, sz)` always yields a
+ * structurally identical result, which is the property the streaming layer
+ * relies on (and the unit test asserts). Spawning entities from this data is a
+ * separate step (`spawnSector`).
+ */
+export function generateSectorData(worldSeed: number, sx: number, sy: number, sz: number): SectorData {
+  const rng = makeSeededRng(hashSector(worldSeed, sx, sy, sz));
   const systems: SystemData[] = [];
   const originX = sx * SECTOR_SIZE;
   const originY = sy * SECTOR_SIZE;
+  const originZ = sz * SECTOR_SIZE;
   const cosmicAge = universeAge(worldSeed);
 
-  // Draw a fixed number of candidate positions per sector and keep each with a
-  // probability equal to the galaxy density there: an inhomogeneous Poisson
-  // process whose intensity traces whichever galaxy covers the point, with no
-  // lattice and seamless across sector edges. An accepted system's physics is
-  // sampled from its own seed (`hashSystem`), its stars biased toward hot-blue or
-  // cool-red by the local star-formation activity, so it never depends on how
-  // many candidates were rejected.
-  for (let i = 0; i < STAR_DENSITY_PEAK; i++) {
+  // Stars form an inhomogeneous Poisson process whose intensity traces the
+  // galaxy density, with no lattice and seamless across sector faces. It is
+  // sampled by thinning: draw a Poisson number of uniform candidates at the
+  // density's upper bound over the cube, then keep each with probability
+  // density / bound. Empty space (bound 0) costs one bound and no candidates.
+  // An accepted system's physics is sampled from its own seed (`hashSystem`),
+  // its stars biased toward hot-blue or cool-red by the local star-formation
+  // activity, so it never depends on how many candidates were rejected.
+  const bound = galaxyDensityBoundAt(worldSeed, originX + SECTOR_SIZE / 2, originY + SECTOR_SIZE / 2, originZ + SECTOR_SIZE / 2, SECTOR_HALF_DIAGONAL);
+  const candidates = samplePoisson(STAR_PEAK_PER_AU3 * SECTOR_VOLUME * bound, rng);
+  for (let i = 0; i < candidates; i++) {
     const x = originX + rng() * SECTOR_SIZE;
     const y = originY + rng() * SECTOR_SIZE;
-    if (rng() >= galaxyDensityAt(worldSeed, x, y))
+    const z = originZ + rng() * SECTOR_SIZE;
+    const sample = galaxySampleAt(worldSeed, x, y, z);
+    if (rng() * bound >= sample.density)
       continue;
 
-    const systemSeed = hashSystem(worldSeed, sx, sy, i, 0);
+    const systemSeed = hashSystem(worldSeed, sx, sy, sz, i);
     const srng = makeSeededRng(systemSeed);
-    const star = sampleStar(srng, galaxyActivityAt(worldSeed, x, y), cosmicAge);
+    const star = sampleStar(srng, sample.activity, cosmicAge);
     const radius = starVisualRadius(star.radius);
     const systemName = nameStar(star.spectralClass, systemSeed);
     const planetCount = PLANET_MIN + randomInt(PLANET_MAX - PLANET_MIN + 1, srng);
@@ -223,16 +247,12 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       }
     }
 
-    // Drawn last so it never shifts any earlier draw: adding height left every
-    // other generated field unchanged.
-    const z = systemZ(srng);
-
     systems.push({ name: systemName, diskNormal: [diskNx, diskNy, diskZ], planets, radius, star, x, y, z });
   }
 
   // A galaxy's central black hole lives in the one sector that holds its centre.
   const blackHoles: BlackHoleData[] = [];
-  const galaxy = galaxyCenteredIn(worldSeed, originX, originY, originX + SECTOR_SIZE, originY + SECTOR_SIZE);
+  const galaxy = galaxyCenteredIn(worldSeed, originX, originY, originZ, originX + SECTOR_SIZE, originY + SECTOR_SIZE, originZ + SECTOR_SIZE);
   if (galaxy) {
     blackHoles.push({
       name: { human: `${galaxy.humanName} SMBH`, scientific: `${galaxy.name} SMBH` },
@@ -243,8 +263,9 @@ export function generateSectorData(worldSeed: number, sx: number, sy: number): S
       spin: galaxy.blackHoleSpin,
       x: galaxy.centerX,
       y: galaxy.centerY,
+      z: galaxy.centerZ,
     });
   }
 
-  return { blackHoles, sx, sy, systems };
+  return { blackHoles, sx, sy, systems, sz };
 }

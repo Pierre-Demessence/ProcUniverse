@@ -281,15 +281,15 @@ remaining tiers (star / galaxy / galaxy-field / universe) into the Three path
 > spheres, 3D orbit rings, 3D-projected labels, raycast picking, inclined orbits,
 > and a Z coordinate (system tier only; see
 > [true-3d-systems.md](done/true-3d-systems.md)). Remaining items extend 3D
-> beyond the system tier.
+> beyond the system tier; their build plan is
+> [universe-3d.md](universe-3d.md).
 
 - [ ] Add **Z** to generation **beyond the system tier** (sectors, cosmic web,
       galaxy disk thickness + inclination); keep determinism (append draws,
       never reorder).
-      - *Progress:* systems carry a per-system height (`systemZ`, a thin
-        local slab) and the star tier is a 3D perspective view cross-faded with
-        the system tier ([star-tier-3d.md](done/star-tier-3d.md)). True 3D
-        sectors replace `systemZ`; sectors / galaxies are still flat.
+      - *Progress:* generation is 3D — cubic sectors, oriented 3D galaxies,
+        a 3D cosmic web ([universe-3d.md](universe-3d.md) Phase 1). The galaxy
+        tiers still render top-down.
       - *Starfield realism (rides on this Z work):* once galaxies have real 3D
         structure, revisit the background starfield to (a) orient the Milky-Way
         band to **each galaxy's own disk plane** instead of the fixed world XY,

@@ -103,11 +103,11 @@ export function spawnSector(
     }
   }
 
-  // A galaxy's central black hole, at the galaxy centre on the galactic plane
-  // (z = 0), in the floating render frame.
+  // A galaxy's central black hole, at the galaxy centre, in the floating render
+  // frame.
   for (const bh of data.blackHoles) {
     const id = world.createEntity();
-    positions.set(id, { x: bh.x - originX, y: bh.y - originY, z: -originZ });
+    positions.set(id, { x: bh.x - originX, y: bh.y - originY, z: bh.z - originZ });
     visuals.set(id, { color: BLACK_HOLE_COLOR, radius: bh.radius });
     blackHoles.set(id, { eddingtonRatio: bh.eddingtonRatio, mass: bh.mass, schwarzschildRadius: bh.schwarzschildRadius, spin: bh.spin });
     names.set(id, { human: bh.name.human, scientific: bh.name.scientific });

@@ -16,8 +16,8 @@ import type { AtmosphereKind, AtmosphereLook, CloudKind, CloudLook, MoonTuning, 
 // the gap stays under `ZOOM_STREAK_WINDOW_MS`), so the ~10²¹ range is a quick
 // flick rather than
 // hundreds of notches; a pause or direction change resets to the gentle step.
-// `SYSTEM_VIEW_AU` is the world height framed at startup; `REBASE_SECTORS` is how
-// far the camera may drift (in sectors) before the floating origin re-snaps when
+// `SYSTEM_VIEW_AU` is the world height framed at startup; `REBASE_LY` is how far
+// the camera may drift (in light-years) before the floating origin re-snaps when
 // zoomed out.
 export const MIN_ZOOM = 1e-12;
 export const MAX_ZOOM = 1e9;
@@ -26,7 +26,7 @@ export const ZOOM_STEP_MAX = 2.5;
 export const ZOOM_STREAK_MAX = 16;
 export const ZOOM_STREAK_WINDOW_MS = 220;
 export const SYSTEM_VIEW_AU = 40;
-export const REBASE_SECTORS = 8;
+export const REBASE_LY = 8;
 
 // ── 3D system view (Three backend, system tier) ─────────────────────
 // The system tier renders as lit, rotating spheres seen by a perspective camera
@@ -185,13 +185,13 @@ export const CLICK_SLOP_PX = 5;
 // ── Level-of-detail tiers ─────────────────────────────────────────────
 // Zoom-bounded tiers (in → out): system, star, galaxy (one galaxy's density
 // glow), galaxy-field (each galaxy a discrete sprite), universe (the cosmic
-// glow). `SYSTEM_TIER_MAX_AU` collapses a system to a dot; the `*_SECTORS`
-// thresholds switch tiers at that many sectors across. `TIER_HYSTERESIS` is the
-// dead-band that stops boundary thrash.
+// glow). `SYSTEM_TIER_MAX_AU` collapses a system to a dot; the `*_LY` thresholds
+// switch tiers at that many light-years across (independent of the sector
+// size). `TIER_HYSTERESIS` is the dead-band that stops boundary thrash.
 export const SYSTEM_TIER_MAX_AU = 300;
-export const GALAXY_TIER_SECTORS = 16;
-export const GALAXY_FIELD_SECTORS = 300000;
-export const UNIVERSE_SECTORS = 100000000;
+export const GALAXY_TIER_LY = 16;
+export const GALAXY_FIELD_LY = 300000;
+export const UNIVERSE_LY = 100000000;
 export const TIER_HYSTERESIS = 1.25;
 
 // ── System ↔ star cross-fade & 3D star tier ─────────────────────────────
@@ -203,12 +203,12 @@ export const TIER_HYSTERESIS = 1.25;
 // the camera's reference plane swings from the focused disk to the galactic
 // plane. `STAR_HANDOFF_START` is the blend where the focused star's sphere
 // starts handing over to its sprite. Toward the galaxy tier the star-tier tilt
-// eases to top-down from `STAR_TILT_EASE_START_SECTORS` across, reaching it at
-// `GALAXY_TIER_SECTORS`, so the orthographic swap does not jump angle.
+// eases to top-down from `STAR_TILT_EASE_START_LY` across, reaching it at
+// `GALAXY_TIER_LY`, so the orthographic swap does not jump angle.
 export const STAR_BLEND_MIN_AU = 100;
 export const STAR_BLEND_MAX_AU = 900;
 export const STAR_HANDOFF_START = 0.6;
-export const STAR_TILT_EASE_START_SECTORS = 4;
+export const STAR_TILT_EASE_START_LY = 4;
 // Star-tier sprites: apparent brightness from luminosity and camera distance,
 // on a magnitude-like (log flux) scale. Flux is L☉ / ly², mapped linearly in
 // log10 between `STAR_LOG_FLUX_FAINT` (drawn at `STAR_SPRITE_MIN_INTENSITY`) and

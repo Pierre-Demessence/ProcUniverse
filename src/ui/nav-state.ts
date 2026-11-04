@@ -23,11 +23,12 @@ export function selectionKey(world: EcsWorld, selection: Selection | null): stri
 }
 
 /**
- * Assemble the location tree's state; `camera` is in absolute AU and `focus` is
- * the frame's focused system (the one the render origin is anchored to).
+ * Assemble the location tree's state; `camera` is in absolute AU with the focus
+ * height `focusZ`, and `focus` is the frame's focused system (the one the render
+ * origin is anchored to).
  */
-export function buildNavState(seed: number, focus: SystemData | null, camera: Camera, tier: Tier, world: EcsWorld, selection: Selection | null): NavState {
-  const galaxy = galaxyAt(seed, camera.x, camera.y);
+export function buildNavState(seed: number, focus: SystemData | null, camera: Camera, focusZ: number, tier: Tier, world: EcsWorld, selection: Selection | null): NavState {
+  const galaxy = galaxyAt(seed, camera.x, camera.y, focusZ);
   let system: NavSystem | null = null;
   if (tier === 'system') {
     if (focus) {

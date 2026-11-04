@@ -62,7 +62,7 @@ describe('bookmark inspect across systems', () => {
     // Find two systems with planets in different sectors.
     const found: { x: number; y: number; z: number }[] = [];
     for (let sx = 0; sx < 60 && found.length < 2; sx++) {
-      for (const sys of cache.get(sx, 0).systems) {
+      for (const sys of cache.get(sx, 0, 0).systems) {
         if (sys.planets && sys.planets.length > 0) {
           found.push({ x: sys.x, y: sys.y, z: sys.z });
           break;

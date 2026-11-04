@@ -14,19 +14,14 @@ remove it from here once it ships. Links point to the design context.
 
 ## Architecture decisions to make
 
-- **3D beyond the system tier.** Systems are 3D; sectors, galaxies, and the
-  cosmic web are a flat plane. Adding a Z axis there (galaxy disk thickness,
-  bulge, inclination) touches generation, LOD, and the camera, so decide it
-  before building more on the flat model. Design:
-  [rendering-backend.md §7 Stage 3](plans/rendering-backend.md).
-  - Direction chosen: this is the end goal. The 3D star tier
-    ([star-tier-3d.md](plans/done/star-tier-3d.md)) shipped first with a
-    per-system height (`systemZ`, a thin local slab) that this work replaces.
-    Bookmarks and the save already store absolute z.
-  - Follow-on: starfield realism (band on each galaxy's own plane, type-aware,
+- **3D beyond the system tier.** Generation is 3D (cubic sectors, oriented 3D
+  galaxies, 3D cosmic web); the galaxy, galaxy-field and universe tiers still
+  render top-down, and the camera, LOD, picking and save are still partly flat.
+  In progress: [universe-3d.md](plans/universe-3d.md) (Phase 1 done).
+  - Includes starfield realism (band on each galaxy's own plane, type-aware,
     true 3D density, inside-vs-outside a galaxy).
-- **Distance-based LOD** to replace zoom-level tier selection (depends on the
-  item above).
+- **Distance-based LOD** to replace zoom-level tier selection (part of
+  [universe-3d.md](plans/universe-3d.md)).
 
 ## Engineering health
 

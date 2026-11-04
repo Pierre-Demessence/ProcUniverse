@@ -30,7 +30,7 @@ export function createFrameCtx(dtMs: number, tier: Tier): FrameCtx {
     dtMs,
     focusedSystem: null,
     localCam: null,
-    range: { maxSx: 0, maxSy: 0, minSx: 0, minSy: 0 },
+    range: { maxSx: 0, maxSy: 0, maxSz: 0, minSx: 0, minSy: 0, minSz: 0 },
     threeActive: false,
     tier,
   };

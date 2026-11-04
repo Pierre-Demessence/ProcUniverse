@@ -12,14 +12,15 @@ import type { FrameState } from '../frame-state';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
 import { cameraAbsolute, rebaseLocal } from '../../camera/origin';
-import { REBASE_SECTORS } from '../../config/render';
+import { REBASE_LY } from '../../config/render';
+import { AU_PER_LY } from '../../generation/units';
 import { nearestSystem } from '../../lod/nearest-system';
 import { visibleSectors } from '../../lod/tier';
 import { SECTOR_SIZE } from '../../scale';
 import { updateOrbits } from '../../sim/orbits';
 import { after } from '../pipeline';
 
-const REBASE_DIST = SECTOR_SIZE * REBASE_SECTORS;
+const REBASE_DIST = REBASE_LY * AU_PER_LY;
 
 export const atSystemTier = (ctx: FrameCtx): boolean => ctx.tier === 'system';
 
@@ -58,7 +59,7 @@ export function makeOriginRebaseSystem(deps: {
       ctx.camAbsX = cameraAbsolute(state.renderOriginX, camera.x);
       ctx.camAbsY = cameraAbsolute(state.renderOriginY, camera.y);
       ctx.camAbsZ = state.renderOriginZ + controller.focusZ;
-      ctx.range = visibleSectors({ ...camera, x: ctx.camAbsX, y: ctx.camAbsY });
+      ctx.range = visibleSectors({ ...camera, x: ctx.camAbsX, y: ctx.camAbsY }, ctx.camAbsZ);
 
       // The system nearest the camera focus (while its layer shows): its star
       // anchors the origin and its disk normal anchors the 3D camera + pan.

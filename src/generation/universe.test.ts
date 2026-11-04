@@ -1,35 +1,36 @@
+import type { SystemData } from './universe';
+
 import { describe, expect, it } from 'vitest';
 
-import { STAR_SLAB_THICKNESS_LY } from '../config/data';
 import { SECTOR_SIZE } from '../scale';
 import { frostLine } from './planets';
 import { AU_PER_LY } from './units';
-import { generateSectorData, systemZ } from './universe';
+import { generateSectorData, samplePoisson } from './universe';
 
 describe('generateSectorData', () => {
   it('is deterministic for the same seed and coordinates', () => {
-    const first = generateSectorData(1337, 0, 0);
-    const second = generateSectorData(1337, 0, 0);
+    const first = generateSectorData(1337, 0, 0, 0);
+    const second = generateSectorData(1337, 0, 0, 0);
     expect(second).toEqual(first);
   });
 
   it('differs for different sector coordinates', () => {
-    const a = generateSectorData(1337, 0, 0);
-    const b = generateSectorData(1337, 1, 0);
-    const c = generateSectorData(1337, 0, 1);
+    const a = generateSectorData(1337, 0, 0, 0);
+    const b = generateSectorData(1337, 1, 0, 0);
+    const c = generateSectorData(1337, 0, 1, 0);
     expect(b).not.toEqual(a);
     expect(c).not.toEqual(a);
     expect(c).not.toEqual(b);
   });
 
   it('differs for different world seeds', () => {
-    const a = generateSectorData(1, 0, 0);
-    const b = generateSectorData(2, 0, 0);
+    const a = generateSectorData(1, 0, 0, 0);
+    const b = generateSectorData(2, 0, 0, 0);
     expect(b).not.toEqual(a);
   });
 
   it('produces well-formed systems with outward, bounded-eccentricity orbits', () => {
-    const { systems } = generateSectorData(1337, 0, 0);
+    const { systems } = generateSectorData(1337, 0, 0, 0);
     expect(systems.length).toBeGreaterThan(0);
     for (const sys of systems) {
       expect(sys.radius).toBeGreaterThan(0);
@@ -49,7 +50,7 @@ describe('generateSectorData', () => {
   });
 
   it('assigns deterministic catalogue names tied to the star class and orbit order', () => {
-    const { systems } = generateSectorData(1337, 0, 0);
+    const { systems } = generateSectorData(1337, 0, 0, 0);
     for (const sys of systems) {
       expect(sys.name.scientific.startsWith(`${sys.star.spectralClass}-`)).toBe(true);
       sys.planets.forEach((p, i) => {
@@ -59,16 +60,23 @@ describe('generateSectorData', () => {
     }
   });
 
-  it('scatters systems across the sector without a fixed lattice', () => {
-    const { systems } = generateSectorData(1337, 0, 0);
-    expect(systems.length).toBeGreaterThan(10);
-    // Continuous placement: positions are all distinct and span the sector,
-    // rather than being snapped to a grid of cell centres.
-    const keys = new Set(systems.map(s => `${s.x},${s.y}`));
+  it('scatters systems through each cubic sector without a fixed lattice', () => {
+    const systems = sectorBlock(1337, 3);
+    expect(systems.length).toBeGreaterThan(30);
+    // Continuous placement: positions are all distinct, each system lies inside
+    // its own sector cube, and the in-cube offsets span the cube on every axis
+    // rather than snapping to a grid of cell centres.
+    const keys = new Set(systems.map(({ sys }) => `${sys.x},${sys.y},${sys.z}`));
     expect(keys.size).toBe(systems.length);
-    const xs = systems.map(s => s.x);
-    expect(Math.min(...xs)).toBeLessThan(SECTOR_SIZE * 0.25);
-    expect(Math.max(...xs)).toBeGreaterThan(SECTOR_SIZE * 0.75);
+    for (const axis of ['x', 'y', 'z'] as const) {
+      const offsets = systems.map(({ sector, sys }) => sys[axis] / SECTOR_SIZE - sector[axis]);
+      for (const f of offsets) {
+        expect(f).toBeGreaterThanOrEqual(0);
+        expect(f).toBeLessThan(1);
+      }
+      expect(Math.min(...offsets)).toBeLessThan(0.25);
+      expect(Math.max(...offsets)).toBeGreaterThan(0.75);
+    }
   });
 
   it('populates the cold region beyond the frost line and reaches far out', () => {
@@ -77,16 +85,12 @@ describe('generateSectorData', () => {
     // line exist) and let some systems reach well past the inner-only ~8 AU cap.
     let coldPlanets = 0;
     let widest = 0;
-    for (let sx = 0; sx < 3; sx++) {
-      for (let sy = 0; sy < 3; sy++) {
-        for (const sys of generateSectorData(1337, sx, sy).systems) {
-          const frost = frostLine(sys.star.luminosity);
-          for (const p of sys.planets) {
-            if (p.a >= frost)
-              coldPlanets++;
-            widest = Math.max(widest, p.a);
-          }
-        }
+    for (const { sys } of sectorBlock(1337, 5)) {
+      const frost = frostLine(sys.star.luminosity);
+      for (const p of sys.planets) {
+        if (p.a >= frost)
+          coldPlanets++;
+        widest = Math.max(widest, p.a);
       }
     }
     expect(coldPlanets).toBeGreaterThan(0);
@@ -105,7 +109,7 @@ describe('generateSectorData 3D orbital orientation', () => {
   }
 
   it('gives every planet a finite inclination in [0, π] and a defined node', () => {
-    for (const sys of generateSectorData(1337, 0, 0).systems) {
+    for (const sys of generateSectorData(1337, 0, 0, 0).systems) {
       for (const p of sys.planets) {
         expect(Number.isFinite(p.inclination)).toBe(true);
         expect(p.inclination).toBeGreaterThanOrEqual(0);
@@ -119,7 +123,7 @@ describe('generateSectorData 3D orbital orientation', () => {
     let checked = 0;
     for (let sx = 0; sx < 3; sx++) {
       for (let sy = 0; sy < 3; sy++) {
-        for (const sys of generateSectorData(1337, sx, sy).systems) {
+        for (const sys of generateSectorData(1337, sx, sy, 0).systems) {
           for (const p of sys.planets) {
             if (p.moons.length === 0)
               continue;
@@ -139,7 +143,7 @@ describe('generateSectorData 3D orbital orientation', () => {
     let total = 0;
     for (let sx = 0; sx < 3; sx++) {
       for (let sy = 0; sy < 3; sy++) {
-        for (const sys of generateSectorData(1337, sx, sy).systems) {
+        for (const sys of generateSectorData(1337, sx, sy, 0).systems) {
           for (const p of sys.planets) {
             total++;
             if (p.physical.obliquity > 90)
@@ -161,7 +165,7 @@ describe('generateSectorData 3D orbital orientation', () => {
     let highN = 0;
     for (let sx = 0; sx < 4; sx++) {
       for (let sy = 0; sy < 4; sy++) {
-        for (const sys of generateSectorData(1337, sx, sy).systems) {
+        for (const sys of generateSectorData(1337, sx, sy, 0).systems) {
           if (sys.planets.length < 3)
             continue;
           const ref = sys.planets.reduce((m, p) => (p.e < m.e ? p : m));
@@ -200,42 +204,85 @@ function fingerprint(text: string): string {
   return `${a.toString(16)}-${b.toString(16)}-${text.length}`;
 }
 
-describe('generateSectorData star height', () => {
-  it('leaves every pre-existing field unchanged (height is an appended draw)', () => {
-    // Fingerprint of these sectors taken before systems gained `z`: equal means
-    // no earlier draw moved and the universe is otherwise identical.
-    const parts: string[] = [];
-    for (const [sx, sy] of [[0, 0], [3, -2], [-40, 17], [1000, 5]]) {
-      const data = generateSectorData(12345, sx, sy);
-      parts.push(JSON.stringify(data, (key, value: unknown) => (key === 'z' ? undefined : value)));
+/** Systems in the `side`³ block of sectors from (0, 0, -1), each with its sector coordinates. */
+function sectorBlock(seed: number, side: number): { sector: { x: number; y: number; z: number }; sys: SystemData }[] {
+  const out: { sector: { x: number; y: number; z: number }; sys: SystemData }[] = [];
+  for (let sz = -1; sz < side - 1; sz++) {
+    for (let sy = 0; sy < side; sy++) {
+      for (let sx = 0; sx < side; sx++) {
+        for (const sys of generateSectorData(seed, sx, sy, sz).systems)
+          out.push({ sector: { x: sx, y: sy, z: sz }, sys });
+      }
     }
-    expect(fingerprint(parts.join('|'))).toBe('5f7967de-88e930e9-1827978');
+  }
+  return out;
+}
+
+/** Total systems in `count` sectors along +x starting at sector `(sx, sy, sz)`. */
+function countAlongX(seed: number, sx: number, sy: number, sz: number, count: number): number {
+  let n = 0;
+  for (let i = 0; i < count; i++)
+    n += generateSectorData(seed, sx + i, sy, sz).systems.length;
+  return n;
+}
+
+describe('generateSectorData 3D star placement', () => {
+  it('regenerates a pinned universe byte-identically', () => {
+    // Fingerprint of a few sectors across the home galaxy: any change to a draw,
+    // its order, or the density model shows up here. Update it deliberately.
+    const parts: string[] = [];
+    for (const [sx, sy, sz] of [[0, 0, 0], [3, -2, 1], [-40, 17, 0], [1000, 5, -2]])
+      parts.push(JSON.stringify(generateSectorData(12345, sx, sy, sz)));
+    expect(fingerprint(parts.join('|'))).toBe('34e938c7-7ff5de9e-104815');
   });
 
-  it('gives every system a stable height inside the slab, spread both sides of the plane', () => {
-    const half = (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
-    const first = generateSectorData(12345, 0, 0).systems;
-    const again = generateSectorData(12345, 0, 0).systems;
-    expect(first.length).toBeGreaterThan(10);
-    expect(again.map(s => s.z)).toEqual(first.map(s => s.z));
-    for (const sys of first) {
-      expect(Number.isFinite(sys.z)).toBe(true);
-      expect(Math.abs(sys.z)).toBeLessThanOrEqual(half);
-    }
-    expect(first.some(s => s.z > 0)).toBe(true);
-    expect(first.some(s => s.z < 0)).toBe(true);
+  it('follows the galaxy: dense at the core, sparse in the outer disk, near-empty high above it', () => {
+    const lyToSector = AU_PER_LY / SECTOR_SIZE;
+    const core = countAlongX(1337, 0, 0, 0, 50);
+    const disk = countAlongX(1337, Math.round(25000 * lyToSector), 0, 0, 50);
+    const halo = countAlongX(1337, Math.round(25000 * lyToSector), 0, Math.round(8000 * lyToSector), 50);
+    expect(core).toBeGreaterThan(disk * 5);
+    expect(disk).toBeGreaterThan(halo);
+    expect(halo).toBeLessThanOrEqual(2);
+  });
+
+  it('places the home galaxy central black hole in the sector holding the origin', () => {
+    expect(generateSectorData(1337, 0, 0, 0).blackHoles).toHaveLength(1);
+    expect(generateSectorData(1337, 0, 0, -1).blackHoles).toHaveLength(0);
+    expect(generateSectorData(1337, -1, 0, 0).blackHoles).toHaveLength(0);
   });
 });
 
-describe('systemZ', () => {
-  it('maps its two draws onto a triangular spread over the slab', () => {
-    const half = (STAR_SLAB_THICKNESS_LY * AU_PER_LY) / 2;
-    const draws = (a: number, b: number): (() => number) => {
-      const values = [a, b];
-      return () => values.shift() ?? 0;
+describe('samplePoisson', () => {
+  const rng = (): (() => number) => {
+    let seed = 99;
+    return () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
     };
-    expect(systemZ(draws(0.5, 0.5))).toBe(0);
-    expect(systemZ(draws(0, 0))).toBeCloseTo(-half);
-    expect(systemZ(draws(1, 1))).toBeCloseTo(half);
+  };
+
+  it('is 0 for a non-positive mean', () => {
+    expect(samplePoisson(0, rng())).toBe(0);
+    expect(samplePoisson(-1, rng())).toBe(0);
+  });
+
+  it.each([0.3, 4, 80])('matches mean %s on average, with a Poisson spread', (mean) => {
+    const draw = rng();
+    const n = 4000;
+    let sum = 0;
+    let sumSq = 0;
+    for (let i = 0; i < n; i++) {
+      const k = samplePoisson(mean, draw);
+      expect(Number.isInteger(k)).toBe(true);
+      expect(k).toBeGreaterThanOrEqual(0);
+      sum += k;
+      sumSq += k * k;
+    }
+    const avg = sum / n;
+    const variance = sumSq / n - avg * avg;
+    expect(avg).toBeCloseTo(mean, mean < 1 ? 1 : 0);
+    expect(variance / mean).toBeGreaterThan(0.85);
+    expect(variance / mean).toBeLessThan(1.15);
   });
 });

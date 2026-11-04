@@ -53,13 +53,13 @@ describe('nearestSystem', () => {
   });
 
   it('looks up the sector containing the camera', () => {
-    const seen: [number, number][] = [];
-    const cache = { get: (sx: number, sy: number): SectorData => {
-      seen.push([sx, sy]);
+    const seen: [number, number, number][] = [];
+    const cache = { get: (sx: number, sy: number, sz: number): SectorData => {
+      seen.push([sx, sy, sz]);
       return { systems: [] } as unknown as SectorData;
     } };
-    nearestSystem(cache, SECTOR_SIZE * 2.5, -SECTOR_SIZE * 0.5, 0);
-    expect(seen).toEqual([[2, -1]]);
+    nearestSystem(cache, SECTOR_SIZE * 2.5, -SECTOR_SIZE * 0.5, SECTOR_SIZE * 1.5);
+    expect(seen).toEqual([[2, -1, 1]]);
   });
 });
 
@@ -84,7 +84,7 @@ describe('buildNavState', () => {
 
   it('lists the focused system with planets and moons at the system tier', () => {
     const { world } = worldWithName('X');
-    const nav = buildNavState(1, system(10, 10, 'SYS'), camera, 'system', world, null);
+    const nav = buildNavState(1, system(10, 10, 'SYS'), camera, 0, 'system', world, null);
     expect(nav.tier).toBe('system');
     expect(nav.system).toEqual({
       name: 'SYS',
@@ -95,7 +95,7 @@ describe('buildNavState', () => {
 
   it('omits the system above the system tier and carries the selection key', () => {
     const { id, world } = worldWithName('SYS');
-    const nav = buildNavState(1, system(10, 10, 'SYS'), camera, 'star', world, { id, kind: 'star' });
+    const nav = buildNavState(1, system(10, 10, 'SYS'), camera, 0, 'star', world, { id, kind: 'star' });
     expect(nav.system).toBeNull();
     expect(nav.selectedKey).toBe('SYS');
   });

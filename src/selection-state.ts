@@ -61,7 +61,7 @@ export class SelectionState {
       return null;
     }
     if (bm.kind === 'galaxy') {
-      const galaxy = galaxyAt(seed, bm.x, bm.y);
+      const galaxy = galaxyAt(seed, bm.x, bm.y, bm.z ?? 0);
       if (galaxy)
         this.select({ galaxy, kind: 'galaxy' });
       return null;

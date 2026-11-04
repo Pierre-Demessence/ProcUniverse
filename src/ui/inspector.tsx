@@ -403,7 +403,7 @@ function BlackHolePanel({ name, blackHole, footer }: { blackHole: BlackHolePhysi
 }
 
 function UniversePanel({ seed }: { seed: number }): VNode {
-  const home = galaxyAt(seed, 0, 0);
+  const home = galaxyAt(seed, 0, 0, 0);
   return (
     <div style={PANEL_CSS}>
       <div style={NAME_CSS}>Universe</div>

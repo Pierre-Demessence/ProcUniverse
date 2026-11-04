@@ -43,10 +43,15 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
 - Camera and pointer math run in canvas backing pixels; keep
   `camera.viewportW/H == canvas.width/height`.
 - Renderers receive render-origin-relative coordinates, never raw absolutes.
-- Systems have a height `SystemData.z` (from `systemZ`, the last draw of the
-  system's RNG stream). Every consumer reads `sys.z`; true 3D sectors will
-  replace `systemZ`, not its callers. Sectors, galaxies and tier selection stay
-  flat (x, y).
+- Generation is 3D: sectors are cubes (`LY_PER_SECTOR` ly, keyed
+  `(sx, sy, sz)`), galaxies sit in 3D cells with their own disk normal, and
+  every density / activity / galaxy lookup takes `(x, y, z)`. Stars are placed
+  by Poisson-count thinning against `galaxyDensityBoundAt`; keep that bound a
+  true upper bound of `galaxyDensityOf` (a property test pins it). Tier
+  thresholds are in light-years (`*_LY`), independent of the sector size. The
+  galaxy / galaxy-field / universe tiers still render top-down: they show the
+  density slice, or the cube of space, around the focus height (`ctx.camAbsZ`)
+  until [universe-3d.md](../plans/universe-3d.md) Phases 3–5 land.
 - Rendering blends system and star layers by `ctx.blend` (`tierBlend`, 0 → 1
   across `STAR_BLEND_MIN_AU`–`STAR_BLEND_MAX_AU`); the discrete tier still
   drives selection, HUD and picking. While `blend < 1` (`hasSystemLayer`)

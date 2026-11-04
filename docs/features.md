@@ -10,11 +10,11 @@ Shipped features. Planned work is in [roadmap.md](roadmap.md).
 | 3D system view | Three.js (WebGPU with WebGL2 fallback) draws each planetary system in 3D — lit rotating spheres and inclined orbits; right-drag orbits and tilts the view freely (trackball style — over the poles and under the disk, no stops). A contextual "Flatten" button snaps straight top-down and back to the prior angle. |
 | Renderer | Three.js renders every tier; labels, the selection reticle and the HUD draw on a transparent 2D overlay. If neither WebGPU nor WebGL is available, a notice says so. |
 | LOD streaming | Zoom-bounded tiers (systems → star field → galaxy glow → galaxy field → cosmic web) with sector streaming and a floating render origin. |
-| 3D star field | Zoomed out of a system (~300 AU to ~16 ly across), each system is a bloomed star sprite in a 3D neighbourhood (stars sit at different heights off the galactic plane), seen through the same orbit / tilt camera as the system view. Brightness follows luminosity and distance, the brightest stars get diffraction spikes and name labels, and the view eases to top-down before the galaxy view. Hovering a star names it; clicking flies into its system and selects the star; the wheel zooms onto the star under the cursor. |
+| 3D star field | Zoomed out of a system (~300 AU to ~16 ly across), each system is a bloomed star sprite in a true 3D neighbourhood, seen through the same orbit / tilt camera as the system view. Brightness follows luminosity and distance, the brightest stars get diffraction spikes and name labels, and the view eases to top-down before the galaxy view. Hovering a star names it; clicking flies into its system and selects the star; the wheel zooms onto the star under the cursor. |
 | System ↔ star cross-fade | Zooming out of a system is one continuous camera move: over a zoom band planets, moons and orbit lines fade away while neighbouring stars fade in, the view swings from the system's own disk plane to the galactic plane, and the system's star hands over from its sphere to its sprite. |
 | Reference grid | Adaptive world grid and axes for spatial feedback. |
 | Scale bar | A map-style bar one grid-cell wide labels the current view scale, auto-selecting km / AU / ly. |
-| Coordinate readout | Bottom-left readout of the view-centre world position (auto-scaled AU / ly / kly / Mly) plus the current galaxy and the offset from its centre. |
+| Coordinate readout | Bottom-left readout of the view-centre world position in x, y, z (auto-scaled AU / ly / kly / Mly) plus the current galaxy and the offset from its centre. |
 | Location tree | A top-left panel shows where the camera is as a hierarchy (Universe → Galaxy → System → Planet → Moon), growing as you zoom in. Clicking a node pins it in the inspector; the current selection is highlighted. |
 | Camera focus and lock | "Zoom to" in the inspector frames the selected body and its satellites; "Lock" (planets and moons) keeps the body centred while you zoom, releasing on pan, re-select, or zooming out past it. |
 | Bookmarks | ☆ in the inspector bookmarks any body, galaxy, or the universe. A bookmark panel offers Zoom-to and Inspect; bookmarks persist with the universe save. |
@@ -26,7 +26,7 @@ Shipped features. Planned work is in [roadmap.md](roadmap.md).
 | Feature | Description |
 | ------- | ----------- |
 | Deterministic universe | The whole universe is a pure function of the world seed and coordinates; reloading regenerates it identically. |
-| Galaxy structure | Galaxies of varied morphology (spiral, barred, elliptical, lenticular, dwarfs) cluster into a cosmic web of filaments and voids; star placement follows each galaxy's density field. |
+| Galaxy structure | 3D galaxies of varied morphology (spiral, barred, elliptical, lenticular, dwarfs), each a thin disk with a bulge and a faint halo (or a triaxial ellipsoid) pointing its own way, cluster into a 3D cosmic web of filaments and voids; star placement follows each galaxy's density at realistic stellar densities. |
 | Stellar populations | Star colours follow galactic position: star-forming arms skew hot and blue, old cores and elliptical / lenticular galaxies cool and red. |
 | Central black holes | Each galaxy hosts a supermassive black hole (M–σ-style mass, Schwarzschild radius, AGN activity), inspectable like any body. |
 | Physical star data | Each star's seeded mass (Kroupa IMF) derives luminosity, radius, temperature, spectral class, lifetime, and a blackbody colour. |

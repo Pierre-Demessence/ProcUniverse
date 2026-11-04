@@ -1,18 +1,18 @@
 import { makeCamera } from '@pierre/ecs/modules/camera';
 import { describe, expect, it, vi } from 'vitest';
 
-import { GALAXY_TIER_SECTORS } from '../../config/render';
-import { SECTOR_SIZE } from '../../scale';
+import { GALAXY_TIER_LY } from '../../config/render';
+import { AU_PER_LY } from '../../generation/units';
 import { createFrameCtx } from '../frame-context';
 import { FrameState } from '../frame-state';
 import { makeBackendSelectSystem } from './backend-systems';
 
-function setup(active: boolean, sectorsAcross = 1) {
+function setup(active: boolean, lyAcross = 1) {
   const state = new FrameState({ simSeconds: 0, tier: 'star' });
   const setThreeSystemActive = vi.fn();
   const setTiltScale = vi.fn();
   const setVisible = vi.fn();
-  const camera = makeCamera({ viewportH: 1000, viewportW: 1000, x: 0, y: 0, zoom: 1000 / (sectorsAcross * SECTOR_SIZE) });
+  const camera = makeCamera({ viewportH: 1000, viewportW: 1000, x: 0, y: 0, zoom: 1000 / (lyAcross * AU_PER_LY) });
   const system = makeBackendSelectSystem({
     camera,
     controller: { setThreeSystemActive, setTiltScale },
@@ -45,7 +45,7 @@ describe('backend-select system', () => {
     const near = setup(true, 1);
     near.system.run(createFrameCtx(16, 'star'));
     expect(near.setTiltScale).toHaveBeenLastCalledWith(1);
-    const edge = setup(true, GALAXY_TIER_SECTORS);
+    const edge = setup(true, GALAXY_TIER_LY);
     edge.system.run(createFrameCtx(16, 'star'));
     expect(edge.setTiltScale).toHaveBeenLastCalledWith(0);
     edge.system.run(createFrameCtx(16, 'system'));

@@ -80,9 +80,9 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
         const weights = layerWeights(blend);
         const systemLayer = blend < 1;
         if (ctx.tier === 'system')
-          three.updateStarfield(seed, ctx.camAbsX, ctx.camAbsY);
+          three.updateStarfield(seed, ctx.camAbsX, ctx.camAbsY, ctx.camAbsZ);
         else
-          three.ensureStarfield(seed, ctx.camAbsX, ctx.camAbsY);
+          three.ensureStarfield(seed, ctx.camAbsX, ctx.camAbsY, ctx.camAbsZ);
         // Floor the body radii for this zoom (shrinking with the cross-fade)
         // before the passes read them.
         if (systemLayer)
@@ -127,14 +127,14 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
         state.lastDrawnCount = (systemLayer ? status.stars + status.planets : 0) + starsDrawn;
       }
       else if (ctx.tier === 'galaxy-field') {
-        state.lastDrawnCount = three.renderGalaxyField({ camera: localCam, originX, originY, seed });
-        drawGalaxyFieldLabels(ctx2d, localCam, seed, originX, originY);
+        state.lastDrawnCount = three.renderGalaxyField({ camera: localCam, focusZ: ctx.camAbsZ, originX, originY, seed });
+        drawGalaxyFieldLabels(ctx2d, localCam, seed, originX, originY, ctx.camAbsZ);
       }
       else if (ctx.tier === 'galaxy') {
-        state.lastDrawnCount = three.renderGalaxy({ camera: localCam, originX, originY, seed });
+        state.lastDrawnCount = three.renderGalaxy({ camera: localCam, focusZ: ctx.camAbsZ, originX, originY, seed });
       }
       else {
-        state.lastDrawnCount = three.renderUniverse({ camera: localCam, originX, originY, seed });
+        state.lastDrawnCount = three.renderUniverse({ camera: localCam, focusZ: ctx.camAbsZ, originX, originY, seed });
       }
     },
   };

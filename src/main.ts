@@ -123,8 +123,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   // The origin view frames the home galaxy's centre (its central black hole);
   // fall back to the first system or the sector centre if absent. Captured as a
   // reusable framing so startup and the "return to origin" button agree.
-  const homeGalaxy = galaxyAt(seed, 0, 0);
-  const originSector = cache.get(0, 0);
+  const homeGalaxy = galaxyAt(seed, 0, 0, 0);
+  const originSector = cache.get(0, 0, 0);
   const homeFocus = homeGalaxy
     ? { x: homeGalaxy.centerX, y: homeGalaxy.centerY }
     : originSector.systems.length > 0
@@ -266,7 +266,7 @@ export function start(container: HTMLElement, save: Save): () => void {
         onStarInspect(star.system);
     }
     else if (state.currentTier === 'galaxy-field') {
-      const galaxy = pickGalaxyAt(seed, localCam, state.renderOriginX, state.renderOriginY, bx, by);
+      const galaxy = pickGalaxyAt(seed, localCam, state.renderOriginX, state.renderOriginY, cameraAbsolute(state.renderOriginZ, controller.focusZ), bx, by);
       selectionState.select(galaxy ? { galaxy, kind: 'galaxy' } : null);
     }
   };
@@ -310,7 +310,7 @@ export function start(container: HTMLElement, save: Save): () => void {
         selectionState.select({ kind: 'universe', seed });
       }
       else if (node.kind === 'galaxy') {
-        const g = galaxyAt(seed, cameraAbsolute(state.renderOriginX, camera.x), cameraAbsolute(state.renderOriginY, camera.y));
+        const g = galaxyAt(seed, cameraAbsolute(state.renderOriginX, camera.x), cameraAbsolute(state.renderOriginY, camera.y), cameraAbsolute(state.renderOriginZ, controller.focusZ));
         selectionState.select(g ? { galaxy: g, kind: 'galaxy' } : null);
       }
       else if (node.kind === 'star' || node.kind === 'planet' || node.kind === 'moon') {

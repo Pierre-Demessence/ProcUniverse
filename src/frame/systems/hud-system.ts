@@ -66,7 +66,7 @@ export function makeHudSystem(deps: HudSystemDeps): SchedulableSystem<FrameCtx> 
 
       // The tree and the coordinate readout want the ABSOLUTE camera position.
       const camAbs = { ...camera, x: cameraAbsolute(state.renderOriginX, camera.x), y: cameraAbsolute(state.renderOriginY, camera.y) };
-      navTree.update(buildNavState(seed, ctx.focusedSystem, camAbs, ctx.tier, world, selection));
+      navTree.update(buildNavState(seed, ctx.focusedSystem, camAbs, ctx.camAbsZ, ctx.tier, world, selection));
 
       // Perf monitor: top-right, just left of the sim-time panel (so the tree
       // owns the top-left). Knobs are CSS pixels; the overlay draws in backing
@@ -79,7 +79,7 @@ export function makeHudSystem(deps: HudSystemDeps): SchedulableSystem<FrameCtx> 
       drawStatsOverlay(ctx2d, frameStats, { targetMs: TARGET_MS, x: statsX, y: STATS_HUD_TOP_PX * dpr });
       drawHint(ctx2d, canvas, ctx.tier, `Three (${threeBackend.renderer?.backendLabel ?? '…'})`);
       drawScaleBar(ctx2d, camera);
-      drawCoords(ctx2d, camAbs, seed);
+      drawCoords(ctx2d, camAbs, ctx.camAbsZ, seed);
       timeControls.update(state.simSeconds);
     },
   };
