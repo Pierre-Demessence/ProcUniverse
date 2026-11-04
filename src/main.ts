@@ -127,8 +127,8 @@ export function start(container: HTMLElement, save: Save): () => void {
   const originSector = cache.get(0, 0, 0);
   const homeFocus = homeGalaxy
     ? { x: homeGalaxy.centerX, y: homeGalaxy.centerY }
-    : originSector.systems.length > 0
-      ? originSector.systems[0]
+    : originSector.stars.length > 0
+      ? originSector.stars[0]
       : { x: SECTOR_SIZE / 2, y: SECTOR_SIZE / 2 };
 
   // Floating render origin. The camera position is stored as a SMALL OFFSET from
@@ -261,9 +261,9 @@ export function start(container: HTMLElement, save: Save): () => void {
         selectionState.select(three.pickAt(bx, by));
     }
     else if (state.currentTier === 'star') {
-      const star = threeBackend.active ? threeBackend.renderer?.pickStar(bx, by) : null;
-      if (star)
-        onStarInspect(star.system);
+      const drawn = threeBackend.active ? threeBackend.renderer?.pickStar(bx, by) : null;
+      if (drawn)
+        onStarInspect(cache.system(drawn.star));
     }
     else if (state.currentTier === 'galaxy-field') {
       const galaxy = pickGalaxyAt(seed, localCam, state.renderOriginX, state.renderOriginY, cameraAbsolute(state.renderOriginZ, controller.focusZ), bx, by);

@@ -142,8 +142,15 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   agree on it. The star-tier tilt easing (`setTiltScale`) latches its target
   pose (top-down or bottom-up) when the easing starts; re-picking it per frame
   flips the camera when the tilt is dragged through 90°.
+- A sector holds star-only records (`StarData`: position, name, star physics,
+  the system seed). Planets and moons come from `generateSystem(worldSeed,
+  star)`, built only for streamed or focused systems through the memoising
+  `SectorCache.system`; never read `planets` off a sector record. The bodies
+  continue the star's own RNG stream, so they stay identical however often the
+  system is regenerated (pinned by `universe.test.ts`).
 - Star-tier sector generation is budgeted (`STAR_SECTOR_BUDGET_MS`, via
-  `SectorCache.peek`); never call `cache.get` for every sector in a star-tier
+  `SectorCache.peek`), nearest-first and only for sectors inside the reach
+  sphere (`sectorWithinReach`), not the whole cube range; never call `cache.get` for every sector in a star-tier
   range. `SectorCache` evicts the least recently read sector (every `get` /
   `peek` hit refreshes it), so the sectors in range stay cached while the range
   fits the capacity (recency pinned by `sector-cache.test.ts`, range ≤ capacity

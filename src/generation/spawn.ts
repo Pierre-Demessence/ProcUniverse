@@ -1,7 +1,7 @@
 import type { EcsWorld } from '@pierre/ecs';
 import type { EntityId } from '@pierre/ecs/entity-id';
 
-import type { SectorData } from './universe';
+import type { SectorData, StarData, SystemData } from './universe';
 
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
@@ -20,8 +20,10 @@ const BLACK_HOLE_COLOR = '#15151c';
 
 /**
  * Spawn ECS entities for a generated sector: one star per system, plus one
- * orbiting planet entity per planet. Positions and orbit centres are stored
- * **relative to `(originX, originY, originZ)`** — the floating render origin — so the
+ * orbiting planet entity per planet. `systemOf` builds each star's full system
+ * (planets and moons), which a sector's star-only records do not hold.
+ * Positions and orbit centres are stored **relative to
+ * `(originX, originY, originZ)`** — the floating render origin — so the
  * renderer always works on small, precise coordinates however far the camera
  * has travelled. Returns every spawned entity id (each star immediately before
  * its planets) so the streamer can despawn the sector later.
@@ -29,6 +31,7 @@ const BLACK_HOLE_COLOR = '#15151c';
 export function spawnSector(
   world: EcsWorld,
   data: SectorData,
+  systemOf: (star: StarData) => SystemData,
   originX: number,
   originY: number,
   originZ: number,
@@ -43,7 +46,8 @@ export function spawnSector(
   const names = world.getStore(NameDef);
   const ids: EntityId[] = [];
 
-  for (const sys of data.systems) {
+  for (const star of data.stars) {
+    const sys = systemOf(star);
     const cx = sys.x - originX;
     const cy = sys.y - originY;
     const cz = sys.z - originZ;

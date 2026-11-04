@@ -5,8 +5,8 @@ thickness, bulge, halo and orientation, one perspective camera works at every
 tier, and level of detail follows camera distance. When this ships nothing in
 ProcUniverse is a flat plane any more.
 
-Status: B1.0, B1.1 and the B1.1 fixes are done; generation is 3D. Pierre's
-browser re-test of the fixes is pending. Next: B1.2. Breaking the current
+Status: B1.0, B1.1, the B1.1 fixes and B1.2 are done; generation is 3D. Pierre's
+browser re-test of the fixes and of B1.2 is pending. Next: B1.3. Breaking the current
 universe (seeds, RNG streams, saved bookmarks) is accepted.
 
 Out of scope (on the backlog): irregular galaxies (B30), giant planet surfaces
@@ -151,15 +151,21 @@ universe view, and a bookmark to a non-home galaxy (at the end).
 
 ### B1.2 Star-only sector records and 3D streaming
 
-- [ ] Split sector generation into star records and on-demand system bodies
+- [x] Split sector generation into star records and on-demand system bodies
       (`generation/universe.ts`, `lod/streaming.ts`); star placement draws
       keep their order, and the determinism fingerprint is re-pinned only if
       planet draws move.
-- [ ] `nearestSystem` over the 3×3×3 neighbourhood; test with a nearer star
+- [x] `nearestSystem` over the 3×3×3 neighbourhood; test with a nearer star
       across a sector edge.
-- [ ] Star tier fills a 3D sphere around the focus, nearest-first under budget.
-- [ ] Tests for `streaming.ts` and `sector-cache.ts` (delivers [B4](../backlog.md)
+- [x] Star tier fills a 3D sphere around the focus, nearest-first under budget.
+- [x] Tests for `streaming.ts` and `sector-cache.ts` (delivers [B4](../backlog.md)
       for those two files).
+
+Decided: the sector fingerprint is re-pinned because the record shape changed;
+the planets are unchanged (full systems compared key by key against the previous
+generator for six sectors, and a new pinned fingerprint of full systems guards
+them). Corner sectors of the star tier's cube range are skipped
+(`sectorWithinReach`), the sphere the plan asks for.
 
 Visible after: the star tier fills in faster near a galaxy core; clicking near a
 sector edge picks the truly nearest star.

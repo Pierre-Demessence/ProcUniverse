@@ -108,7 +108,7 @@ export function bookmarkZ(bm: Bookmark, cache: Pick<SectorCache, 'get'>): number
     return 0;
   let best = Infinity;
   let z = 0;
-  for (const sys of cache.get(Math.floor(bm.x / SECTOR_SIZE), Math.floor(bm.y / SECTOR_SIZE), 0).systems) {
+  for (const sys of cache.get(Math.floor(bm.x / SECTOR_SIZE), Math.floor(bm.y / SECTOR_SIZE), 0).stars) {
     const d = Math.hypot(sys.x - bm.x, sys.y - bm.y);
     if (d < best) {
       best = d;

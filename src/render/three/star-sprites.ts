@@ -11,7 +11,7 @@
 
 import type { Group, Quaternion, Vector3 } from 'three/webgpu';
 
-import type { SectorData, SystemData } from '../../generation/universe';
+import type { SectorData, StarData } from '../../generation/universe';
 import type { SectorCache } from '../../lod/sector-cache';
 import type { SectorRange } from '../../lod/tier';
 
@@ -20,6 +20,7 @@ import { AdditiveBlending, Color, DoubleSide, InstancedMesh, MeshBasicNodeMateri
 
 import { STAR_LABEL_COUNT, STAR_SECTOR_BUDGET_MS, STAR_SPIKE_COUNT } from '../../config/render';
 import { isSameSystem } from '../../generation/universe';
+import { sectorWithinReach } from '../../lod/tier';
 import { SECTOR_SIZE } from '../../scale';
 import { apparentStarLevel, boostSaturation, starRankLevel, starSpriteIntensity, starSpriteSizePx } from '../star-brightness';
 
@@ -75,8 +76,8 @@ export interface StarLayerFrame {
   /** Camera world position and orientation (the sprites face the camera plane). */
   cameraPosition: Vector3;
   cameraQuaternion: Quaternion;
-  /** The focused system, whose sprite hands over from its sphere, or null. */
-  focused: SystemData | null;
+  /** The focused system's star, whose sprite hands over from its sphere, or null. */
+  focused: StarData | null;
   focusedWeight: number;
   focusX: number;
   focusY: number;
@@ -95,7 +96,7 @@ export interface StarLayerFrame {
 
 /** A drawn star, for labels / hover. */
 export interface DrawnStar {
-  system: SystemData;
+  star: StarData;
   x: number;
   y: number;
   z: number;
@@ -118,8 +119,8 @@ export class StarSpriteLayer {
   private readonly sectors: SectorData[] = [];
   private readonly spikeMaterial = createSpikeMaterial();
   private readonly spikes: InstancedMesh;
-  /** Systems of the drawn stars, parallel to `positions`. */
-  private systems: SystemData[] = [];
+  /** Records of the drawn stars, parallel to `positions`. */
+  private stars: StarData[] = [];
   private readonly tmpColor = new Color();
   /** Indices of the highest-ranked drawn stars (`starRankLevel`), highest first, with their ranks. */
   private readonly top: number[] = [];
@@ -155,7 +156,7 @@ export class StarSpriteLayer {
   }
 
   private drawn(i: number): DrawnStar {
-    return { system: this.systems[i], x: this.positions[i * 3], y: this.positions[i * 3 + 1], z: this.positions[i * 3 + 2] };
+    return { star: this.stars[i], x: this.positions[i * 3], y: this.positions[i * 3 + 1], z: this.positions[i * 3 + 2] };
   }
 
   private ensureMesh(count: number): InstancedMesh {
@@ -188,14 +189,19 @@ export class StarSpriteLayer {
     const sectors = this.sectors;
     sectors.length = 0;
     let capacity = 0;
+    const cx = f.focusX + f.originX;
+    const cy = f.focusY + f.originY;
+    const cz = f.focusZ + f.originZ;
     for (let sz = f.range.minSz; sz <= f.range.maxSz; sz++) {
       for (let sy = f.range.minSy; sy <= f.range.maxSy; sy++) {
         for (let sx = f.range.minSx; sx <= f.range.maxSx; sx++) {
+          if (!sectorWithinReach(sx, sy, sz, cx, cy, cz, f.reach))
+            continue;
           const sector = f.cache.peek(sx, sy, sz);
           if (!sector)
             continue;
           sectors.push(sector);
-          capacity += sector.systems.length;
+          capacity += sector.stars.length;
         }
       }
     }
@@ -204,12 +210,12 @@ export class StarSpriteLayer {
     this.top.length = 0;
     this.topLevel.length = 0;
     this.topSize.length = 0;
-    this.systems.length = 0;
+    this.stars.length = 0;
     const cam = f.cameraPosition;
     const fadeStart = f.reach * EDGE_FADE_START;
     let i = 0;
     for (const sector of sectors) {
-      for (const sys of sector.systems) {
+      for (const sys of sector.stars) {
         const isFocused = f.focused !== null && isSameSystem(sys, f.focused);
         let weight = isFocused ? f.focusedWeight : f.weight;
         const x = sys.x - f.originX;
@@ -237,7 +243,7 @@ export class StarSpriteLayer {
         this.positions[i * 3] = x;
         this.positions[i * 3 + 1] = y;
         this.positions[i * 3 + 2] = z;
-        this.systems.push(sys);
+        this.stars.push(sys);
         this.rankTop(i, starRankLevel(sys.star.luminosity, fromFocus, weight), size);
         i++;
       }
@@ -287,10 +293,13 @@ export class StarSpriteLayer {
   private generateMissing(f: StarLayerFrame): void {
     const missing = this.missing;
     missing.length = 0;
+    const cx = f.focusX + f.originX;
+    const cy = f.focusY + f.originY;
+    const cz = f.focusZ + f.originZ;
     for (let sz = f.range.minSz; sz <= f.range.maxSz; sz++) {
       for (let sy = f.range.minSy; sy <= f.range.maxSy; sy++) {
         for (let sx = f.range.minSx; sx <= f.range.maxSx; sx++) {
-          if (!f.cache.peek(sx, sy, sz))
+          if (sectorWithinReach(sx, sy, sz, cx, cy, cz, f.reach) && !f.cache.peek(sx, sy, sz))
             missing.push(sx, sy, sz);
         }
       }
@@ -316,7 +325,7 @@ export class StarSpriteLayer {
       this.mesh.visible = false;
     this.spikes.visible = false;
     this.count = 0;
-    this.systems.length = 0;
+    this.stars.length = 0;
     this.top.length = 0;
   }
 

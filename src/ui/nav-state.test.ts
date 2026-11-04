@@ -22,8 +22,14 @@ function system(x: number, y: number, name: string, z = 0): SystemData {
   } as unknown as SystemData;
 }
 
-function cacheOf(systems: SystemData[]): { get: (sx: number, sy: number) => SectorData } {
-  return { get: () => ({ systems }) as unknown as SectorData };
+type NearestCache = Parameters<typeof nearestSystem>[0];
+
+/** A cache whose sector (0, 0, 0) holds `systems`, every other sector is empty; `system` returns the record as is. */
+function cacheOf(systems: SystemData[]): NearestCache {
+  return {
+    get: (sx: number, sy: number, sz: number) => ({ stars: sx === 0 && sy === 0 && sz === 0 ? systems : [] }) as unknown as SectorData,
+    system: star => star as SystemData,
+  };
 }
 
 function worldWithName(scientific: string): { id: EntityId; world: EcsWorld } {
@@ -52,14 +58,39 @@ describe('nearestSystem', () => {
     expect(nearestSystem(cacheOf([]), 0, 0, 0)).toBeNull();
   });
 
-  it('looks up the sector containing the camera', () => {
+  it('searches the 3×3×3 sectors around the one containing the camera', () => {
     const seen: [number, number, number][] = [];
-    const cache = { get: (sx: number, sy: number, sz: number): SectorData => {
-      seen.push([sx, sy, sz]);
-      return { systems: [] } as unknown as SectorData;
-    } };
+    const cache: NearestCache = {
+      system: star => star as SystemData,
+      get: (sx, sy, sz) => {
+        seen.push([sx, sy, sz]);
+        return { stars: [] } as unknown as SectorData;
+      },
+    };
     nearestSystem(cache, SECTOR_SIZE * 2.5, -SECTOR_SIZE * 0.5, SECTOR_SIZE * 1.5);
-    expect(seen).toEqual([[2, -1, 1]]);
+    expect(seen).toHaveLength(27);
+    expect(seen).toContainEqual([2, -1, 1]);
+    expect(seen).toContainEqual([1, -2, 0]);
+    expect(seen).toContainEqual([3, 0, 2]);
+  });
+
+  it('finds a nearer star just across a sector face', () => {
+    // The camera sits in sector (1, 0, 0), 10 AU from the face it shares with
+    // sector (0, 0, 0); the star there is nearer than the one in the camera's own sector.
+    const across = system(SECTOR_SIZE - 5, 10, 'ACROSS');
+    const own = system(SECTOR_SIZE + SECTOR_SIZE / 2, 10, 'OWN');
+    const cache: NearestCache = {
+      get: (sx, sy, sz) => ({ stars: sx === 0 && sy === 0 && sz === 0 ? [across] : sx === 1 && sy === 0 && sz === 0 ? [own] : [] }) as unknown as SectorData,
+      system: star => star as SystemData,
+    };
+    expect(nearestSystem(cache, SECTOR_SIZE + 10, 10, 0)).toBe(across);
+  });
+
+  it('returns the full system the cache builds for the nearest star record', () => {
+    const record = system(10, 10, 'RECORD');
+    const full = system(10, 10, 'FULL');
+    const cache: NearestCache = { get: () => ({ stars: [record] }) as unknown as SectorData, system: () => full };
+    expect(nearestSystem(cache, 10, 10, 0)).toBe(full);
   });
 });
 

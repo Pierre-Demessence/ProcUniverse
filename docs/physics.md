@@ -30,7 +30,7 @@ worldSeed + sector coords ──► per-system RNG (hashSystem → mulberry32)
   │
   ├─ frostLine(L), habitableZone(L)
   │
-  └─ planets: count + geometric spacing (generateSectorData)
+  └─ planets: count + geometric spacing (generateSystem)
         └─ per planet (samplePlanet):
              ├─ a, e, mean anomaly, argument of periapsis (seeded)
              ├─ mass m   (biased by a vs. frost line and star metallicity)
@@ -213,7 +213,7 @@ system is exactly where the formula says. `writeOrbitPosition` computes:
 5. Rotate by ω, i and Ω (`perifocalToWorld`) and add the focus; a moon's focus is
    its planet's current position (`updateOrbits`).
 
-Layout (`generateSectorData`, constants in `config/data.ts`): 1–8 planets per
+Layout (`generateSystem`, constants in `config/data.ts`): 1–8 planets per
 star (`PLANET_MIN`/`PLANET_MAX`); the first orbit is at `ORBIT_INNER_AU` · √L
 (floored at `ORBIT_INNER_MIN_AU`), each next orbit is the previous × a seeded ratio
 (`ORBIT_RATIO_MIN`–`MAX` inside the frost line, wider `ORBIT_RATIO_OUTER_MIN`–`MAX`

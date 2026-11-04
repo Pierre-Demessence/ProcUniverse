@@ -130,6 +130,19 @@ export function sectorsAround(cx: number, cy: number, cz: number, halfExtent: nu
   };
 }
 
+/**
+ * Whether sector `(sx, sy, sz)` has any point within `radius` of `(cx, cy, cz)`
+ * (absolute AU): the distance from the point to the sector's nearest point. A
+ * range from `sectorsAround` is a cube, whose corner sectors lie outside the
+ * sphere of the same half-extent and need neither generating nor drawing.
+ */
+export function sectorWithinReach(sx: number, sy: number, sz: number, cx: number, cy: number, cz: number, radius: number): boolean {
+  const dx = Math.max(sx * SECTOR_SIZE - cx, 0, cx - (sx + 1) * SECTOR_SIZE);
+  const dy = Math.max(sy * SECTOR_SIZE - cy, 0, cy - (sy + 1) * SECTOR_SIZE);
+  const dz = Math.max(sz * SECTOR_SIZE - cz, 0, cz - (sz + 1) * SECTOR_SIZE);
+  return dx * dx + dy * dy + dz * dz <= radius * radius;
+}
+
 /** Hermite smooth-step of `x` from `edge0` to `edge1`, clamped to [0, 1]. */
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));

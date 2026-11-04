@@ -43,7 +43,7 @@ export const hasSystemLayer = (ctx: FrameCtx): boolean => ctx.blend < 1;
  * are dropped to respawn against the new origin.
  */
 export function makeOriginRebaseSystem(deps: {
-  cache: Pick<SectorCache, 'get'>;
+  cache: Pick<SectorCache, 'get' | 'system'>;
   camera: Camera;
   controller: Pick<CameraController, 'focusZ' | 'setFocusZ'>;
   state: FrameState;

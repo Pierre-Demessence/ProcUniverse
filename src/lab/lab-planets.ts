@@ -6,7 +6,7 @@
 
 import type { PlanetPhysical } from '../generation/planets';
 
-import { generateSectorData } from '../generation/universe';
+import { generateSectorData, generateSystem } from '../generation/universe';
 
 export interface LabPlanet {
   /** Flat colour the app currently draws this planet with. */
@@ -37,7 +37,8 @@ export function* spiralSectors(maxRing: number): Generator<[number, number]> {
 export function scanPlanets(seed: number, limit: number, maxRing = 40): LabPlanet[] {
   const found: LabPlanet[] = [];
   for (const [sx, sy] of spiralSectors(maxRing)) {
-    for (const system of generateSectorData(seed, sx, sy, 0).systems) {
+    for (const star of generateSectorData(seed, sx, sy, 0).stars) {
+      const system = generateSystem(seed, star);
       for (const planet of system.planets) {
         const p = planet.physical;
         found.push({

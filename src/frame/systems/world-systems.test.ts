@@ -12,7 +12,7 @@ import { FrameState } from '../frame-state';
 import { makeOrbitsSystem, makeOriginRebaseSystem, makePendingBookmarkSystem, makeStreamingSystem } from './world-systems';
 
 const camera = (x: number, y: number, zoom: number) => makeCamera({ viewportH: 1000, viewportW: 1000, x, y, zoom });
-const emptyCache = { get: () => ({ systems: [] }) } as never;
+const emptyCache = { get: () => ({ stars: [] }), system: (s: unknown) => s } as never;
 function focusController(initial = 0): { focusZ: number; setFocusZ: (z: number) => void } {
   const c = { focusZ: initial, setFocusZ: (z: number) => {
     c.focusZ = z;
@@ -25,7 +25,7 @@ describe('origin-rebase system', () => {
     const state = new FrameState({ simSeconds: 0, tier: 'system' });
     const cam = camera(1, 2, 1e12);
     const star = { x: 5000, y: 6000, z: 700 };
-    const cache = { get: () => ({ systems: [star] }) } as never;
+    const cache = { get: () => ({ stars: [star] }), system: (s: unknown) => s } as never;
     const clear = vi.fn();
     const controller = focusController(3);
     const ctx = createFrameCtx(16, 'system');
@@ -41,7 +41,7 @@ describe('origin-rebase system', () => {
   it('keeps the star anchor through the star-tier end of the cross-fade band', () => {
     const state = new FrameState({ simSeconds: 0, tier: 'star' });
     const star = { x: 5000, y: 6000, z: 0 };
-    const cache = { get: () => ({ systems: [star] }) } as never;
+    const cache = { get: () => ({ stars: [star] }), system: (s: unknown) => s } as never;
     const ctx = createFrameCtx(16, 'star');
     ctx.blend = 0.5;
     makeOriginRebaseSystem({ cache, camera: camera(1, 2, 1), controller: focusController(), state, streamer: { clear: vi.fn() } }).run(ctx);

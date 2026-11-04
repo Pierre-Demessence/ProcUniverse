@@ -36,7 +36,7 @@ const GALAXY_LABEL_FILL = 'rgba(210, 224, 255, 0.85)';
 
 /** A star-tier star to label: its name and render-origin-frame position. */
 export interface LabelledStar {
-  system: { name: GeneratedName };
+  star: { name: GeneratedName };
   x: number;
   y: number;
   z: number;
@@ -62,7 +62,7 @@ export function drawStarLabels(ctx2d: CanvasRenderingContext2D, stars: readonly 
   ctx2d.fillStyle = STAR_COLOR;
   for (const star of stars) {
     if (project(star.x, star.y, star.z, screen))
-      ctx2d.fillText(displayName(star.system.name, namingStyle.value), screen.sx, screen.sy + GAP_PX + STAR_LABEL_OFFSET_PX);
+      ctx2d.fillText(displayName(star.star.name, namingStyle.value), screen.sx, screen.sy + GAP_PX + STAR_LABEL_OFFSET_PX);
   }
   ctx2d.restore();
 }

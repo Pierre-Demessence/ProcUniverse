@@ -76,11 +76,11 @@ export class SystemStreamer {
           if (this.active.has(key))
             continue;
           const data = this.cache.get(sx, sy, sz);
-          const ids = spawnSector(this.world, data, originX, originY, originZ);
+          const ids = spawnSector(this.world, data, star => this.cache.system(star), originX, originY, originZ);
           this.active.set(key, ids);
-          this.starsPerSector.set(key, data.systems.length);
-          this.starCount += data.systems.length;
-          this.planetCount += ids.length - data.systems.length;
+          this.starsPerSector.set(key, data.stars.length);
+          this.starCount += data.stars.length;
+          this.planetCount += ids.length - data.stars.length;
         }
       }
     }

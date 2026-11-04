@@ -17,7 +17,7 @@ import type { EcsWorld, EntityId } from '@pierre/ecs';
 import type { Camera } from '@pierre/ecs/modules/camera';
 import type { Renderer } from '@pierre/ecs/renderer';
 
-import type { SystemData } from '../../generation/universe';
+import type { StarData } from '../../generation/universe';
 import type { SectorCache } from '../../lod/sector-cache';
 import type { BodyKind, PickResult } from '../../pick';
 import type { OrbitElements, RingArc } from '../../sim/orbits';
@@ -132,7 +132,7 @@ export interface ThreeGlowContext {
 /** Star-layer inputs: where to read systems from and the focused one (whose sprite hands over from its sphere). */
 export interface ThreeStarContext {
   cache: Pick<SectorCache, 'get' | 'peek'>;
-  focused: SystemData | null;
+  focused: StarData | null;
   originX: number;
   originY: number;
   originZ: number;

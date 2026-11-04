@@ -17,9 +17,7 @@ Next ID: B44
 - B2 Move canvas / DPR sizing out of `main.ts` into its own module.
 - B3 Split the remaining ~800-line `three-renderer.ts` (glow tiers, orbit rings,
   camera sync) — `ThreeRenderer`.
-- B4 Tests for `SystemStreamer` (`lod/streaming.ts`, none yet), and broader
-  coverage of `camera-controller.ts` and `lod/sector-cache.ts` (regression tests
-  only).
+- B4 Broader coverage of `camera-controller.ts` (regression tests only).
 - B5 Performance budget: frame-time and star-count measurement per tier.
 - B6 Star-tier hover projects every drawn star each frame (~30k near a core);
   cache screen positions or use a coarse grid if it shows in profiles —

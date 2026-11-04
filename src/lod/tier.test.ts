@@ -6,7 +6,7 @@ import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, 
 import { AU_PER_LY } from '../generation/units';
 import { SECTOR_SIZE } from '../scale';
 import { SECTOR_CACHE_CAPACITY } from './sector-cache';
-import { galaxyFieldHalfDepth, layerWeights, sectorsAround, selectTier, starFieldReach, starTierTiltScale, tierBlend } from './tier';
+import { galaxyFieldHalfDepth, layerWeights, sectorsAround, sectorWithinReach, selectTier, starFieldReach, starTierTiltScale, tierBlend } from './tier';
 
 // A camera whose larger viewport axis spans `across` light-years.
 function camAcross(across: number): ReturnType<typeof makeCamera> {
@@ -130,5 +130,41 @@ describe('galaxyFieldHalfDepth', () => {
   it('stays as deep as the view is wide while the view is narrower than a cell', () => {
     const across = GALAXY_CELL_LY / 4;
     expect(galaxyFieldHalfDepth(camAcross(across)) / AU_PER_LY).toBeCloseTo(across / 2);
+  });
+});
+
+describe('sectorWithinReach', () => {
+  const S = SECTOR_SIZE;
+
+  it('accepts the sector holding the point and rejects one past the radius', () => {
+    expect(sectorWithinReach(0, 0, 0, 0.5 * S, 0.5 * S, 0.5 * S, 1)).toBe(true);
+    expect(sectorWithinReach(5, 0, 0, 0.5 * S, 0.5 * S, 0.5 * S, 3 * S)).toBe(false);
+  });
+
+  it('measures to the sector\'s nearest point, across faces and negative coordinates', () => {
+    // The point is 0.25 S below the face of sector (0, 0, 0) on every axis.
+    expect(sectorWithinReach(-1, -1, -1, 0.25 * S, 0.25 * S, 0.25 * S, 0)).toBe(false);
+    expect(sectorWithinReach(0, 0, 0, -0.25 * S, 0.5 * S, 0.5 * S, 0.25 * S)).toBe(true);
+    expect(sectorWithinReach(0, 0, 0, -0.25 * S, 0.5 * S, 0.5 * S, 0.24 * S)).toBe(false);
+  });
+
+  it('drops the corner sectors of the cube around a point', () => {
+    const r = 3 * S;
+    const range = sectorsAround(0.5 * S, 0.5 * S, 0.5 * S, r);
+    let inCube = 0;
+    let inSphere = 0;
+    for (let sz = range.minSz; sz <= range.maxSz; sz++) {
+      for (let sy = range.minSy; sy <= range.maxSy; sy++) {
+        for (let sx = range.minSx; sx <= range.maxSx; sx++) {
+          inCube++;
+          if (sectorWithinReach(sx, sy, sz, 0.5 * S, 0.5 * S, 0.5 * S, r))
+            inSphere++;
+        }
+      }
+    }
+    expect(inSphere).toBeLessThan(inCube * 0.8);
+    // The extreme corner is out, the middle of a face is in.
+    expect(sectorWithinReach(range.minSx, range.minSy, range.minSz, 0.5 * S, 0.5 * S, 0.5 * S, r)).toBe(false);
+    expect(sectorWithinReach(range.minSx, 0, 0, 0.5 * S, 0.5 * S, 0.5 * S, r)).toBe(true);
   });
 });

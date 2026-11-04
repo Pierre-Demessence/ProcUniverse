@@ -129,7 +129,7 @@ describe('toggleBookmark / removeBookmark', () => {
 });
 
 describe('bookmarkZ', () => {
-  const cache = { get: () => ({ systems: [{ x: 10, y: 10, z: 777 }, { x: 5000, y: 10, z: -50 }] }) } as never;
+  const cache = { get: () => ({ stars: [{ x: 10, y: 10, z: 777 }, { x: 5000, y: 10, z: -50 }] }) } as never;
   const bm = (kind: Bookmark['kind'], z?: number): Bookmark => ({ name: 'N', extentAu: 1, kind, label: 'N', x: 12, y: 11, ...(z === undefined ? {} : { z }) });
 
   it('uses the stored height when the bookmark has one', () => {

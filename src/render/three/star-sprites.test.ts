@@ -1,4 +1,4 @@
-import type { SectorData, SystemData } from '../../generation/universe';
+import type { SectorData, StarData } from '../../generation/universe';
 import type { StarLayerFrame } from './star-sprites';
 
 import { Group, Quaternion, Vector3 } from 'three/webgpu';
@@ -10,13 +10,13 @@ import { StarSpriteLayer } from './star-sprites';
 
 const LY = AU_PER_LY;
 
-function system(scientific: string, x: number, y: number, z: number, luminosity = 1): SystemData {
-  return { name: { human: scientific, scientific }, star: { colorHex: '#ffffff', luminosity }, x, y, z } as unknown as SystemData;
+function system(scientific: string, x: number, y: number, z: number, luminosity = 1): StarData {
+  return { name: { human: scientific, scientific }, star: { colorHex: '#ffffff', luminosity }, x, y, z } as unknown as StarData;
 }
 
 // A deterministic scatter of equal stars within 5 ly of the origin, so which
 // stars look brightest depends only on where they are seen from.
-function scatter(count: number): SystemData[] {
+function scatter(count: number): StarData[] {
   let state = 12345;
   const next = (): number => {
     state = (state * 1103515245 + 12345) % 2 ** 31;
@@ -26,8 +26,8 @@ function scatter(count: number): SystemData[] {
 }
 
 // One sector holding every star, so the layer never generates anything.
-function frame(systems: SystemData[], cameraPosition: Vector3, overrides: Partial<StarLayerFrame> = {}): StarLayerFrame {
-  const sector = { blackHoles: [], sx: 0, sy: 0, systems, sz: 0 } as SectorData;
+function frame(stars: StarData[], cameraPosition: Vector3, overrides: Partial<StarLayerFrame> = {}): StarLayerFrame {
+  const sector = { blackHoles: [], stars, sx: 0, sy: 0, sz: 0 } as SectorData;
   const cache = { get: () => sector, peek: () => sector };
   return {
     cache,
@@ -50,7 +50,7 @@ function frame(systems: SystemData[], cameraPosition: Vector3, overrides: Partia
 }
 
 function labelled(layer: StarSpriteLayer): string[] {
-  return layer.brightest([]).map(s => s.system.name.scientific).sort();
+  return layer.brightest([]).map(s => s.star.name.scientific).sort();
 }
 
 describe('starSpriteLayer', () => {
