@@ -1,6 +1,5 @@
 /**
- * Procedural planet rings (Stage 2 / workstream G — see
- * docs/plans/planet-rings.md). A translucent ring disc for planets flagged
+ * Procedural planet rings. A translucent ring disc for planets flagged
  * `hasRings`, lying in the planet's equatorial plane (oriented by the renderer)
  * and scaled to the planet.
  *

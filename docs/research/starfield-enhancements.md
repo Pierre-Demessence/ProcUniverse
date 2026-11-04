@@ -3,7 +3,7 @@
 Candidate next steps for the system-view background sky, with how comparable
 space visualisers approach the same problem. This is design context: picked-up
 items get a plan under [plans/](../plans/) and are tracked as one-liners in the
-[roadmap](../roadmap.md).
+[backlog](../backlog.md).
 
 ## Current state
 
@@ -17,11 +17,6 @@ The sky is a camera-locked dome (`src/render/three/starfield.ts`):
   density and the TSL band-glow shader, plus a few open clusters.
 - Intergalactic void: a thin uniform star field, no band.
 - Regenerated per galaxy and per ~50,000 AU position bucket; cached.
-
-Shipped plans: [background-starfield.md](../plans/done/background-starfield.md),
-[starfield-falloff.md](../plans/done/starfield-falloff.md),
-[starfield-star-realism.md](../plans/done/starfield-star-realism.md),
-[starfield-band-structure.md](../plans/done/starfield-band-structure.md).
 
 ## Why a skybox is physically right inside a system
 
@@ -69,17 +64,10 @@ directions, over the statistical dome.
 - **Payoff:** a seamless system → sector zoom (sky stars become map stars
   instead of swapping), and every bright star is a place you can go (pickable
   / labelled later).
-- **Blocker — flat galaxy:** systems currently sit on the galaxy plane (z = 0
-  at galaxy scale), so every neighbour would land exactly on the band's centre
-  line. Needs per-system out-of-plane offsets — either the 3D-galaxy work
-  ([rendering-backend.md](../plans/rendering-backend.md) Stage 3) or a
-  deterministic, visual-only z jitter scaled to the disk thickness.
 - **Cost:** needs neighbour star records without full planet generation (see
-  the star-tier generation performance item in the roadmap).
-- **History:** the original starfield decision
-  ([system-visuals.md](../plans/system-visuals.md) decisions log) chose a
-  procedural dome over "rendering every real neighbour"; the hybrid keeps the
-  dome and adds only the nearest few hundred.
+  star-only sector records in [universe-3d.md](../plans/universe-3d.md) B1.2).
+- The dome stays procedural rather than rendering every real neighbour; the
+  hybrid adds only the nearest few hundred.
 
 ### 2. Intergalactic-void sky
 
@@ -116,7 +104,7 @@ distance already computed for the toward-core direction.
 
 An elliptical host has no disk: no band or dust, just a smooth glow brightening
 toward the core. Irregular hosts: patchy with no clear plane. Depends on galaxy
-types and the 3D-galaxy model (roadmap: "starfield realism" follow-on).
+types and the 3D-galaxy model ([universe-3d.md](../plans/universe-3d.md) B1.8).
 
 ### 7. Rebuild off the main thread
 

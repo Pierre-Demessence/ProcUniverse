@@ -1,5 +1,5 @@
 /**
- * Atmosphere rim glow (docs/plans/planet-surfaces.md Phase 1): an additive shell
+ * Atmosphere rim glow: an additive shell
  * around the planet, slightly larger than it, so the glow can extend past the
  * silhouette. Per fragment it finds the sight line's closest approach to the
  * planet centre and shades by the atmosphere column along it

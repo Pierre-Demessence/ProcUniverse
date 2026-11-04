@@ -9,10 +9,6 @@
  * glow, which a node material shades with extra fine grain. The whole dome is
  * recentred on the camera and scaled inside its near/far range each frame by the
  * renderer (see `place`).
- *
- * Workstream C of docs/plans/system-visuals.md.
- * See docs/plans/done/background-starfield.md and
- * docs/plans/starfield-band-structure.md.
  */
 
 import type { UniformNode } from 'three/webgpu';

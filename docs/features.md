@@ -1,6 +1,6 @@
 # Features
 
-Shipped features. Planned work is in [roadmap.md](roadmap.md).
+Shipped features. Planned work is in [backlog.md](backlog.md).
 
 ## Navigation and view
 

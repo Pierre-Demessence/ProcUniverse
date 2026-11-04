@@ -1,6 +1,6 @@
 /**
  * Bake a procedural planet surface into an equirectangular texture once, then
- * sample it on the sphere (docs/plans/planet-surfaces.md §3.2). Mipmapped +
+ * sample it on the sphere. Mipmapped +
  * anisotropic, so fine surface detail filters away cleanly when the planet is
  * only a few pixels wide instead of shimmering like per-pixel noise does.
  */

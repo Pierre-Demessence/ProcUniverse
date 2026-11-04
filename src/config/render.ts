@@ -49,14 +49,12 @@ export const TILT_DEFAULT = 0.35;
 export const FLAT_TILT = 0;
 export const SPHERE_WIDTH_SEGMENTS = 32;
 export const SPHERE_HEIGHT_SEGMENTS = 24;
-// Width (px) of a planet's baked equirectangular surface map (height = width/2);
-// see docs/plans/planet-surfaces.md §3.2.
+// Width (px) of a planet's baked equirectangular surface map (height = width/2).
 export const PLANET_SURFACE_MAP_WIDTH = 1024;
 // Moons are small on screen and a giant can hold dozens, so their maps are
 // smaller (a 1024-wide half-float map with mips is ~5 MB of GPU memory).
 export const MOON_SURFACE_MAP_WIDTH = 256;
-// Atmosphere rim glow per atmosphere family (docs/plans/planet-surfaces.md
-// Phase 1): a soft halo just outside the limb on the sunlit side. Scale heights
+// Atmosphere rim glow per atmosphere family: a soft halo just outside the limb on the sunlit side. Scale heights
 // are exaggerated far beyond the real ~0.1 % of a radius so the glow reads at
 // system-view sizes. Tuned in the planet lab (`/lab.html`).
 export const ATMOSPHERE_LOOKS: Readonly<Record<AtmosphereKind, AtmosphereLook>> = {
@@ -66,13 +64,13 @@ export const ATMOSPHERE_LOOKS: Readonly<Record<AtmosphereKind, AtmosphereLook>> 
   'n2-co2': { intensity: 1, scaleHeight: 0.025, tint: '#6fa8ff', twilight: 0.25 },
   'thin-n2': { intensity: 0.5, scaleHeight: 0.012, tint: '#a9bcdc', twilight: 0.1 },
 };
-// Rocky / super-Earth surfaces (Phase 2): land colours blend along the surface-
+// Rocky / super-Earth surfaces: land colours blend along the surface-
 // temperature anchors (icy → cold rock → temperate → hot rust → scorched →
 // molten crust); oceans fill below `seaLevel` on liquid-water worlds; caps grow
 // as the world cools from `capWarmK` to `capColdK`; lava glows in the lowlands
 // between `moltenStartK` and `moltenFullK`. Relief is exaggerated so terrain
 // catches the light. Tuned in the planet lab (`/lab.html`).
-// Cloud layer on rocky worlds that keep an atmosphere (Phase 4): a lit,
+// Cloud layer on rocky worlds that keep an atmosphere: a lit,
 // translucent shell `CLOUD_ALTITUDE` planet radii above the surface, baked once
 // per planet at `CLOUD_MAP_WIDTH`. Earth-like air → broken swirls; runaway CO₂
 // → Venus-like total overcast; thin N₂ → sparse wisps. Tuned in the planet lab.
@@ -83,7 +81,7 @@ export const CLOUD_LOOKS: Readonly<Record<CloudKind, CloudLook>> = {
   'n2-co2': { color: '#f4f6f8', coverage: 0.5, haze: 0, scale: 3, softness: 0.08, stretch: 1.6, swirl: 2.5 },
   'thin-n2': { color: '#e6e9ee', coverage: 0.15, haze: 0, scale: 4, softness: 0.1, stretch: 2, swirl: 1.5 },
 };
-// Moon surfaces (Phase 3): airless bodies at their host planet's temperature,
+// Moon surfaces: airless bodies at their host planet's temperature,
 // grey regolith or ice by bulk density, more heavily cratered than planets.
 export const MOON_SURFACE: Readonly<MoonTuning> = {
   continentScale: 2.2,
@@ -245,7 +243,7 @@ export const STAR_SECTOR_BUDGET_MS = 4;
 // ── Visual disc sizing (non-physical, AU) ─────────────────────────────
 // Bodies are currently drawn at their true physical radius (see `scale.ts`), so
 // these are dormant. They are the tuning inputs for the planned zoom-aware
-// apparent-size morph (Phase 4): a floor size a body never shrinks below, so
+// apparent-size morph: a floor size a body never shrinks below, so
 // stars and planets stay visible and correctly ordered when zoomed out, while
 // true physical size takes over as you zoom in. Log-mapped, clamped.
 export const STAR_DISC_BASE_AU = 0.16;

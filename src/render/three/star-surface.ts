@@ -1,6 +1,5 @@
 /**
- * Pure, data-driven parameters for procedural star shading (see
- * docs/plans/star-shading.md). Kept free of any Three.js / TSL import so it is
+ * Pure, data-driven parameters for procedural star shading. Kept free of any Three.js / TSL import so it is
  * cheap to unit test and reusable; the TSL material in `star-material.ts` feeds
  * these values into the shader as uniforms.
  */

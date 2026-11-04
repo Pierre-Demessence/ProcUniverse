@@ -1,5 +1,5 @@
 /**
- * Rocky / super-Earth surface (docs/plans/planet-surfaces.md Phase 2): smooth
+ * Rocky / super-Earth surface: smooth
  * fBM terrain, bowl-and-rim craters, oceans below a sea level, latitude ice caps
  * with a noisy edge, and lava glowing in the lowlands of molten worlds. Global
  * knobs come from `RockyTuning`, per-planet inputs from `rockyRegime`; the

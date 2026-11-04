@@ -4,7 +4,7 @@
  * temperature (Planck spectrum → CIE XYZ → sRGB). Rather than recompute that
  * integral, we interpolate Mitchell Charity's tabulated `bbr_color` dataset
  * (sRGB, 2° observer) — the standard reference for "what colour are the
- * stars?". See docs/research/realistic-simulation.md §4.4.
+ * stars?". See docs/physics.md (Blackbody colour).
  */
 
 interface ColorAnchor {

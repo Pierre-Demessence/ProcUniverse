@@ -1,5 +1,5 @@
 /**
- * Procedural star-surface shading (Stage 2, R2 — see docs/plans/star-shading.md).
+ * Procedural star-surface shading.
  *
  * A star is a real sphere, but a flat self-lit fill makes it read as a disc from
  * any angle. This builds a TSL node material (WebGPU path, WebGL2 fallback) that
@@ -24,7 +24,11 @@ export interface StarMaterialHandle {
   dispose: () => void;
   /** Assign the star being drawn: base blackbody colour + temperature look. */
   setStar: (colorHex: string, temperature: number) => void;
-  /** Advance the wall-clock time (seconds) driving flicker + granulation drift. */
+  /**
+   * Advance the wall-clock time (seconds) driving flicker + granulation drift.
+   * Wall clock, not sim time, so pausing doesn't freeze the star and time-warp
+   * doesn't strobe it.
+   */
   setTime: (seconds: number) => void;
 }
 

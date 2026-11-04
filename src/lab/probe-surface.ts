@@ -1,7 +1,8 @@
 /**
  * A throwaway test surface for the planet lab: mottled two-colour noise plus
  * polar caps. It is not a real look — it exists to compare the baked and
- * per-pixel albedo paths (plan §3.2) with detail you can push until it shimmers.
+ * per-pixel albedo paths with detail you can push until it shimmers (the
+ * comparison that made baking the default).
  */
 
 import type { PlanetSurface } from '../render/three/surface-bake';

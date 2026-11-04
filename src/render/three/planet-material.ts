@@ -1,5 +1,5 @@
 /**
- * Shared lit planet material (docs/plans/planet-surfaces.md §3). Planets stay
+ * Shared lit planet material. Planets stay
  * lit by the star's point light — only the albedo (plus relief and any thermal
  * glow) changes — so the day/night terminator keeps working. Moons use the
  * same material with a moon surface. Planet types without a surface slice yet

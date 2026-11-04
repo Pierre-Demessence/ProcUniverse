@@ -1,7 +1,6 @@
 /**
  * Planet lab — a dev-only page (`/lab.html`, not part of the production build)
- * for tuning planet surface and atmosphere looks by eye
- * (docs/plans/planet-surfaces.md).
+ * for tuning planet surface and atmosphere looks by eye (docs/decisions.md D8).
  * One planet, large, lit by a movable point light, with live sliders driving the
  * same material the app uses; tuned values are copied out as JSON.
  */

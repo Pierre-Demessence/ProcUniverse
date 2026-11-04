@@ -1,6 +1,7 @@
 /**
- * Cloud layer (docs/plans/planet-surfaces.md Phase 4): a lit, translucent shell
- * just above a rocky planet's surface. The cloud pattern is domain-warped fBM
+ * Cloud layer: a lit, translucent shell just above a rocky planet's surface. A
+ * separate shell rather than a layer inside the surface material, which would
+ * inherit the terrain relief, sit flat on the ground and never drift. The cloud pattern is domain-warped fBM
  * (the swirl of weather systems), compressed in latitude so clouds stream
  * east–west, thresholded to the family's coverage, over an optional uniform
  * haze for total overcast. Baked once per planet like the surfaces; the star

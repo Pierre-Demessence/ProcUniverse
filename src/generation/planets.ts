@@ -17,7 +17,7 @@ export type WaterState = 'ice' | 'liquid' | 'vapour';
  * Masses/radii are in Earth units; temperature in kelvin; density in g/cm³;
  * rotation in hours; obliquity in degrees. Mass is the primary draw (everything
  * chemical and thermal follows from it plus the host star's luminosity); rotation,
- * axial tilt, moon richness, and rings are four further draws (research §5.3–5.4).
+ * axial tilt, moon richness, and rings are four further draws (docs/physics.md, Planet type, radius, density; Equilibrium temperature and habitable zone).
  */
 export interface PlanetPhysical {
   density: number;
@@ -257,7 +257,7 @@ export function centralPressure(massEarth: number, radiusEarth: number): number 
 /**
  * A coarse bulk-composition label. Giants are gaseous/icy by class; smaller
  * worlds are split by mean density, which tracks the iron / rock / water / gas
- * mix (research §3.1).
+ * mix (docs/research/celestial-properties-extensions.md §3.1).
  */
 export function compositionClass(type: PlanetType, density: number): string {
   if (type === 'gas-giant')

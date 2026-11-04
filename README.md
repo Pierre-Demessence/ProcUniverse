@@ -34,4 +34,5 @@ Validate with `npm run build` (typecheck + bundle), `npm test`, and
 
 ## Documentation
 
-See [docs/INDEX.md](docs/INDEX.md).
+The docs map is in [AGENTS.md](AGENTS.md#docs-map); shipped features are
+listed in [docs/features.md](docs/features.md).

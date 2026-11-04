@@ -6,7 +6,7 @@
  * of truth for BOTH the diffuse band glow (GPU) and the star density (CPU), so
  * the two always agree.
  *
- * Pure maths, no Three.js. See docs/plans/starfield-band-structure.md.
+ * Pure maths, no Three.js.
  */
 
 /**

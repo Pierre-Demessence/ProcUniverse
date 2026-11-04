@@ -24,15 +24,6 @@
 | `src/persistence/` | Persistence: `save.ts` stores the universe save (seed + camera view + sim clock/speed); `preferences.ts` stores display settings (temperature unit) that outlive a seed reset. |
 | `docs/` | Project documentation and plans. |
 
-## Conventions
-
-- TypeScript with ES modules and `verbatimModuleSyntax` — use `import type`
-  for type-only imports.
-- Prefer engine modules over hand-rolled helpers. Check the engine API surface
-  first: `../Entity-Cornponent-System-Engine/docs/agent/engine-api.md`.
-- All camera and pointer math runs in canvas backing pixels; keep
-  `camera.viewportW/H` equal to `canvas.width/height`.
-
 ## Where to add new code
 
 - New visuals → `src/render/three/`; screen-space text and markers → the overlay in `src/render/`.

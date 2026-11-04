@@ -1,6 +1,6 @@
 /**
- * Pure, data-driven helpers for procedural planet surfaces and atmospheres (see
- * docs/plans/planet-surfaces.md). Kept free of any Three.js / TSL import so they
+ * Pure, data-driven helpers for procedural planet surfaces and atmospheres.
+ * Kept free of any Three.js / TSL import so they
  * are cheap to unit test; the TSL side (`planet-material.ts`, `surface-bake.ts`,
  * `atmosphere-material.ts`) mirrors the maths here.
  */
@@ -111,7 +111,7 @@ export function atmosphereColumn(d: number, scaleHeight: number): number {
   return Math.min(Math.sqrt(scaleHeight / (2 * Math.PI)) / cosZenith, 1);
 }
 
-/** Planet types drawn with the rocky surface (giants get their own in Phase 5). */
+/** Planet types drawn with the rocky surface (giants get their own later, backlog B10). */
 export function isRockyType(type: PlanetType): boolean {
   return type === 'rocky' || type === 'super-earth';
 }

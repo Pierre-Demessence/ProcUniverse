@@ -4,15 +4,15 @@ import { AU_PER_LY, kmToAu, R_EARTH_KM, R_SUN_KM, SCHWARZSCHILD_AU_PER_SOLAR_MAS
 /**
  * The world's spatial scale. The world unit is the **astronomical unit (AU)**:
  * planet orbits are a few-to-tens of AU while stars are light-years apart, the
- * ~10⁵× ratio that makes space feel real (research §2.1). `LY_PER_SECTOR` (in
+ * ~10⁵× ratio that makes space feel real (docs/physics.md, Units and constants). `LY_PER_SECTOR` (in
  * `config.ts`) sets the sector size; this module derives the world scale and the
  * drawn radius of each body.
  *
  * Bodies are drawn at their **true physical radius** (a star is a rounding error
  * at AU scale — the Sun is ~0.005 AU), so a framed system shows tiny, near-
- * invisible bodies. That is the honest baseline; a zoom-aware apparent-size morph
- * (Phase 4, see docs/plans/system-scale-realism.md) will make it usable without
- * lying about scale. The dormant `*_DISC_*` knobs in `config.ts` feed that morph.
+ * invisible bodies. That is the honest baseline; a zoom-aware apparent-size floor
+ * (`bodyFloorPx` in `render/body-scale.ts`) makes it usable without lying about
+ * scale (docs/physics.md, Size versus distance). The dormant `*_DISC_*` knobs in `config.ts` feed that morph.
  */
 
 /** Sector edge length, in AU (the world unit), derived from `LY_PER_SECTOR`. */

@@ -12,7 +12,7 @@ distribution, the observational basis, and whether a **new RNG draw** is needed
 (a new draw inserted mid-stream shifts the deterministic universe — see
 [§0.2](#02-seed-stability-the-draws-column)).
 
-This extends [realistic-simulation.md](./realistic-simulation.md); it reuses the
+This extends [physics.md](../physics.md); it reuses the
 constants in [src/generation/units.ts](../../src/generation/units.ts) and the
 existing derivations in [src/generation/stars.ts](../../src/generation/stars.ts),
 [planets.ts](../../src/generation/planets.ts),

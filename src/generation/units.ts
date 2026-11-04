@@ -5,7 +5,7 @@
  * the textbook formulas; SI constants are kept for the few places that need
  * them. Distances use two scales: AU within a system, light-years between
  * systems (one light-year ≈ 63,241 AU — the ~10⁵× ratio that makes space feel
- * real). Sources and exact values: docs/research/realistic-simulation.md §9.
+ * real). Sources and exact values: docs/physics.md (Sources).
  */
 
 /** Stefan–Boltzmann constant σ, in W·m⁻²·K⁻⁴. */

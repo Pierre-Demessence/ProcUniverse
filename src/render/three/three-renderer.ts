@@ -1,13 +1,13 @@
 /**
  * Three.js renderer (WebGPU pipeline, WebGL2 auto-fallback): the only scene
- * renderer (design: docs/plans/rendering-backend.md).
+ * renderer (see docs/decisions.md D3).
  *
  * It owns its own canvas, behind the transparent 2D overlay canvas that carries
  * labels, the reticle and the HUD (a canvas holds only one context type). The
  * system and star tiers share one orbit/tilt perspective camera and bloom
  * pipeline: the system layer draws bodies as lit, rotating 3D spheres, the star
  * layer each system as a bloomed sprite, and the two cross-fade over a zoom
- * band (docs/plans/star-tier-3d.md). The galaxy, galaxy-field and universe
+ * band. The galaxy, galaxy-field and universe
  * tiers draw additive glow sprites under an orthographic top-down camera that
  * matches the camera module's `worldToView` mapping, so overlay labels line up
  * with them.

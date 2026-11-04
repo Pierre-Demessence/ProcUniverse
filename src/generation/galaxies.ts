@@ -698,7 +698,7 @@ const UNIVERSE_AGE_MAX_YEARS = 18e9;
  * Per-seed age of the universe (years), drawn from an independent hash of the
  * world seed (8–18 Gyr). Independent of the rng stream, so it never perturbs
  * body draws — it only shifts values: a young universe is metal-poor and
- * planet-sparse, an old one enriched and remnant-heavy (research §7.1).
+ * planet-sparse, an old one enriched and remnant-heavy (docs/research/celestial-properties-extensions.md §7.1).
  */
 export function universeAge(worldSeed: number): number {
   const u = hashGalaxy((worldSeed ^ UNIVERSE_AGE_SALT) >>> 0, 0, 0, 0) / 4294967296;

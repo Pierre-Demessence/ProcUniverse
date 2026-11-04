@@ -53,7 +53,7 @@ export const StarPhysicalDef: ComponentDef<StarPhysical> = simpleComponent<StarP
 
 // Kroupa (2001) Initial Mass Function: dN/dM ∝ M^(−α), a broken power law.
 // Low-mass stars dominate (~76% of the [0.08, 0.5] segment), so the field
-// skews heavily toward M dwarfs, as observed (research §4.1). Clamped to a
+// skews heavily toward M dwarfs, as observed (docs/physics.md, Stellar mass: the IMF). Clamped to a
 // playable [0.08, 50] M☉ range.
 const IMF_MIN_MASS = 0.08;
 const IMF_BREAK_MASS = 0.5;
@@ -105,7 +105,7 @@ export function sampleStellarMass(rng: RandomFn, activity = 0.5): number {
 
 /**
  * Main-sequence luminosity (L☉) from mass (M☉) — the piecewise mass–luminosity
- * relation (research §4.2). Steep: a 10 M☉ star is ~10⁴× the Sun.
+ * relation (docs/physics.md, Mass to luminosity, radius, temperature). Steep: a 10 M☉ star is ~10⁴× the Sun.
  */
 export function luminosityFromMass(mass: number): number {
   if (mass < 0.43)
@@ -117,7 +117,7 @@ export function luminosityFromMass(mass: number): number {
   return 32000 * mass;
 }
 
-/** Main-sequence radius (R☉) from mass (M☉), approximate (research §4.2). */
+/** Main-sequence radius (R☉) from mass (M☉), approximate (docs/physics.md, Mass to luminosity, radius, temperature). */
 export function radiusFromMass(mass: number): number {
   return mass <= 1 ? mass ** 0.8 : mass ** 0.57;
 }

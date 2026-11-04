@@ -1,14 +1,14 @@
 # Gas-giant shading & aesthetic — research
 
-Research for the gas/ice-giant slice of the planet-surface overhaul
-([planet-surfaces.md](../plans/planet-surfaces.md), Phase 5). The first two
+Research for gas / ice giant surfaces ([backlog](../backlog.md) B10, with
+band motion in B11). The first two
 shader attempts moved but looked "ugly / not gaseous / not like Jupiter." This
 gathers (a) what real giants and the game/film aesthetic actually look like, and
 (b) the proven procedural techniques, then distills a concrete recipe and
 explains precisely why the earlier attempts missed.
 
-> Status: research only, no code. Feeds the Phase-5 (static) and Phase-6
-> (motion) shader work.
+> Status: research only, no code. Feeds the static (B10) and motion (B11)
+> shader work.
 
 ## 1. What a gas giant actually looks like (the target)
 
@@ -203,13 +203,13 @@ So: keep ice giants in this plan; give them their **own regime constants**
 | "degenerates into grains over time" | unbounded `time` added to noise sample position → precision breakdown | §2.4 longitude-rotation advection (bounded) + bounded churn |
 | bands felt random when warped | strong warp fed into the band *phase* scrambled them | §2.3 warp latitude *slightly*; keep bands stable |
 
-## 4. Recommended recipe (Phases 5–6)
+## 4. Recommended recipe
 
 All in TSL, lit `MeshStandardNodeMaterial` (albedo only), driven by
 `PlanetPhysical` data. Pseudocode (per fragment):
 
-Phase 5 (static) uses this recipe with `time = 0` (no advection, no churn);
-the `time` terms are added in Phase 6 (band motion).
+The static surface (B10) uses this recipe with `time = 0` (no advection, no
+churn); the `time` terms belong to band motion (B11).
 
 ```text
 lat   = positionLocal.y                       // −1..1, spin-axis aligned
