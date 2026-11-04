@@ -3,7 +3,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import type { GeneratedName } from '../generation/naming';
 
-import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
+import { cameraViewRect } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
 import { GALAXY_SPRITE_SCALE } from '../config/render';
@@ -42,8 +42,12 @@ export interface LabelledStar {
   z: number;
 }
 
-/** Projects a render-origin-frame world point to backing-px screen coords; false if off/behind. */
-export type ScreenProjector = (x: number, y: number, z: number, out: { sx: number; sy: number }) => boolean;
+/**
+ * Projects a render-origin-frame world point to backing-px screen coords; false
+ * if off/behind. `pxPerAu` (when the projector provides it) is the on-screen
+ * size of one AU at the point's depth.
+ */
+export type ScreenProjector = (x: number, y: number, z: number, out: { pxPerAu?: number; sx: number; sy: number }) => boolean;
 
 /**
  * STAR tier: name the given stars (the brightest few, or the hovered one) just
@@ -121,10 +125,10 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, world: EcsWorld,
 
 /**
  * GALAXY-FIELD tier: each galaxy's catalogue name below its glow sprite, once
- * the sprite is wide enough to carry one. The tier's top-down view maps world to
- * screen directly, so `worldToView` places the labels on the Three sprites.
- * Zoomed out until even the largest galaxy is too small to label, the scan is
- * skipped.
+ * the sprite is wide enough to carry one. `project` is the perspective camera
+ * that draws the sprites, so the labels sit on them at any orbit and tilt; the
+ * sprite's size is read at the galaxy's own depth. Zoomed out until even the
+ * largest galaxy is too small to label, the scan is skipped.
  */
 export function drawGalaxyFieldLabels(
   ctx2d: CanvasRenderingContext2D,
@@ -132,7 +136,9 @@ export function drawGalaxyFieldLabels(
   seed: number,
   originX: number,
   originY: number,
+  originZ: number,
   focusZ: number,
+  project: ScreenProjector,
 ): void {
   if (GALAXY_MAX_RADIUS_AU * cam.zoom * GALAXY_SPRITE_SCALE * 2 < GALAXY_LABEL_MIN_PX)
     return;
@@ -145,12 +151,14 @@ export function drawGalaxyFieldLabels(
   ctx2d.fillStyle = GALAXY_LABEL_FILL;
   ctx2d.textAlign = 'center';
   ctx2d.textBaseline = 'top';
+  const screen = { pxPerAu: 0, sx: 0, sy: 0 };
   for (const g of galaxiesInBox(seed, minX, minY, focusZ - halfDepth, minX + rect.w, minY + rect.h, focusZ + halfDepth)) {
-    const radiusPx = g.radius * cam.zoom * GALAXY_SPRITE_SCALE;
+    if (!project(g.centerX - originX, g.centerY - originY, g.centerZ - originZ, screen))
+      continue;
+    const radiusPx = g.radius * screen.pxPerAu * GALAXY_SPRITE_SCALE;
     if (radiusPx * 2 < GALAXY_LABEL_MIN_PX)
       continue;
-    const v = worldToView(g.centerX - originX, g.centerY - originY, cam);
-    ctx2d.fillText(namingStyle.value === 'human' ? g.humanName : g.name, v.vx, v.vy + radiusPx + 3);
+    ctx2d.fillText(namingStyle.value === 'human' ? g.humanName : g.name, screen.sx, screen.sy + radiusPx + 3);
   }
   ctx2d.restore();
 }

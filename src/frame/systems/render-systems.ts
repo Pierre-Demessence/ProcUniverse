@@ -3,6 +3,7 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import type { SchedulableSystem } from '@pierre/ecs/scheduler';
 
 import type { CameraController } from '../../camera/camera-controller';
+import type { Vec3 } from '../../camera/plane-basis';
 import type { SectorCache } from '../../lod/sector-cache';
 import type { SystemStreamer } from '../../lod/streaming';
 import type { ThreeBackend } from '../../render/three-backend';
@@ -12,13 +13,13 @@ import type { SelectionState } from '../../selection-state';
 import type { FrameCtx } from '../frame-context';
 import type { FrameState } from '../frame-state';
 
-import { worldToView } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
-import { blendPlaneNormal, GALACTIC_NORMAL } from '../../camera/plane-basis';
-import { GALAXY_SPRITE_SCALE } from '../../config/render';
+import { easePlaneNormal, referencePlaneNormal } from '../../camera/plane-basis';
+import { GALAXY_SPRITE_SCALE, PLANE_EASE_MS } from '../../config/render';
 import { BodyVisualDef } from '../../generation/body-visual';
-import { layerWeights, SYSTEM_LAYER_REACH_AU } from '../../lod/tier';
+import { galaxyAt } from '../../generation/galaxies';
+import { bandBlend, distanceLy, layerWeights, SYSTEM_LAYER_REACH_AU, TIER_BANDS } from '../../lod/tier';
 import { applyBodyScale } from '../../render/body-scale';
 import { drawBodyLabels, drawGalaxyFieldLabels, drawStarLabels } from '../../render/draw-labels';
 import { drawSelectReticle } from '../../render/select-reticle';
@@ -31,7 +32,7 @@ export interface RenderSystemDeps {
   cache: SectorCache;
   camera: Camera;
   canvas: HTMLCanvasElement;
-  controller: Pick<CameraController, 'azimuth' | 'focusZ' | 'setSystemPlane' | 'tilt'>;
+  controller: Pick<CameraController, 'azimuth' | 'focusZ' | 'setReferencePlane' | 'tilt'>;
   ctx2d: CanvasRenderingContext2D;
   seed: number;
   selectionState: Pick<SelectionState, 'select' | 'selection'>;
@@ -57,10 +58,28 @@ export function makeOverlayClearSystem(deps: Pick<RenderSystemDeps, 'canvas' | '
 }
 
 /**
+ * The reference plane's normal this frame, for every tier: the focused disk
+ * inside a system, swinging to the host galaxy's disk across the system ↔ star
+ * band and on to world +z across the galaxy-field ↔ universe band. The host is
+ * the galaxy the focus is inside, or the last one it was inside while in the
+ * void; a change of host eases in over `PLANE_EASE_MS` instead of snapping.
+ */
+function frameReferenceNormal(deps: Pick<RenderSystemDeps, 'camera' | 'seed' | 'state'>, ctx: FrameCtx): Vec3 {
+  const { camera, seed, state } = deps;
+  const host = galaxyAt(seed, ctx.camAbsX, ctx.camAbsY, ctx.camAbsZ);
+  if (host)
+    state.hostTarget = host.diskNormal;
+  state.hostNormal = state.hostNormal === null ? state.hostTarget : easePlaneNormal(state.hostNormal, state.hostTarget, ctx.dtMs, PLANE_EASE_MS);
+  const universeBlend = bandBlend(TIER_BANDS[3]!, distanceLy(camera));
+  return referencePlaneNormal(ctx.focusedSystem?.diskNormal ?? null, state.hostNormal, ctx.blend, universeBlend);
+}
+
+/**
  * Draws the active tier with Three.js and its labels on the overlay. `camera`
  * is already in the render-origin frame; the lock re-centre at the top of the
  * frame set it to the body's local position, so a locked body stays centred.
- * The system and star tiers are one blended 3D render (`ctx.blend`).
+ * Every tier is seen through one perspective camera: the system and star tiers
+ * are one blended render (`ctx.blend`), the galaxy tiers draw billboard glows.
  */
 export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'camera' | 'controller' | 'ctx2d' | 'seed' | 'state' | 'streamer' | 'threeBackend' | 'world'>): SchedulableSystem<FrameCtx> {
   const { cache, camera, controller, ctx2d, seed, state, streamer, threeBackend, world } = deps;
@@ -75,6 +94,9 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
       ctx.localCam = localCam;
       const originX = state.renderOriginX;
       const originY = state.renderOriginY;
+      const originZ = state.renderOriginZ;
+      const planeNormal = frameReferenceNormal({ camera, seed, state }, ctx);
+      controller.setReferencePlane(planeNormal[0], planeNormal[1], planeNormal[2]);
       if (ctx.tier === 'system' || ctx.tier === 'star') {
         const { blend } = ctx;
         const weights = layerWeights(blend);
@@ -87,12 +109,6 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
         // before the passes read them.
         if (systemLayer)
           applyBodyScale(world, localCam.zoom, weights.bodies);
-        // Anchor the 3D camera + pan to the focused system's orbital plane, so a
-        // low tilt reads as a true top-down (orbits as circles) regardless of how
-        // the disk is oriented in space; across the cross-fade it swings to the
-        // galactic plane, which the star tier orbits around.
-        const planeNormal = blendPlaneNormal(ctx.focusedSystem?.diskNormal ?? GALACTIC_NORMAL, blend);
-        controller.setSystemPlane(planeNormal[0], planeNormal[1], planeNormal[2]);
         const starsDrawn = three.render({
           azimuth: controller.azimuth,
           blend,
@@ -100,7 +116,7 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
           focusZ: controller.focusZ,
           planeNormal,
           simSeconds: state.simSeconds,
-          stars: blend > 0 ? { cache, focused: ctx.focusedSystem, originX, originY, originZ: state.renderOriginZ } : null,
+          stars: blend > 0 ? { cache, focused: ctx.focusedSystem, originX, originY, originZ } : null,
           tilt: controller.tilt,
           world,
         });
@@ -126,15 +142,18 @@ export function makeRenderThreeSystem(deps: Pick<RenderSystemDeps, 'cache' | 'ca
         const status = streamer.status();
         state.lastDrawnCount = (systemLayer ? status.stars + status.planets : 0) + starsDrawn;
       }
-      else if (ctx.tier === 'galaxy-field') {
-        state.lastDrawnCount = three.renderGalaxyField({ camera: localCam, focusZ: ctx.camAbsZ, originX, originY, seed });
-        drawGalaxyFieldLabels(ctx2d, localCam, seed, originX, originY, ctx.camAbsZ);
-      }
-      else if (ctx.tier === 'galaxy') {
-        state.lastDrawnCount = three.renderGalaxy({ camera: localCam, focusZ: ctx.camAbsZ, originX, originY, seed });
-      }
       else {
-        state.lastDrawnCount = three.renderUniverse({ camera: localCam, focusZ: ctx.camAbsZ, originX, originY, seed });
+        const glow = { azimuth: controller.azimuth, camera: localCam, focusZ: ctx.camAbsZ, localFocusZ: controller.focusZ, originX, originY, originZ, planeNormal, seed, tilt: controller.tilt };
+        if (ctx.tier === 'galaxy-field') {
+          state.lastDrawnCount = three.renderGalaxyField(glow);
+          drawGalaxyFieldLabels(ctx2d, localCam, seed, originX, originY, originZ, ctx.camAbsZ, (x, y, z, out) => three.projectToScreen(x, y, z, out));
+        }
+        else if (ctx.tier === 'galaxy') {
+          state.lastDrawnCount = three.renderGalaxy(glow);
+        }
+        else {
+          state.lastDrawnCount = three.renderUniverse(glow);
+        }
       }
     },
   };
@@ -173,11 +192,13 @@ export function makeReticleSystem(deps: Pick<RenderSystemDeps, 'camera' | 'ctx2d
       if (selection.kind === 'galaxy') {
         // A galaxy selection persists across tiers (it may be pinned from the
         // location tree while zoomed in); only its on-canvas reticle is gated to
-        // the galaxy-field tier, whose top-down view maps world to screen
-        // directly.
-        if (ctx.tier === 'galaxy-field' && localCam) {
-          const screen = worldToView(selection.galaxy.centerX - state.renderOriginX, selection.galaxy.centerY - state.renderOriginY, localCam);
-          drawSelectReticle(ctx2d, screen.vx, screen.vy, selection.galaxy.radius * GALAXY_SPRITE_SCALE * camera.zoom);
+        // the galaxy-field tier, where its sprite is drawn.
+        const galaxyThree = threeBackend.renderer;
+        if (ctx.tier === 'galaxy-field' && localCam && ctx.threeActive && galaxyThree) {
+          const g = selection.galaxy;
+          const p = { pxPerAu: 0, sx: 0, sy: 0 };
+          if (galaxyThree.projectToScreen(g.centerX - state.renderOriginX, g.centerY - state.renderOriginY, g.centerZ - state.renderOriginZ, p))
+            drawSelectReticle(ctx2d, p.sx, p.sy, g.radius * GALAXY_SPRITE_SCALE * p.pxPerAu);
         }
         return;
       }

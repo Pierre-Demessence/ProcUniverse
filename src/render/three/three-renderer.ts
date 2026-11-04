@@ -6,11 +6,10 @@
  * labels, the reticle and the HUD (a canvas holds only one context type). The
  * system and star tiers share one orbit/tilt perspective camera and bloom
  * pipeline: the system layer draws bodies as lit, rotating 3D spheres, the star
- * layer each system as a bloomed sprite, and the two cross-fade over a zoom
- * band. The galaxy, galaxy-field and universe
- * tiers draw additive glow sprites under an orthographic top-down camera that
- * matches the camera module's `worldToView` mapping, so overlay labels line up
- * with them.
+ * layer each system as a bloomed sprite, and the two cross-fade over a distance
+ * band. The galaxy, galaxy-field and universe tiers draw additive glow sprites
+ * as billboards through the same perspective camera, so every tier orbits,
+ * tilts and projects (`projectToScreen`) the same way.
  */
 
 import type { EcsWorld, EntityId } from '@pierre/ecs';
@@ -29,13 +28,13 @@ import type { StarfieldDome } from './starfield';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { pass } from 'three/tsl';
-import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
+import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
 import { planeBasis } from '../../camera/plane-basis';
 import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, PICK_PX, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH } from '../../config/render';
 import { galaxyAt } from '../../generation/galaxies';
 import { StarPhysicalDef } from '../../generation/stars';
-import { layerWeights, sectorsAround, starFieldReach, SYSTEM_LAYER_REACH_AU } from '../../lod/tier';
+import { cameraDistance, layerWeights, sectorsAround, starFieldReach, SYSTEM_LAYER_REACH_AU } from '../../lod/tier';
 import { OrbitElementsDef, ringArc } from '../../sim/orbits';
 import { createAtmosphereMaterial } from './atmosphere-material';
 import { BodyPasses } from './body-passes';
@@ -52,12 +51,6 @@ import { createStarfieldDome } from './starfield';
 
 /** Scene clear colour: near-black with a blue tint. */
 const BACKGROUND = 0x05060D;
-/**
- * Camera distance from the z=0 plane for the orthographic (non-system) tiers.
- * Orthographic size is independent of depth, so any value whose `[near, far]`
- * brackets the plane works; this only sets the clip range.
- */
-const CAMERA_DEPTH = 1000;
 const DEG2RAD = Math.PI / 180;
 /** Orbit rings: skipped below this on-screen radius (px); faint styling below. */
 const RING_MIN_PX = 3;
@@ -74,8 +67,8 @@ const RING_INITIAL_VERTS = 8192;
 const ZOOM_TARGET_MAX_DISTANCE_FACTOR = 4;
 /** Initial glow-sprite instance capacity; grown on demand, never shrunk. */
 const GLOW_INITIAL_CAPACITY = 1024;
-/** Values per buffered glow sprite: x, y, radius, then r, g, b pre-multiplied by alpha. */
-const GLOW_STRIDE = 6;
+/** Values per buffered glow sprite: x, y, z, radius, then r, g, b pre-multiplied by alpha. */
+const GLOW_STRIDE = 7;
 /** Radial glow-sprite texture resolution (px). */
 const GLOW_TEXTURE_SIZE = 128;
 
@@ -121,12 +114,19 @@ export interface ThreeRenderContext {
 
 /** Per-frame inputs for the aggregate glow tiers (galaxy / galaxy-field / universe). */
 export interface ThreeGlowContext {
+  azimuth: number;
   camera: Camera;
-  /** Absolute height of the camera focus (AU): the flat glow tiers show the space around it. */
+  /** Absolute height of the camera focus (AU): the glow tiers show the space around it. */
   focusZ: number;
+  /** Height of the camera focus in the render-origin frame (the controller's `focusZ`). */
+  localFocusZ: number;
   originX: number;
   originY: number;
+  originZ: number;
+  /** Unit normal of the reference plane the camera orbits (the host galaxy's disk, easing to +z). */
+  planeNormal: readonly [number, number, number];
   seed: number;
+  tilt: number;
 }
 
 /** Star-layer inputs: where to read systems from and the focused one (whose sprite hands over from its sphere). */
@@ -143,7 +143,6 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   backendLabel: 'WebGL2' | 'WebGPU' | null = null;
   /** Per-kind system-tier body passes; they recycle meshes through free-lists. */
   private readonly bodyPasses: BodyPasses;
-  private readonly camera: OrthographicCamera;
   /** The WebGPU/WebGL canvas, positioned behind the 2D HUD canvas by the caller. */
   readonly canvas: HTMLCanvasElement;
   private readonly dummy = new Object3D();
@@ -210,8 +209,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.scene = new Scene();
     this.group = new Group();
     this.scene.add(this.group);
-    this.camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, CAMERA_DEPTH * 2);
-    this.perspective = new PerspectiveCamera(CAMERA_FOV_DEG, 1, 0.1, CAMERA_DEPTH);
+    this.perspective = new PerspectiveCamera(CAMERA_FOV_DEG, 1, 0.1, 1000);
     this.sphereGeometry = new SphereGeometry(1, SPHERE_WIDTH_SEGMENTS, SPHERE_HEIGHT_SEGMENTS);
     const starGroup = new Group();
     this.scene.add(starGroup);
@@ -419,9 +417,11 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   /**
    * Project a render-origin-frame world point through the perspective camera to
    * backing-pixel screen coordinates (shared with the 2D overlay). Returns false
-   * when the point is behind/beyond the camera. Used to place 3D body labels.
+   * when the point is behind/beyond the camera. Also reports `pxPerAu`, the
+   * on-screen pixels one AU spans at the point's depth, when `out` has the field.
+   * Used to place labels and reticles.
    */
-  projectToScreen(x: number, y: number, z: number, out: { sx: number; sy: number }): boolean {
+  projectToScreen(x: number, y: number, z: number, out: { pxPerAu?: number; sx: number; sy: number }): boolean {
     const p = this.perspective;
     // Clip on view-space depth, not NDC z: the reversed depth buffer maps far to
     // 0, so beyond-far points (neighbouring systems) no longer read as z ≥ 1.
@@ -431,6 +431,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     this.tmpVec.set(x, y, z).project(p);
     out.sx = (this.tmpVec.x * 0.5 + 0.5) * this.viewW;
     out.sy = (this.tmpVec.y * -0.5 + 0.5) * this.viewH;
+    out.pxPerAu = this.viewH / (2 * Math.tan((CAMERA_FOV_DEG * DEG2RAD) / 2)) / depth;
     return true;
   }
 
@@ -468,8 +469,6 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // the camera's world position, and nothing between here and the final draw
     // depends on the previous frame's camera.
     this.syncPerspective(camera, azimuth, tilt, sceneRadius, focusZ, planeNormal);
-    this.lastFocus.set(focusX, focusY, focusZ);
-    this.lastPlaneNormal.set(planeNormal[0], planeNormal[1], planeNormal[2]);
     // Anchor the starfield sky to the camera and fit its radius just inside the
     // far plane so it renders as a background: solid content (planets/stars) is
     // closer and occludes it via the depth test, while the sky fills everywhere
@@ -566,12 +565,19 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     return this.renderGlowTier(ctx, forEachGalaxyFieldGlow);
   }
 
-  /** Fill and draw the shared additive glow mesh from a tier's glow iterator. */
+  /**
+   * Fill and draw the shared additive glow mesh from a tier's glow iterator.
+   * Each sprite is a billboard facing the perspective camera, which orbits the
+   * focus exactly like the system and star tiers.
+   */
   private renderGlowTier(ctx: ThreeGlowContext, forEach: GlowField): number {
     if (!this.ready)
       return 0;
-    const { camera, focusZ, originX, originY, seed } = ctx;
-    this.syncCamera(camera);
+    const { azimuth, camera, focusZ, localFocusZ, originX, originY, originZ, planeNormal, seed, tilt } = ctx;
+    // The glow iterators scan the top-down footprint of the view around the
+    // focus, so that footprint's half-diagonal is the content radius.
+    const contentRadius = Math.hypot(camera.viewportW, camera.viewportH) / camera.zoom / 2;
+    this.syncPerspective(camera, azimuth, tilt, contentRadius, localFocusZ, planeNormal);
     this.starfieldDome?.setVisible(false);
     this.group.visible = false;
     if (this.ringMesh)
@@ -581,7 +587,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     // Buffer the sprites in a single pass (the field is costly to evaluate),
     // then size the mesh and fill it.
     let count = 0;
-    forEach(camera, seed, originX, originY, focusZ, (x, y, radius, r, g, b, alpha) => {
+    forEach(camera, seed, originX, originY, originZ, focusZ, (x, y, z, radius, r, g, b, alpha) => {
       if ((count + 1) * GLOW_STRIDE > this.glowScratch.length) {
         const grown = new Float64Array(this.glowScratch.length * 2);
         grown.set(this.glowScratch);
@@ -591,30 +597,32 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
       const o = count * GLOW_STRIDE;
       buf[o] = x;
       buf[o + 1] = y;
-      buf[o + 2] = radius;
-      buf[o + 3] = (r / 255) * alpha;
-      buf[o + 4] = (g / 255) * alpha;
-      buf[o + 5] = (b / 255) * alpha;
+      buf[o + 2] = z;
+      buf[o + 3] = radius;
+      buf[o + 4] = (r / 255) * alpha;
+      buf[o + 5] = (g / 255) * alpha;
+      buf[o + 6] = (b / 255) * alpha;
       count++;
     });
     const mesh = this.ensureGlowMesh(count);
 
     const buf = this.glowScratch;
+    this.dummy.quaternion.copy(this.perspective.quaternion);
     for (let i = 0; i < count; i++) {
       const o = i * GLOW_STRIDE;
-      const diameter = buf[o + 2] * 2;
-      this.dummy.position.set(buf[o], buf[o + 1], 0);
+      const diameter = buf[o + 3] * 2;
+      this.dummy.position.set(buf[o], buf[o + 1], buf[o + 2]);
       this.dummy.scale.set(diameter, diameter, 1);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(i, this.dummy.matrix);
-      mesh.setColorAt(i, this.tmpColor.setRGB(buf[o + 3], buf[o + 4], buf[o + 5]));
+      mesh.setColorAt(i, this.tmpColor.setRGB(buf[o + 4], buf[o + 5], buf[o + 6]));
     }
     mesh.count = count;
     mesh.visible = count > 0;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor)
       mesh.instanceColor.needsUpdate = true;
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.perspective);
     return count;
   }
 
@@ -634,38 +642,17 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
   }
 
   /**
-   * Configure the orthographic camera to reproduce the camera module's
-   * `worldToView` mapping, which the overlay labels and galaxy picking use. The
-   * view spans `viewport / zoom` world units centred on the camera; inverting
-   * `top`/`bottom` flips the y axis so world +y renders downward, as on screen.
-   * Looking straight down -Z needs no rotation, only a position.
-   */
-  private syncCamera(camera: Camera): void {
-    const centerX = camera.x + camera.offsetX;
-    const centerY = camera.y + camera.offsetY;
-    const halfW = camera.viewportW / camera.zoom / 2;
-    const halfH = camera.viewportH / camera.zoom / 2;
-    this.camera.left = -halfW;
-    this.camera.right = halfW;
-    this.camera.top = -halfH;
-    this.camera.bottom = halfH;
-    this.camera.position.set(centerX, centerY, CAMERA_DEPTH);
-    this.camera.updateProjectionMatrix();
-  }
-
-  /**
    * Configure the perspective camera to orbit the focus (the render-origin-frame
-   * camera x,y at height `focusZ`). Distance is derived from `zoom` so the
-   * framing roughly matches the 2D view. The orbit is anchored to the reference
+   * camera x,y at height `focusZ`). Distance is `cameraDistance`, derived from
+   * `zoom`. The orbit is anchored to the reference
    * plane (`planeBasis`): `tilt` is the polar angle away from the plane normal
    * (0 = looking straight down it, so orbits read as circles) and `azimuth`
    * swings around it. Any tilt is valid: past π/2 the camera is under the
    * plane, and past π it has rolled over the far pole (trackball style).
    */
   private syncPerspective(camera: Camera, azimuth: number, tilt: number, sceneRadius: number, focusZ: number, planeNormal: readonly [number, number, number]): void {
-    const fovRad = CAMERA_FOV_DEG * DEG2RAD;
     const halfHeightWorld = camera.viewportH / camera.zoom / 2;
-    const distance = halfHeightWorld / Math.tan(fovRad / 2);
+    const distance = cameraDistance(camera);
     const focusX = camera.x + camera.offsetX;
     const focusY = camera.y + camera.offsetY;
     // Plane-anchored basis (u, v, N): N is the reference-plane normal, and
@@ -699,6 +686,8 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
     );
     p.lookAt(focusX, focusY, focusZ);
     p.updateProjectionMatrix();
+    this.lastFocus.set(focusX, focusY, focusZ);
+    this.lastPlaneNormal.set(nx, ny, nz);
   }
 
   /**

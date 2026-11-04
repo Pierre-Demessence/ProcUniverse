@@ -24,7 +24,7 @@ import { makeOrbitsSystem, makeOriginRebaseSystem, makePendingBookmarkSystem, ma
 const noopCtx2d = new Proxy({}, { get: () => () => {}, set: () => true }) as unknown as CanvasRenderingContext2D;
 
 describe('bookmark inspect across systems', () => {
-  it.each([['from the system tier', 1000 / SYSTEM_VIEW_AU], ['from the star tier', 1e-3]])('keeps the framing zoom and centres on the live planet %s', (_label, startZoom) => {
+  it.each([['from the system tier', 1000 / SYSTEM_VIEW_AU], ['from the star tier', 2e-3]])('keeps the framing zoom and centres on the live planet %s', (_label, startZoom) => {
     const seed = 12345;
     const world = new EcsWorld().use(universePlugin);
     const cache = new SectorCache(seed);
@@ -32,14 +32,14 @@ describe('bookmark inspect across systems', () => {
     const camera = makeCamera({ viewportH: 1000, viewportW: 1000, x: 0, y: 0, zoom: 1000 / SYSTEM_VIEW_AU });
     const state = new FrameState({ simSeconds: 0, tier: 'system' });
     const selectionState = new SelectionState();
-    const controller = { focusZ: 0, setThreeSystemActive() {}, setTiltScale() {}, setFocusZ(z: number) {
+    const controller = { focusZ: 0, setFocusZ(z: number) {
       controller.focusZ = z;
     } };
     const scheduler = buildFramePipeline([
       makeSimClockSystem(state, { timeScale: 1 }, { sample() {} }),
       makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
       makeTierSelectSystem(camera, state),
-      makeBackendSelectSystem({ camera, controller, flattenButton: { setVisible() {} }, state, threeBackend: { update: () => false } }),
+      makeBackendSelectSystem({ flattenButton: { setVisible() {} }, state, threeBackend: { update: () => false } }),
       makeOriginRebaseSystem({ cache, camera, controller, state, streamer }),
       makeStreamingSystem({ state, streamer, world }),
       makeOrbitsSystem(state, world),

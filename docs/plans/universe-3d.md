@@ -5,8 +5,8 @@ thickness, bulge, halo and orientation, one perspective camera works at every
 tier, and level of detail follows camera distance. When this ships nothing in
 ProcUniverse is a flat plane any more.
 
-Status: B1.0, B1.1, the B1.1 fixes and B1.2 are done; generation is 3D. Pierre's
-browser re-test of the fixes and of B1.2 is pending. Next: B1.3. Breaking the current
+Status: B1.0 to B1.3 are done. Pierre's browser re-tests of the B1.1 fixes, of
+B1.2 and of B1.3 are pending. Next: B1.4. Breaking the current
 universe (seeds, RNG streams, saved bookmarks) is accepted.
 
 Out of scope (on the backlog): irregular galaxies (B30), giant planet surfaces
@@ -174,20 +174,50 @@ end).
 
 ### B1.3 Camera, origin and distance LOD
 
-- [ ] `cameraDistance`; `selectTier` on distance with ly thresholds.
-- [ ] 3D floating-origin rebase.
-- [ ] Generalised reference-plane slerp; host-galaxy plane at star / galaxy
+- [x] `cameraDistance`; `selectTier` on distance with ly thresholds.
+- [x] 3D floating-origin rebase.
+- [x] Generalised reference-plane slerp; host-galaxy plane at star / galaxy
       tiers; last host plane easing to +z beyond.
-- [ ] Perspective camera at every tier; remove `syncCamera`, the orthographic
+- [x] Perspective camera at every tier; remove `syncCamera`, the orthographic
       camera and `starTierTiltScale` easing.
-- [ ] Zoom-to-point and Flatten at every tier.
-- [ ] Generalised `tierBlend` bands; unit tests.
-- [ ] Tests for `camera-controller.ts` (delivers [B4](../backlog.md) for it).
+- [x] Zoom-to-point and Flatten at every tier.
+- [x] Generalised `tierBlend` bands; unit tests.
+- [x] Tests for `camera-controller.ts` (delivers [B4](../backlog.md) for it).
 
 Visible after: every tier can be orbited and tilted; zooming out of a star view
 no longer swings to a top-down mirrored image.
 Needs you: browser pass zooming through every tier with tilted views
 (stops the run).
+
+Decided during the run: the tier thresholds (`SYSTEM_TIER_MAX_AU`,
+`GALAXY_TIER_LY`, ...) keep their numbers but now mean camera distance, not view
+span, so on a 16:9 window each boundary falls about 1.7x further out than
+before; every band runs from its threshold / `TIER_BAND_FACTOR` (3) to
+threshold x 3, the system ↔ star band staying 100–900 AU. Why: the plan asks
+for distance thresholds and the numbers are tuning knobs. Alternative: rescale
+the constants by the aspect ratio. Change: edit the `*_LY` / `TIER_BAND_FACTOR`
+constants in `config/render.ts`.
+
+Decided during the run: until B1.4–B1.5 rebuild the galaxy, galaxy-field and
+universe tiers, they draw the same glow sprites as camera-facing billboards
+through the perspective camera (galaxy-field ones at the galaxy's own height,
+the others in the slice at the focus height), scanning the same top-down
+footprint as before, so a strongly tilted view shows the glow trimmed to that
+footprint. Why: removes the orthographic camera now without redoing the tiers.
+Alternative: widen the scan to the tilted frustum (costly, thrown away by
+B1.4–B1.5). Change: B1.4–B1.5 replace `forEach*Glow`.
+
+Decided during the run: galaxy-field labels, the galaxy reticle and galaxy
+picking go through `ThreeRenderer.projectToScreen` (centre and `pxPerAu` at the
+galaxy's depth), because the orthographic mapping they used no longer matches
+the picture. B1.6 keeps its remaining work (depth-aware nearest pick, HUD,
+inspector). Alternative: leave them wrong until B1.6. Change: none needed.
+
+Decided during the run: a change of host galaxy turns the reference plane over a
+250 ms time constant (`PLANE_EASE_MS`) instead of snapping, and a wheel notch
+with no 3D target under the cursor zooms about the focus (the old flat 2D pin
+is wrong in a tilted view). Flatten shows whenever Three draws, and the wheel
+zooms to the point under the cursor at the system tier too.
 
 ### B1.4 Galaxy tier
 

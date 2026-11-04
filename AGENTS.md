@@ -2,9 +2,9 @@
 
 Agent operating notes for **ProcUniverse**: a procedural universe explorer
 built on `@pierre/ecs`. Free-floating camera (no ship/avatar). Zoom tiers run
-from the cosmic web down to a planetary system; the system and star tiers are
-one blended 3D perspective view (Three.js). There is no planet-surface landing
-view.
+from the cosmic web down to a planetary system, all seen through one 3D
+perspective camera (Three.js); the system and star tiers are one blended view.
+There is no planet-surface landing view.
 
 ## Communication in chat
 
@@ -88,19 +88,24 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   `(sx, sy, sz)`), galaxies sit in 3D cells with their own disk normal, and
   every density / activity / galaxy lookup takes `(x, y, z)`. Stars are placed
   by Poisson-count thinning against `galaxyDensityBoundAt`; keep that bound a
-  true upper bound of `galaxyDensityOf` (a property test pins it). Tier
-  thresholds are in light-years (`*_LY`), independent of the sector size. The
-  galaxy / galaxy-field / universe tiers still render top-down: they show the
-  density slice, or a box of space at most one galaxy cell deep
+  true upper bound of `galaxyDensityOf` (a property test pins it). The tier
+  comes from the camera's distance to its focus (`cameraDistance`, the one
+  conversion from `camera.zoom`; `selectTier`), against thresholds in
+  light-years (`*_LY`) that are independent of the sector size and of the
+  viewport's aspect ratio. The galaxy / galaxy-field / universe tiers still draw
+  a density slice, or a box of space at most one galaxy cell deep
   (`galaxyFieldHalfDepth`, shared by the glow, labels and picking), around the
-  focus height (`ctx.camAbsZ`) until [universe-3d.md](docs/plans/universe-3d.md)
-  B1.3–B1.5 land. Zoomed out, the origin rebases z with x / y, so
-  `controller.focusZ` stays small too.
-- Rendering blends system and star layers by `ctx.blend` (`tierBlend`, 0 → 1
-  across `STAR_BLEND_MIN_AU`–`STAR_BLEND_MAX_AU`); the discrete tier still
-  drives selection, HUD and picking. While `blend < 1` (`hasSystemLayer`)
-  systems stay streamed, orbiting and origin-anchored even at the star tier.
-  The band must enclose the tier hysteresis (pinned by `tier.test.ts`).
+  focus height (`ctx.camAbsZ`) as billboards, until
+  [universe-3d.md](docs/plans/universe-3d.md) B1.4–B1.5 land. The origin rebases
+  all three axes together (the 3D local offset), so `controller.focusZ` stays
+  small too.
+- `TIER_BANDS` lists the cross-fades between neighbouring tiers (`bandBlend`,
+  `tierBlends`); each band must enclose its boundary's hysteresis (pinned by
+  `tier.test.ts`). Rendering blends system and star layers by `ctx.blend`
+  (`tierBlend`, band 0, 0 → 1 across `STAR_BLEND_MIN_AU`–`STAR_BLEND_MAX_AU`);
+  the discrete tier still drives selection, HUD and picking. While `blend < 1`
+  (`hasSystemLayer`) systems stay streamed, orbiting and origin-anchored even at
+  the star tier.
 - While the system layer shows, the render origin is the focused star
   (x, y **and** z: `renderOriginZ`), so bodies sit tens of AU out while zoom
   reaches ~150 m/px. `controller.focusZ` is local to `renderOriginZ` (rebased
@@ -139,9 +144,12 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   same way.
 - The orbit camera's plane basis comes only from `planeBasis`
   (`src/camera/plane-basis.ts`); the renderer and the controller's pan must
-  agree on it. The star-tier tilt easing (`setTiltScale`) latches its target
-  pose (top-down or bottom-up) when the easing starts; re-picking it per frame
-  flips the camera when the tilt is dragged through 90°.
+  agree on it. The reference plane (`referencePlaneNormal`) is the focused
+  disk, slerping across the system ↔ star band to the host galaxy's disk (the
+  galaxy at the focus, else the last one, eased on a change of host) and across
+  the galaxy-field ↔ universe band to world +z; every swing goes through
+  `blendPlaneNormal`, so the camera never snaps or mirrors. Pan, orbit, tilt,
+  Flatten and zoom-to-point work the same at every tier.
 - A sector holds star-only records (`StarData`: position, name, star physics,
   the system seed). Planets and moons come from `generateSystem(worldSeed,
   star)`, built only for streamed or focused systems through the memoising

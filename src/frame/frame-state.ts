@@ -1,4 +1,7 @@
+import type { Vec3 } from '../camera/plane-basis';
 import type { Tier } from '../lod/tier';
+
+import { GALACTIC_NORMAL } from '../camera/plane-basis';
 
 /**
  * Mutable state that lives across frames and is shared between the frame
@@ -7,6 +10,10 @@ import type { Tier } from '../lod/tier';
  */
 export class FrameState {
   currentTier: Tier;
+  /** The host galaxy's disk normal as eased toward `hostTarget`; null until the first frame sets it outright. */
+  hostNormal: Vec3 | null = null;
+  /** The disk normal the reference plane is easing toward: that of the last galaxy the focus was inside. */
+  hostTarget: Vec3 = GALACTIC_NORMAL;
   lastDrawnCount = 0;
   lastFlattenVisible = false;
   /** Last pointer position over the canvas (backing px), or null when it is outside; drives star-tier hover. */

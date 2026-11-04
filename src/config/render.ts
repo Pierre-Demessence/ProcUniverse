@@ -28,16 +28,17 @@ export const ZOOM_STREAK_WINDOW_MS = 220;
 export const SYSTEM_VIEW_AU = 40;
 export const REBASE_LY = 8;
 
-// ── 3D system view (Three backend, system tier) ─────────────────────
-// The system tier renders as lit, rotating spheres seen by a perspective camera
-// you can orbit + tilt with a right-drag (left-drag still pans, wheel still
-// zooms). `CAMERA_FOV_DEG` is the vertical field of view; the camera distance is
-// derived from `zoom` so the framing matches the 2D view. `ORBIT_SENSITIVITY` is
-// radians of orbit per drag pixel. The tilt (polar angle away from the focused
-// system's plane normal) is unbounded — the camera can roll over the pole, under
+// ── 3D view (Three backend, every tier) ─────────────────────────────
+// Every tier is seen by one perspective camera you can orbit + tilt with a
+// right-drag (left-drag still pans, wheel still zooms); the system tier renders
+// as lit, rotating spheres. `CAMERA_FOV_DEG` is the vertical field of view; the
+// camera distance from its focus is derived from `zoom` (px per AU at the
+// focus), see `cameraDistance`. `ORBIT_SENSITIVITY` is
+// radians of orbit per drag pixel. The tilt (polar angle away from the
+// reference plane's normal) is unbounded — the camera can roll over the pole, under
 // the disk and back round, trackball style; `TILT_DEFAULT` is the gentle starting
 // tilt. `FLAT_TILT` is the polar angle the "Flatten" toggle drops to: straight
-// down the system plane, so orbits read as circles.
+// down the reference plane (a system's orbits read as circles).
 // `SPHERE_*_SEGMENTS` set the sphere tesselation; `STAR_SPIN_RATE` spins stars
 // (which carry no rotation data) slowly. `LIGHT_AMBIENT` is the small fill that
 // keeps a body's star-facing-away side readable; `LIGHT_STAR_BASE` is the
@@ -181,32 +182,36 @@ export const PICK_PX = 14;
 export const CLICK_SLOP_PX = 5;
 
 // ── Level-of-detail tiers ─────────────────────────────────────────────
-// Zoom-bounded tiers (in → out): system, star, galaxy (one galaxy's density
+// Distance-bounded tiers (in → out): system, star, galaxy (one galaxy's density
 // glow), galaxy-field (each galaxy a discrete sprite), universe (the cosmic
 // glow). `SYSTEM_TIER_MAX_AU` collapses a system to a dot; the `*_LY` thresholds
-// switch tiers at that many light-years across (independent of the sector
-// size). `TIER_HYSTERESIS` is the dead-band that stops boundary thrash.
+// switch tiers at that camera distance from its focus (independent of the
+// sector size and of the viewport's aspect ratio). `TIER_HYSTERESIS` is the
+// dead-band that stops boundary thrash.
 export const SYSTEM_TIER_MAX_AU = 300;
 export const GALAXY_TIER_LY = 16;
 export const GALAXY_FIELD_LY = 300000;
 export const UNIVERSE_LY = 100000000;
 export const TIER_HYSTERESIS = 1.25;
 
-// ── System ↔ star cross-fade & 3D star tier ─────────────────────────────
-// Rendering blends the system and star layers across a zoom band instead of
-// swapping at `SYSTEM_TIER_MAX_AU`: from `STAR_BLEND_MIN_AU` across (pure system)
-// to `STAR_BLEND_MAX_AU` across (pure stars), smooth-stepped in log zoom. The
-// band must enclose the tier boundary's hysteresis dead-band (pinned by a test),
-// so systems stay streamed wherever their layer is still visible. Over the band
-// the camera's reference plane swings from the focused disk to the galactic
-// plane. `STAR_HANDOFF_START` is the blend where the focused star's sphere
-// starts handing over to its sprite. Toward the galaxy tier the star-tier tilt
-// eases to top-down from `STAR_TILT_EASE_START_LY` across, reaching it at
-// `GALAXY_TIER_LY`, so the orthographic swap does not jump angle.
+// ── Tier cross-fades & 3D star tier ─────────────────────────────────────
+// Rendering blends two neighbouring tiers across a distance band instead of
+// swapping at the boundary: from `min` (pure inner tier) to `max` (pure outer
+// tier), smooth-stepped in log distance. The system ↔ star band is
+// `STAR_BLEND_MIN_AU`–`STAR_BLEND_MAX_AU`; every other boundary's band runs from
+// its threshold ÷ `TIER_BAND_FACTOR` to × `TIER_BAND_FACTOR`. Each band must
+// enclose its boundary's hysteresis dead-band (pinned by a test), so a layer
+// stays alive wherever it is still visible. Over the system ↔ star band the
+// camera's reference plane swings from the focused disk to the host galaxy's
+// disk, and over the galaxy-field ↔ universe band on to world +z.
+// `PLANE_EASE_MS` is the time constant of the turn when the host galaxy changes.
+// `STAR_HANDOFF_START` is the blend where the focused star's sphere starts
+// handing over to its sprite.
 export const STAR_BLEND_MIN_AU = 100;
 export const STAR_BLEND_MAX_AU = 900;
+export const TIER_BAND_FACTOR = 3;
+export const PLANE_EASE_MS = 250;
 export const STAR_HANDOFF_START = 0.6;
-export const STAR_TILT_EASE_START_LY = 4;
 // Star-tier sprites: apparent brightness from luminosity and camera distance,
 // on a magnitude-like (log flux) scale. Flux is L☉ / ly², mapped linearly in
 // log10 between `STAR_LOG_FLUX_FAINT` (drawn at `STAR_SPRITE_MIN_INTENSITY`) and

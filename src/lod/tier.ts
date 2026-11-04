@@ -3,12 +3,12 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
 import { DISK_OUTER_MAX_AU, GALAXY_CELL_LY } from '../config/data';
-import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_MAX_REACH_LY, STAR_MIN_REACH_LY, STAR_REACH_SPAN_FACTOR, STAR_TILT_EASE_START_LY, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
+import { CAMERA_FOV_DEG, GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_MAX_REACH_LY, STAR_MIN_REACH_LY, STAR_REACH_SPAN_FACTOR, SYSTEM_TIER_MAX_AU, TIER_BAND_FACTOR, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
 import { AU_PER_LY } from '../generation/units';
 import { SECTOR_SIZE } from '../scale';
 
 /**
- * Level-of-detail tier. The representation switches with zoom so the on-screen
+ * Level-of-detail tier. The representation switches with the camera's distance so the on-screen
  * draw count stays bounded regardless of how many bodies exist (in → out):
  * - `system`: full systems (star + planets + orbits), streamed as ECS entities.
  * - `star`: each system is a single bloomed sprite in a 3D neighbourhood.
@@ -40,30 +40,40 @@ export const SYSTEM_LAYER_REACH_AU = DISK_OUTER_MAX_AU * 4;
 // vanishing fraction of a light-year) and converted to light-years here.
 const STAR_AT = SYSTEM_TIER_MAX_AU / AU_PER_LY;
 
+const HALF_FOV_TAN = Math.tan((CAMERA_FOV_DEG * Math.PI / 180) / 2);
+
 /**
- * Light-year span of the larger viewport axis at the current zoom. Selecting
- * the tier from the larger axis bounds the visible content on BOTH axes
- * regardless of the viewport's aspect ratio.
+ * Distance (AU) from the perspective camera to its focus: the one conversion
+ * between the stored `zoom` (px per AU at the focus) and where the camera sits,
+ * so the vertical field of view spans exactly `viewportH / zoom` at the focus.
+ * Independent of the viewport's width, so the tier does not depend on the
+ * window's aspect ratio.
  */
-export function lyAcross(cam: Camera): number {
-  return (Math.max(cam.viewportW, cam.viewportH) / cam.zoom) / AU_PER_LY;
+export function cameraDistance(cam: Camera): number {
+  return (cam.viewportH / cam.zoom / 2) / HALF_FOV_TAN;
 }
 
-// Tiers ordered by zoom (in → out); `BOUNDARIES[i]` is the light-years-across
-// value separating `TIER_ORDER[i]` from the next tier out.
+/** `cameraDistance` in light-years, the unit the tier thresholds are in. */
+export function distanceLy(cam: Camera): number {
+  return cameraDistance(cam) / AU_PER_LY;
+}
+
+// Tiers ordered by distance (in → out); `BOUNDARIES[i]` is the camera distance
+// (light-years) separating `TIER_ORDER[i]` from the next tier out.
 const TIER_ORDER = ['system', 'star', 'galaxy', 'galaxy-field', 'universe'] as const;
 const BOUNDARIES = [STAR_AT, GALAXY_TIER_LY, GALAXY_FIELD_LY, UNIVERSE_LY];
 
 /**
- * Choose the tier from zoom, with a hysteresis dead-band around the boundaries
- * so a zoom hovering at one doesn't thrash (each crossing re-streams the view).
+ * Choose the tier from the camera's distance to its focus, with a hysteresis
+ * dead-band around the boundaries so a distance hovering at one doesn't thrash
+ * (each crossing re-streams the view).
  */
 export function selectTier(cam: Camera, prev: Tier): Tier {
-  const across = lyAcross(cam);
+  const dist = distanceLy(cam);
   let idx = BOUNDARIES.length;
   for (let i = 0; i < BOUNDARIES.length; i++) {
     const b = BOUNDARIES[i];
-    if (b !== undefined && across < b) {
+    if (b !== undefined && dist < b) {
       idx = i;
       break;
     }
@@ -71,9 +81,9 @@ export function selectTier(cam: Camera, prev: Tier): Tier {
   const prevIdx = TIER_ORDER.indexOf(prev);
   const upper = BOUNDARIES[prevIdx];
   const lower = BOUNDARIES[prevIdx - 1];
-  if (idx > prevIdx && upper !== undefined && across < upper * TIER_HYSTERESIS)
+  if (idx > prevIdx && upper !== undefined && dist < upper * TIER_HYSTERESIS)
     idx = prevIdx;
-  else if (idx < prevIdx && lower !== undefined && across > lower / TIER_HYSTERESIS)
+  else if (idx < prevIdx && lower !== undefined && dist > lower / TIER_HYSTERESIS)
     idx = prevIdx;
   return TIER_ORDER[idx] ?? prev;
 }
@@ -150,23 +160,42 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 }
 
 /**
- * How far the view has cross-faded from the system layer (0) to the star layer
- * (1): a smooth-step in log zoom across `STAR_BLEND_MIN_AU`–`STAR_BLEND_MAX_AU`
- * of view span. Independent of the discrete tier, which keeps driving
- * selection, the HUD and labels.
+ * A cross-fade between two neighbouring tiers: pure `inner` up to `minLy` of
+ * camera distance, pure `outer` from `maxLy`, smooth-stepped in log distance
+ * between. Independent of the discrete tier, which keeps driving selection, the
+ * HUD and labels. Both representations are perspective views of the same 3D
+ * positions, so a swap needs no tilt easing.
  */
-export function tierBlend(cam: Camera): number {
-  const acrossAu = lyAcross(cam) * AU_PER_LY;
-  return smoothstep(Math.log(STAR_BLEND_MIN_AU), Math.log(STAR_BLEND_MAX_AU), Math.log(acrossAu));
+export interface TierBand {
+  inner: Tier;
+  maxLy: number;
+  minLy: number;
+  outer: Tier;
 }
 
-/**
- * Fraction of the user's tilt kept at the star tier: 1 up to
- * `STAR_TILT_EASE_START_LY` across, easing (in log zoom) to 0 — top-down — at
- * the galaxy boundary, where the orthographic galaxy view takes over.
- */
-export function starTierTiltScale(cam: Camera): number {
-  return 1 - smoothstep(Math.log(STAR_TILT_EASE_START_LY), Math.log(GALAXY_TIER_LY), Math.log(lyAcross(cam)));
+/** The bands in → out; `TIER_BANDS[i]` straddles `BOUNDARIES[i]`. */
+export const TIER_BANDS: readonly TierBand[] = TIER_ORDER.slice(0, -1).map((inner, i) => ({
+  inner,
+  // The system ↔ star band is configured in AU; the others straddle their boundary.
+  maxLy: i === 0 ? STAR_BLEND_MAX_AU / AU_PER_LY : BOUNDARIES[i]! * TIER_BAND_FACTOR,
+  minLy: i === 0 ? STAR_BLEND_MIN_AU / AU_PER_LY : BOUNDARIES[i]! / TIER_BAND_FACTOR,
+  outer: TIER_ORDER[i + 1]!,
+}));
+
+/** How far `distLy` has cross-faded across `band`: 0 = pure inner tier … 1 = pure outer tier. */
+export function bandBlend(band: TierBand, distLy: number): number {
+  return smoothstep(Math.log(band.minLy), Math.log(band.maxLy), Math.log(distLy));
+}
+
+/** `bandBlend` of every band, in → out, for the camera's current distance. */
+export function tierBlends(cam: Camera): number[] {
+  const dist = distanceLy(cam);
+  return TIER_BANDS.map(band => bandBlend(band, dist));
+}
+
+/** The system ↔ star cross-fade, 0 (system layer only) … 1 (star layer only). */
+export function tierBlend(cam: Camera): number {
+  return bandBlend(TIER_BANDS[0]!, distanceLy(cam));
 }
 
 /** How strongly each layer draws at a given `tierBlend` (all in [0, 1]). */

@@ -29,7 +29,7 @@ Validate with `npm run build` (typecheck + bundle), `npm test`, and
 ## Controls
 
 - Left-drag to pan; scroll to zoom toward the cursor.
-- Right-drag to orbit and tilt the 3D system view; **Flatten** snaps it top-down.
+- Right-drag to orbit and tilt the 3D view at any zoom; **Flatten** snaps it straight down the reference plane.
 - Click a body to inspect it; Escape dismisses.
 
 ## Documentation

@@ -35,12 +35,12 @@ export const hasSystemLayer = (ctx: FrameCtx): boolean => ctx.blend < 1;
  * Rebases the render origin so the renderer always draws small, precise local
  * coordinates. While the system layer is visible the origin snaps to the
  * focused star (x, y and height z), dropping planet coords to tens of AU (at
- * ~10^5 AU local, the GPU's float32 vertex positions jitter visibly). Zoomed out
- * it snaps to the sector grid (x, y and z) and rebases only once the local
- * offset grows large — the height too, which tilted pans or a restored save can
- * push far off the origin. When the origin moves, `camera.x/y` and the controller's `focusZ` shift
- * by the same amount so the absolute focus is unchanged, and streamed systems
- * are dropped to respawn against the new origin.
+ * ~10^5 AU local, the GPU's float32 vertex positions jitter visibly). Otherwise
+ * it snaps to the sector grid on all three axes and rebases only once the 3D
+ * local offset grows large — tilted pans or a restored save can push the height
+ * as far off the origin as x and y. When the origin moves, `camera.x/y` and the
+ * controller's `focusZ` shift by the same amount so the absolute focus is
+ * unchanged, and streamed systems are dropped to respawn against the new origin.
  */
 export function makeOriginRebaseSystem(deps: {
   cache: Pick<SectorCache, 'get' | 'system'>;
@@ -72,9 +72,9 @@ export function makeOriginRebaseSystem(deps: {
       if (hasSystemLayer(ctx)) {
         originX = ctx.focusedSystem ? ctx.focusedSystem.x : Math.round(ctx.camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
         originY = ctx.focusedSystem ? ctx.focusedSystem.y : Math.round(ctx.camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
-        originZ = ctx.focusedSystem ? ctx.focusedSystem.z : originZ;
+        originZ = ctx.focusedSystem ? ctx.focusedSystem.z : Math.round(ctx.camAbsZ / SECTOR_SIZE) * SECTOR_SIZE;
       }
-      else if (Math.abs(camera.x) > REBASE_DIST || Math.abs(camera.y) > REBASE_DIST || Math.abs(controller.focusZ) > REBASE_DIST) {
+      else if (Math.hypot(camera.x, camera.y, controller.focusZ) > REBASE_DIST) {
         originX = Math.round(ctx.camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
         originY = Math.round(ctx.camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
         originZ = Math.round(ctx.camAbsZ / SECTOR_SIZE) * SECTOR_SIZE;

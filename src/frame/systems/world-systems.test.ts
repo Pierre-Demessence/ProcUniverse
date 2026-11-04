@@ -83,6 +83,32 @@ describe('origin-rebase system', () => {
     expect(cameraAbsolute(state.renderOriginX, cam.x)).toBeCloseTo(1);
     expect(clear).toHaveBeenCalledOnce();
   });
+
+  it('rebases on the 3D local offset, so a diagonal drift too small on each axis still counts', () => {
+    const state = new FrameState({ simSeconds: 0, tier: 'universe' });
+    const clear = vi.fn();
+    const rebaseDist = REBASE_LY * AU_PER_LY;
+    // Each axis is under the threshold; their combined length is over it.
+    const axis = rebaseDist * 0.7;
+    const cam = camera(axis, axis, 1e-30);
+    const ctx = createFrameCtx(16, 'universe');
+    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller: focusController(axis), state, streamer: { clear } }).run(ctx);
+    expect(clear).toHaveBeenCalledOnce();
+    expect([state.renderOriginX, state.renderOriginY, state.renderOriginZ].every(o => o % SECTOR_SIZE === 0)).toBe(true);
+    expect(state.renderOriginZ).not.toBe(0);
+  });
+
+  it('snaps all three axes to the sector grid when the system layer shows but no system is near', () => {
+    const state = new FrameState({ simSeconds: 0, tier: 'star' });
+    const ctx = createFrameCtx(16, 'star');
+    ctx.blend = 0.5;
+    const controller = focusController(2.4 * SECTOR_SIZE);
+    const cam = camera(1.6 * SECTOR_SIZE, -3.4 * SECTOR_SIZE, 1);
+    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller, state, streamer: { clear: vi.fn() } }).run(ctx);
+    expect(ctx.focusedSystem).toBeNull();
+    expect([state.renderOriginX, state.renderOriginY, state.renderOriginZ]).toEqual([2 * SECTOR_SIZE, -3 * SECTOR_SIZE, 2 * SECTOR_SIZE]);
+    expect(cameraAbsolute(state.renderOriginZ, controller.focusZ)).toBeCloseTo(2.4 * SECTOR_SIZE);
+  });
 });
 
 describe('streaming system', () => {

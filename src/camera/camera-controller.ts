@@ -1,11 +1,11 @@
 import type { Camera } from '@pierre/ecs/modules/camera';
 
-import { makeCamera, viewToWorld } from '@pierre/ecs/modules/camera';
+import { makeCamera } from '@pierre/ecs/modules/camera';
 import { projectPointer } from '@pierre/ecs/modules/input';
 import { clamp, wrap } from '@pierre/ecs/modules/math';
 
 import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
-import { planeBasis } from './plane-basis';
+import { GALACTIC_NORMAL, planeBasis } from './plane-basis';
 
 /** A render-origin-frame point (AU). */
 export interface ZoomTarget {
@@ -16,34 +16,19 @@ export interface ZoomTarget {
 
 /**
  * Resolves the 3D point a wheel zoom should close in on for a cursor position
- * (backing px), or null to fall back to the flat 2D cursor pin.
+ * (backing px), or null to zoom about the focus instead.
  */
 export type ZoomTargetResolver = (bx: number, by: number) => ZoomTarget | null;
 
-/** The straight-along-the-normal pose nearest `tilt`: 0 (from above) or π (from below). */
-export function nearestTiltAxis(tilt: number): number {
-  return Math.abs(wrap(tilt, -Math.PI, Math.PI)) <= Math.PI / 2 ? 0 : Math.PI;
-}
-
-/**
- * Tilt `tilt` eased by `scale` toward the straight-along-the-normal pose `axis`
- * (0 from above, π from below) the shorter way round, wrapped to [0, 2π): 0 is
- * that pose and 1 the untouched tilt. For a fixed axis the result moves
- * continuously with `tilt`, except across the opposite pole.
- */
-export function easeTiltToAxis(tilt: number, scale: number, axis: number): number {
-  return wrap(axis + wrap(tilt - axis, -Math.PI, Math.PI) * scale, 0, 2 * Math.PI);
-}
-
 export interface CameraController {
-  /** Orbit azimuth (radians) for the 3D system view; ignored by the 2D path. */
+  /** Orbit azimuth (radians) around the reference plane's normal. */
   readonly azimuth: number;
   readonly camera: Camera;
   /** Whether the flat (top-down) view override is active. */
   readonly flat: boolean;
-  /** Out-of-plane height (z) of the 3D camera focus; moved by the 3D pan and lock. */
+  /** Height (z) of the camera focus; moved by the pan and lock. */
   readonly focusZ: number;
-  /** Polar tilt (radians, wrapped to [0, 2π)) from straight-down for the 3D system view. */
+  /** Polar tilt (radians, wrapped to [0, 2π)) from straight down the reference plane's normal. */
   readonly tilt: number;
   dispose: () => void;
   /** Reset the 3D orbit/tilt (and focus height) to the default framing. */
@@ -51,37 +36,31 @@ export interface CameraController {
   /** Restore the 3D orbit state from a persisted session (azimuth rad, tilt rad, focusZ AU). */
   restoreOrbit: (azimuth: number, tilt: number, focusZ: number) => void;
   /**
-   * Toggle the flat (top-down) view: reports a near-straight-down tilt (looking
-   * down the focused system's plane, so orbits read as circles) and ignores
-   * orbit input, without mutating the stored tilt — so clearing it restores the
-   * prior view.
+   * Toggle the flat (top-down) view: reports a straight-down tilt (looking down
+   * the reference plane's normal) and ignores tilt input, without mutating the
+   * stored tilt — so clearing it restores the prior view.
    */
   setFlat: (flat: boolean) => void;
   /** Set the 3D camera focus height (z), e.g. when locking onto an off-plane body. */
   setFocusZ: (z: number) => void;
   /**
-   * Set the focused system's orbital-plane unit normal, so the 3D pan slides
-   * along that plane in true screen space (matching the plane-anchored render
-   * camera). Defaults to the world +z axis until a system is focused.
+   * Set the reference plane's unit normal (the focused disk, the host galaxy's
+   * disk, or world +z, see `referencePlaneNormal`), so the pan slides along the
+   * tilted / orbited plane in true screen space (matching the plane-anchored
+   * render camera). Defaults to the world +z axis.
    */
-  setSystemPlane: (nx: number, ny: number, nz: number) => void;
-  /**
-   * Toggle 3D panning (system and star tiers): when active a left-drag pans
-   * along the tilted/orbited reference plane instead of the raw 2D screen axes.
-   */
-  setThreeSystemActive: (active: boolean) => void;
-  /** Fraction of the stored tilt applied (1 = as set, 0 = top-down); eases the star tier toward the galaxy swap. */
-  setTiltScale: (scale: number) => void;
+  setReferencePlane: (nx: number, ny: number, nz: number) => void;
   /** Install (or clear) the 3D zoom-to-point resolver used by the wheel. */
   setZoomTargetResolver: (resolver: ZoomTargetResolver | null) => void;
 }
 
 /**
- * Free-floating pan/zoom controller over a plain engine `Camera`. Drag pans
- * (content follows the cursor); the wheel zooms toward the pointer, keeping the
- * world point under the cursor fixed. All math runs in canvas backing pixels,
- * so `camera.viewportW/H` must track `canvas.width/height` (the owner keeps
- * them in sync on resize).
+ * Free-floating orbit / pan / zoom controller over a plain engine `Camera` (whose
+ * `zoom` is px per AU at the focus). Right-drag orbits and tilts around the
+ * reference plane; left-drag pans along it (content follows the cursor); the
+ * wheel zooms toward the 3D point under the pointer. All math runs in canvas
+ * backing pixels, so `camera.viewportW/H` must track `canvas.width/height` (the
+ * owner keeps them in sync on resize).
  */
 export function createCameraController(canvas: HTMLCanvasElement): CameraController {
   const camera = makeCamera({
@@ -96,38 +75,25 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   let lastX = 0;
   let lastY = 0;
 
-  // 3D system-view orbit: right-drag rotates (azimuth) and tilts (polar angle);
-  // left-drag still pans. Only the Three system tier reads these.
+  // Orbit: right-drag rotates (azimuth) and tilts (polar angle); left-drag pans.
   let azimuth = 0;
   let tilt = TILT_DEFAULT;
   let orbiting = false;
-  let panMode3D = false;
-  // Flat (top-down) override: reports a near-straight-down tilt (looking down the
-  // focused system's plane, so orbits read as circles) and ignores orbit input,
-  // without mutating the stored tilt — so clearing it restores the prior view.
+  // Flat (top-down) override: reports a straight-down tilt (looking down the
+  // reference plane's normal) and ignores tilt input, without mutating the
+  // stored tilt — so clearing it restores the prior view.
   let flat = false;
-  let tiltScale = 1;
-  // The pose the eased tilt converges to, latched when the easing starts (and
-  // when the tilt is set outright) rather than re-picked every frame, so
-  // dragging the tilt through the horizon never flips the camera to the other
-  // side of the plane.
-  let tiltAxis = nearestTiltAxis(tilt);
-  const effectiveTilt = (): number => (flat ? FLAT_TILT : easeTiltToAxis(tilt, tiltScale, tiltAxis));
+  const effectiveTilt = (): number => (flat ? FLAT_TILT : tilt);
   let zoomTarget: ZoomTargetResolver | null = null;
-  // The focused system's orbital-plane basis in world space: the unit normal N
-  // and two in-plane axes (u, v). The render camera is anchored to this plane, so
-  // the 3D pan slides the focus along it in true screen space. `focusZ` is the
-  // focus's out-of-plane height, moved by that pan (and by locking onto an
-  // off-plane body). Defaults to the world +z plane (u = x̂, v = ŷ).
-  let planeNx = 0;
-  let planeNy = 0;
-  let planeNz = 1;
-  let planeUx = 1;
-  let planeUy = 0;
-  let planeUz = 0;
-  let planeVx = 0;
-  let planeVy = 1;
-  let planeVz = 0;
+  // The reference plane's basis in world space: the unit normal N and two
+  // in-plane axes (u, v). The render camera is anchored to this plane, so the
+  // pan slides the focus along it in true screen space. `focusZ` is the focus's
+  // height, moved by that pan (and by locking onto an off-plane body). Defaults
+  // to the world +z plane.
+  const initial = planeBasis(GALACTIC_NORMAL);
+  let [planeNx, planeNy, planeNz] = initial.n;
+  let [planeUx, planeUy, planeUz] = initial.u;
+  let [planeVx, planeVy, planeVz] = initial.v;
   let focusZ = 0;
 
   // Accelerating zoom: rapid same-direction notches build a streak that ramps
@@ -160,13 +126,13 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       if (!flat)
         tilt = wrap(tilt + (by - lastY) * ORBIT_SENSITIVITY, 0, 2 * Math.PI);
     }
-    else if (panMode3D) {
+    else {
       // Plane-anchored perspective view: slide the focus in true screen space so
       // the grabbed point tracks the cursor at any orbit angle. R (screen-right)
-      // and U (screen-up) are the render camera's world axes expressed in the disk
-      // basis; moving the focus by −dxs·R + dys·U keeps the point under the cursor.
-      // The focus is a full 3D point (x, y on the 2D camera, z in `focusZ`), so a
-      // disk tilted in space pans correctly rather than only in x,y.
+      // and U (screen-up) are the render camera's world axes expressed in the
+      // reference-plane basis; moving the focus by −dxs·R + dys·U keeps the point
+      // under the cursor. The focus is a full 3D point (x, y on the camera, z in
+      // `focusZ`), so a plane tilted in space pans correctly rather than only in x,y.
       const cosA = Math.cos(azimuth);
       const sinA = Math.sin(azimuth);
       const cosT = Math.cos(effectiveTilt());
@@ -187,10 +153,6 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       camera.y -= dxs * ry - dys * upy;
       focusZ -= dxs * rz - dys * upz;
     }
-    else {
-      camera.x -= (bx - lastX) / camera.zoom;
-      camera.y -= (by - lastY) / camera.zoom;
-    }
     lastX = bx;
     lastY = by;
   };
@@ -205,13 +167,12 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   const onWheel = (e: WheelEvent): void => {
     e.preventDefault();
     const { x: bx, y: by } = projectPointer(e, canvas);
-    const before = viewToWorld(bx, by, camera);
 
     // Ramp the per-notch factor from ZOOM_STEP up to ZOOM_STEP_MAX as rapid
     // same-direction notches accumulate, so crossing the ~10¹² zoom range is a
     // quick flick instead of ~240 notches. A gap over the chaining window or a
     // direction change resets the streak, restoring the gentle step for fine
-    // control. The cursor-pin math below is unchanged.
+    // control.
     const now = performance.now();
     const dir = e.deltaY < 0 ? 1 : -1;
     wheelStreak = now - lastWheelMs > ZOOM_STREAK_WINDOW_MS || dir !== lastWheelDir
@@ -237,11 +198,8 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       return;
     }
 
+    // No 3D point under the cursor (e.g. a ray grazing the horizon): zoom about the focus.
     camera.zoom = clamp(camera.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-    const after = viewToWorld(bx, by, camera);
-    // Re-pin the pre-zoom world point under the cursor.
-    camera.x += before.wx - after.wx;
-    camera.y += before.wy - after.wy;
   };
 
   // Right-drag orbits the 3D view; suppress the context menu so it can.
@@ -276,13 +234,11 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
     resetOrbit(): void {
       azimuth = 0;
       tilt = TILT_DEFAULT;
-      tiltAxis = nearestTiltAxis(tilt);
       focusZ = 0;
     },
     restoreOrbit(az: number, ti: number, fz: number): void {
       azimuth = az;
       tilt = Number.isFinite(ti) ? wrap(ti, 0, 2 * Math.PI) : TILT_DEFAULT;
-      tiltAxis = nearestTiltAxis(tilt);
       focusZ = Number.isFinite(fz) ? fz : 0;
     },
     setFlat(next: boolean): void {
@@ -291,7 +247,7 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
     setFocusZ(z: number): void {
       focusZ = z;
     },
-    setSystemPlane(nx: number, ny: number, nz: number): void {
+    setReferencePlane(nx: number, ny: number, nz: number): void {
       planeNx = nx;
       planeNy = ny;
       planeNz = nz;
@@ -299,14 +255,6 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       const { u, v } = planeBasis([nx, ny, nz]);
       [planeUx, planeUy, planeUz] = u;
       [planeVx, planeVy, planeVz] = v;
-    },
-    setThreeSystemActive(active: boolean): void {
-      panMode3D = active;
-    },
-    setTiltScale(scale: number): void {
-      if (scale < 1 && tiltScale >= 1)
-        tiltAxis = nearestTiltAxis(tilt);
-      tiltScale = scale;
     },
     setZoomTargetResolver(resolver: ZoomTargetResolver | null): void {
       zoomTarget = resolver;

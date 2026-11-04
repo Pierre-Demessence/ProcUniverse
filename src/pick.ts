@@ -3,8 +3,9 @@ import type { EntityId } from '@pierre/ecs/entity-id';
 import type { Camera } from '@pierre/ecs/modules/camera';
 
 import type { GalaxyParams } from './generation/galaxies';
+import type { ScreenProjector } from './render/draw-labels';
 
-import { cameraViewRect, viewToWorld } from '@pierre/ecs/modules/camera';
+import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
 import { GALAXY_SPRITE_SCALE, PICK_PX } from './config/render';
 import { galaxiesInBox } from './generation/galaxies';
@@ -47,27 +48,27 @@ export function findEntityByName(world: EcsWorld, name: string): EntityId | null
 }
 
 /**
- * Find the galaxy whose disc holds the cursor at the galaxy-field tier, or
+ * Find the galaxy whose sprite holds the cursor at the galaxy-field tier, or
  * `null`. `localCam` is in the floating render-origin frame; galaxy centres are
- * absolute, so the cursor is unprojected and shifted back by the render origin.
- * Candidates come from the box of space in view around the focus height
- * `focusZ` (absolute AU), matching what the tier draws (`galaxyFieldHalfDepth`).
+ * absolute, so they are shifted back by the render origin and projected through
+ * `project` (the perspective camera that draws them). Candidates come from the
+ * box of space in view around the focus height `focusZ` (absolute AU), matching
+ * what the tier draws (`galaxyFieldHalfDepth`). The nearest on screen wins.
  */
-export function pickGalaxyAt(worldSeed: number, localCam: Camera, originX: number, originY: number, focusZ: number, bx: number, by: number): GalaxyParams | null {
-  const { wx, wy } = viewToWorld(bx, by, localCam);
-  const ax = wx + originX;
-  const ay = wy + originY;
-  const halo = PICK_PX / localCam.zoom;
+export function pickGalaxyAt(worldSeed: number, localCam: Camera, originX: number, originY: number, originZ: number, focusZ: number, bx: number, by: number, project: ScreenProjector): GalaxyParams | null {
   const rect = cameraViewRect(localCam);
   const minX = rect.x + originX;
   const minY = rect.y + originY;
 
   let best: GalaxyParams | null = null;
   let bestDist = Infinity;
+  const screen = { pxPerAu: 0, sx: 0, sy: 0 };
   const halfDepth = galaxyFieldHalfDepth(localCam);
   for (const g of galaxiesInBox(worldSeed, minX, minY, focusZ - halfDepth, minX + rect.w, minY + rect.h, focusZ + halfDepth)) {
-    const dist = Math.hypot(g.centerX - ax, g.centerY - ay);
-    const tolerance = Math.max(g.radius * GALAXY_SPRITE_SCALE, halo);
+    if (!project(g.centerX - originX, g.centerY - originY, g.centerZ - originZ, screen))
+      continue;
+    const dist = Math.hypot(screen.sx - bx, screen.sy - by);
+    const tolerance = Math.max(g.radius * GALAXY_SPRITE_SCALE * screen.pxPerAu, PICK_PX);
     if (dist <= tolerance && dist < bestDist) {
       bestDist = dist;
       best = g;

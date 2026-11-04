@@ -1,7 +1,7 @@
 /**
- * A small contextual button, shown only inside a planetary system in the 3D
- * renderer, that flattens the tilted orbit view to a straight top-down look and
- * back again. Plain DOM, like the reset-view button — it carries only its own
+ * A small button, shown whenever the 3D renderer draws, that flattens the
+ * tilted orbit view to a straight look down the reference plane and back again.
+ * Plain DOM, like the reset-view button — it carries only its own
  * flat/tilted label state, so it skips the Preact + signals machinery the data
  * panels use.
  */
@@ -28,14 +28,14 @@ const LABEL_TILT = '3D view';
 
 export interface FlattenButton {
   dispose: () => void;
-  /** Show or hide the button (hidden outside the 3D system view). */
+  /** Show or hide the button (hidden while the 3D renderer is not drawing). */
   setVisible: (visible: boolean) => void;
 }
 
 /**
  * Mount the flatten toggle on `container` (a positioned ancestor). `onToggle`
  * fires with the new flat state on each click; the returned handle detaches it.
- * The button starts hidden — the owner reveals it only at the 3D system tier.
+ * The button starts hidden — the owner reveals it once the 3D renderer draws.
  */
 export function createFlattenButton(container: HTMLElement, options: { onToggle: (flat: boolean) => void }): FlattenButton {
   let flat = false;

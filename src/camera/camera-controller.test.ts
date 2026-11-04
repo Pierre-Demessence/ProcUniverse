@@ -1,48 +1,117 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
-import { ORBIT_SENSITIVITY } from '../config/render';
-import { createCameraController, easeTiltToAxis, nearestTiltAxis } from './camera-controller';
+import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT } from '../config/render';
+import { createCameraController } from './camera-controller';
+import { blendPlaneNormal, GALACTIC_NORMAL, planeBasis } from './plane-basis';
 
-const DEG = Math.PI / 180;
+const TAU = 2 * Math.PI;
 
-describe('easeTiltToAxis', () => {
-  it('keeps the tilt at scale 1 and reaches the given straight-along-the-normal pose at 0', () => {
-    expect(easeTiltToAxis(0.4, 1, 0)).toBeCloseTo(0.4);
-    expect(easeTiltToAxis(0.4, 0, 0)).toBe(0);
-    expect(easeTiltToAxis(Math.PI - 0.3, 0, Math.PI)).toBeCloseTo(Math.PI);
-    expect(easeTiltToAxis(0.4, 0.5, 0)).toBeCloseTo(0.2);
+// jsdom has no layout, so client coordinates are backing pixels.
+function setup() {
+  const canvas = document.createElement('canvas');
+  canvas.setPointerCapture = () => {};
+  canvas.hasPointerCapture = () => false;
+  const controller = createCameraController(canvas);
+  return { canvas, controller };
+}
+
+/** Drag from (0, 0) to (dx, dy) with the given button (0 pans, 2 orbits). */
+function drag(canvas: HTMLCanvasElement, button: number, dx: number, dy: number): void {
+  canvas.dispatchEvent(new PointerEvent('pointerdown', { button, clientX: 0, clientY: 0, pointerId: 1 }));
+  canvas.dispatchEvent(new PointerEvent('pointermove', { button, clientX: dx, clientY: dy, pointerId: 1 }));
+  window.dispatchEvent(new PointerEvent('pointerup', { button, clientX: dx, clientY: dy, pointerId: 1 }));
+}
+
+function wheel(canvas: HTMLCanvasElement, deltaY: number): void {
+  canvas.dispatchEvent(new WheelEvent('wheel', { cancelable: true, clientX: 10, clientY: 10, deltaY }));
+}
+
+describe('camera controller orbit', () => {
+  it('spins the azimuth with horizontal drag and tilts with vertical drag, wrapping the tilt to one turn', () => {
+    const { canvas, controller } = setup();
+    controller.restoreOrbit(0, 0, 0);
+    drag(canvas, 2, 100, 50);
+    expect(controller.azimuth).toBeCloseTo(100 * ORBIT_SENSITIVITY);
+    expect(controller.tilt).toBeCloseTo(50 * ORBIT_SENSITIVITY);
+    // Over the pole and round: the tilt stays in [0, 2π).
+    drag(canvas, 2, 0, -100);
+    expect(controller.tilt).toBeGreaterThanOrEqual(0);
+    expect(controller.tilt).toBeLessThan(TAU);
+    expect(controller.tilt).toBeCloseTo(TAU - 50 * ORBIT_SENSITIVITY);
+    controller.dispose();
   });
 
-  it('eases the shorter way round, across the 0 / 2π wrap', () => {
-    // 10° under the top-down pose, stored wrapped as 350°.
-    expect(easeTiltToAxis(2 * Math.PI - 10 * DEG, 0.5, 0)).toBeCloseTo(2 * Math.PI - 5 * DEG);
-    expect(easeTiltToAxis(2 * Math.PI - 10 * DEG, 1, 0)).toBeCloseTo(2 * Math.PI - 10 * DEG);
+  it('restores a saved orbit, falling back to the default tilt and a zero height for bad numbers', () => {
+    const { controller } = setup();
+    controller.restoreOrbit(1.2, 0.8, 55);
+    expect(controller.azimuth).toBe(1.2);
+    expect(controller.tilt).toBeCloseTo(0.8);
+    expect(controller.focusZ).toBe(55);
+    controller.restoreOrbit(0, Number.NaN, Number.NaN);
+    expect(controller.tilt).toBeCloseTo(TILT_DEFAULT);
+    expect(controller.focusZ).toBe(0);
+    controller.resetOrbit();
+    expect([controller.azimuth, controller.tilt, controller.focusZ]).toEqual([0, TILT_DEFAULT, 0]);
+    controller.dispose();
   });
 
-  it('stays continuous through the horizon for a fixed axis', () => {
-    expect(Math.abs(easeTiltToAxis(90.1 * DEG, 0.5, 0) - easeTiltToAxis(89.9 * DEG, 0.5, 0))).toBeLessThan(1 * DEG);
-    expect(Math.abs(easeTiltToAxis(270.1 * DEG, 0.5, 0) - easeTiltToAxis(269.9 * DEG, 0.5, 0))).toBeLessThan(1 * DEG);
+  it('reports a straight-down tilt while flat, ignores tilt drags, and restores the stored tilt afterwards', () => {
+    const { canvas, controller } = setup();
+    controller.restoreOrbit(0, 0.9, 0);
+    controller.setFlat(true);
+    expect(controller.flat).toBe(true);
+    expect(controller.tilt).toBe(FLAT_TILT);
+    drag(canvas, 2, 40, 80);
+    expect(controller.tilt).toBe(FLAT_TILT);
+    // Horizontal drag still pivots the view.
+    expect(controller.azimuth).toBeCloseTo(40 * ORBIT_SENSITIVITY);
+    controller.setFlat(false);
+    expect(controller.tilt).toBeCloseTo(0.9);
+    controller.dispose();
   });
 });
 
-describe('nearestTiltAxis', () => {
-  it('picks top-down (0) or bottom-up (π)', () => {
-    expect(nearestTiltAxis(0.3)).toBe(0);
-    expect(nearestTiltAxis(2 * Math.PI - 0.3)).toBe(0);
-    expect(nearestTiltAxis(Math.PI - 0.3)).toBe(Math.PI);
-    expect(nearestTiltAxis(Math.PI + 0.3)).toBe(Math.PI);
+describe('camera controller pan', () => {
+  it('slides the focus along the reference plane, following the cursor at any tier', () => {
+    const { canvas, controller } = setup();
+    controller.camera.zoom = 2;
+    controller.restoreOrbit(0, 0, 0);
+    // Looking straight down +z: screen-right is the basis' v axis, screen-up its −u axis.
+    const { u, v } = planeBasis(GALACTIC_NORMAL);
+    drag(canvas, 0, 10, 0);
+    expect(controller.camera.x).toBeCloseTo(-5 * v[0]);
+    expect(controller.camera.y).toBeCloseTo(-5 * v[1]);
+    expect(controller.focusZ).toBeCloseTo(-5 * v[2]);
+    drag(canvas, 0, 0, 10);
+    // Dragging down moves the focus up the screen (content follows the cursor).
+    expect(controller.camera.x).toBeCloseTo(-5 * v[0] - 5 * u[0]);
+    expect(controller.camera.y).toBeCloseTo(-5 * v[1] - 5 * u[1]);
+    controller.dispose();
+  });
+
+  it('pans in the plane of a tilted reference normal, not in world x, y', () => {
+    const { canvas, controller } = setup();
+    controller.camera.zoom = 1;
+    controller.restoreOrbit(0, 0, 0);
+    const normal = blendPlaneNormal(GALACTIC_NORMAL, [1, 0, 0], 1);
+    controller.setReferencePlane(...normal);
+    const { v } = planeBasis(normal);
+    drag(canvas, 0, 20, 0);
+    // Straight down the normal, a horizontal drag moves the focus along the in-plane axis v.
+    expect(controller.camera.x).toBeCloseTo(-20 * v[0]);
+    expect(controller.camera.y).toBeCloseTo(-20 * v[1]);
+    expect(controller.focusZ).toBeCloseTo(-20 * v[2]);
+    // The focus stays in the reference plane through the origin.
+    const along = controller.camera.x * normal[0] + controller.camera.y * normal[1] + controller.focusZ * normal[2];
+    expect(along).toBeCloseTo(0);
+    controller.dispose();
   });
 });
 
 describe('camera controller 3D zoom-to-point', () => {
-  const wheel = (canvas: HTMLCanvasElement, deltaY: number): void => {
-    canvas.dispatchEvent(new WheelEvent('wheel', { cancelable: true, clientX: 10, clientY: 10, deltaY }));
-  };
-
   it('closes the focus in on the resolved target in x, y and z', () => {
-    const canvas = document.createElement('canvas');
-    const controller = createCameraController(canvas);
+    const { canvas, controller } = setup();
     const { camera } = controller;
     camera.x = 100;
     camera.y = -50;
@@ -59,77 +128,37 @@ describe('camera controller 3D zoom-to-point', () => {
     controller.dispose();
   });
 
-  it('keeps the flat 2D zoom (and the focus height) when the resolver has no target', () => {
-    const canvas = document.createElement('canvas');
-    const controller = createCameraController(canvas);
+  it('zooms back out from the target, moving the focus away from it', () => {
+    const { canvas, controller } = setup();
+    const { camera } = controller;
+    camera.x = 10;
+    controller.setZoomTargetResolver(() => ({ x: 0, y: 0, z: 0 }));
+    wheel(canvas, 1);
+    expect(camera.x).toBeGreaterThan(10);
+    controller.dispose();
+  });
+
+  it('zooms about the focus, leaving it in place, when the resolver has no target', () => {
+    const { canvas, controller } = setup();
+    controller.camera.x = 7;
+    controller.camera.y = 8;
     controller.setFocusZ(40);
     controller.setZoomTargetResolver(() => null);
     const before = controller.camera.zoom;
     wheel(canvas, -1);
     expect(controller.camera.zoom).toBeGreaterThan(before);
-    expect(controller.focusZ).toBe(40);
+    expect([controller.camera.x, controller.camera.y, controller.focusZ]).toEqual([7, 8, 40]);
     controller.dispose();
   });
 
-  it('eases the reported tilt with the tilt scale without touching the stored tilt', () => {
-    const canvas = document.createElement('canvas');
-    const controller = createCameraController(canvas);
-    controller.restoreOrbit(0, 0.5, 0);
-    controller.setTiltScale(0);
-    expect(controller.tilt).toBe(0);
-    controller.setTiltScale(1);
-    expect(controller.tilt).toBeCloseTo(0.5);
-    controller.dispose();
-  });
-});
-
-describe('camera controller tilt easing', () => {
-  // Right-drag the tilt by `dy` backing pixels (jsdom has no layout, so client
-  // coordinates are backing pixels).
-  const dragTilt = (canvas: HTMLCanvasElement, dy: number): void => {
-    canvas.setPointerCapture = () => {};
-    canvas.hasPointerCapture = () => false;
-    canvas.dispatchEvent(new PointerEvent('pointerdown', { button: 2, clientX: 0, clientY: 0, pointerId: 1 }));
-    canvas.dispatchEvent(new PointerEvent('pointermove', { button: 2, clientX: 0, clientY: dy, pointerId: 1 }));
-    window.dispatchEvent(new PointerEvent('pointerup', { button: 2, clientX: 0, clientY: dy, pointerId: 1 }));
-  };
-
-  it('moves the camera continuously when the tilt is dragged through 90° at a reduced scale', () => {
-    // Precondition: one pixel of drag carries the stored tilt from 89.9° past 90°.
-    expect(89.9 * DEG + ORBIT_SENSITIVITY).toBeGreaterThan(90 * DEG);
-    const canvas = document.createElement('canvas');
-    const controller = createCameraController(canvas);
-    controller.restoreOrbit(0, 89.9 * DEG, 0);
-    controller.setTiltScale(0.5);
-    const before = controller.tilt;
-    dragTilt(canvas, 1);
-    expect(controller.tilt).not.toBe(before);
-    // The camera must not flip to the far side of the plane.
-    expect(Math.abs(controller.tilt - before)).toBeLessThan(1 * DEG);
-    controller.dispose();
-  });
-
-  it('re-picks the axis once the easing ends and starts again', () => {
-    const canvas = document.createElement('canvas');
-    const controller = createCameraController(canvas);
-    controller.restoreOrbit(0, 89.9 * DEG, 0);
-    controller.setTiltScale(0.5);
-    dragTilt(canvas, 20);
-    controller.setTiltScale(1);
-    controller.setTiltScale(0);
-    // The stored tilt is now nearer bottom-up, so the eased pose is bottom-up.
-    expect(controller.tilt).toBeCloseTo(Math.PI);
-    controller.dispose();
-  });
-
-  it('re-picks the axis when a saved tilt is restored mid-easing', () => {
-    const canvas = document.createElement('canvas');
-    const controller = createCameraController(canvas);
-    controller.setTiltScale(0);
-    controller.restoreOrbit(0, Math.PI - 0.2, 0);
-    expect(controller.tilt).toBeCloseTo(Math.PI);
-    controller.resetOrbit();
-    expect(controller.tilt).toBeCloseTo(0);
+  it('clamps the zoom to the configured range', () => {
+    const { canvas, controller } = setup();
+    controller.camera.zoom = MAX_ZOOM;
+    wheel(canvas, -1);
+    expect(controller.camera.zoom).toBe(MAX_ZOOM);
+    controller.camera.zoom = MIN_ZOOM;
+    wheel(canvas, 1);
+    expect(controller.camera.zoom).toBe(MIN_ZOOM);
     controller.dispose();
   });
 });

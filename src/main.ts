@@ -266,8 +266,11 @@ export function start(container: HTMLElement, save: Save): () => void {
         onStarInspect(cache.system(drawn.star));
     }
     else if (state.currentTier === 'galaxy-field') {
-      const galaxy = pickGalaxyAt(seed, localCam, state.renderOriginX, state.renderOriginY, cameraAbsolute(state.renderOriginZ, controller.focusZ), bx, by);
-      selectionState.select(galaxy ? { galaxy, kind: 'galaxy' } : null);
+      const three = threeBackend.active ? threeBackend.renderer : null;
+      if (three) {
+        const galaxy = pickGalaxyAt(seed, localCam, state.renderOriginX, state.renderOriginY, state.renderOriginZ, cameraAbsolute(state.renderOriginZ, controller.focusZ), bx, by, (x, y, z, out) => three.projectToScreen(x, y, z, out));
+        selectionState.select(galaxy ? { galaxy, kind: 'galaxy' } : null);
+      }
     }
   };
   const onPickKey = (e: KeyboardEvent): void => {
@@ -286,11 +289,11 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
   canvas.addEventListener('pointermove', onHoverMove);
   canvas.addEventListener('pointerleave', onHoverLeave);
-  // In the 3D star view the wheel zooms toward the star (or plane point) under
-  // the cursor in all three axes, so zooming onto a star lands in its system.
+  // At every tier the wheel zooms toward the star (or reference-plane point)
+  // under the cursor in all three axes, so zooming onto a star lands in its system.
   controller.setZoomTargetResolver((bx, by) => {
     const three = threeBackend.renderer;
-    return state.currentTier === 'star' && threeBackend.active && three ? three.zoomTargetAt(bx, by) : null;
+    return threeBackend.active && three ? three.zoomTargetAt(bx, by) : null;
   });
   canvas.addEventListener('pointerdown', onPickDown);
   window.addEventListener('pointermove', onLockPointerMove);
@@ -331,7 +334,7 @@ export function start(container: HTMLElement, save: Save): () => void {
   };
   const resetViewButton = createResetViewButton(container, { onReset: onResetView });
 
-  // Contextual flatten toggle: only shown inside a system, where snapping the tilted orbit view straight down the disk is meaningful.
+  // Flatten toggle, shown whenever the 3D renderer draws: snaps the tilted orbit view straight down the reference plane.
   const flattenButton = createFlattenButton(container, { onToggle: isFlat => controller.setFlat(isFlat) });
 
   // Top-centre options menu for display preferences (units, etc.).
@@ -378,7 +381,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     makeSimClockSystem(state, timeControls, frameStats),
     makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
     makeTierSelectSystem(camera, state),
-    makeBackendSelectSystem({ camera, controller, flattenButton, state, threeBackend }),
+    makeBackendSelectSystem({ flattenButton, state, threeBackend }),
     makeOriginRebaseSystem({ cache, camera, controller, state, streamer }),
     makeStreamingSystem({ state, streamer, world }),
     makeOrbitsSystem(state, world),
