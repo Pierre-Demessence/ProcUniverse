@@ -77,7 +77,7 @@ export function bookmarkFromSelection(sel: Selection, world: EcsWorld, originX: 
       label: sel.galaxy.humanName,
       x: sel.galaxy.centerX,
       y: sel.galaxy.centerY,
-      z: 0,
+      z: sel.galaxy.centerZ,
     };
   }
   const frame = selectionFrame(sel, world, originX, originY, originZ);

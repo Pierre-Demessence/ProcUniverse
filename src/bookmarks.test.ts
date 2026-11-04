@@ -82,17 +82,17 @@ describe('bookmarkFromSelection', () => {
     });
   });
 
-  it('captures a galaxy at its centre', () => {
+  it('captures a galaxy at its absolute centre, height included', () => {
     const { world } = worldWithPlanet(0, 0);
-    const galaxy = { name: 'NGC 1', centerX: 5, centerY: 6, humanName: 'Andromeda', radius: 10 } as unknown as GalaxyParams;
-    expect(bookmarkFromSelection({ galaxy, kind: 'galaxy' }, world, 0, 0)).toEqual({
+    const galaxy = { name: 'NGC 1', centerX: 5, centerY: 6, centerZ: 7, humanName: 'Andromeda', radius: 10 } as unknown as GalaxyParams;
+    expect(bookmarkFromSelection({ galaxy, kind: 'galaxy' }, world, 100, 200, 300)).toEqual({
       name: 'NGC 1',
       extentAu: 10 * GALAXY_SPRITE_SCALE,
       kind: 'galaxy',
       label: 'Andromeda',
       x: 5,
       y: 6,
-      z: 0,
+      z: 7,
     });
   });
 

@@ -12,6 +12,7 @@ import {
   estimatedStarCount,
   evaporationTime,
   galaxiesInBox,
+  GALAXY_MAX_RADIUS_AU,
   galaxyActivityAt,
   galaxyActivityOf,
   galaxyAt,
@@ -249,6 +250,19 @@ describe('galaxy-field helpers', () => {
 
   it('colours spirals younger (bluer) than spheroidals', () => {
     expect(galaxyRepresentativeActivity(spiral)).toBeGreaterThan(galaxyRepresentativeActivity(elliptical));
+  });
+
+  it('bounds every galaxy radius by GALAXY_MAX_RADIUS_AU', () => {
+    let maxRadius = 0;
+    for (let gx = -6; gx <= 6; gx++) {
+      for (let gy = -6; gy <= 6; gy++) {
+        const g = galaxyInCell(SEED, gx, gy, gx - gy);
+        if (g)
+          maxRadius = Math.max(maxRadius, g.radius);
+      }
+    }
+    expect(maxRadius).toBeGreaterThan(0);
+    expect(maxRadius).toBeLessThanOrEqual(GALAXY_MAX_RADIUS_AU);
   });
 
   it('iterates galaxies overlapping a box, including the home galaxy', () => {

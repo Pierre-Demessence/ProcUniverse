@@ -50,8 +50,11 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   true upper bound of `galaxyDensityOf` (a property test pins it). Tier
   thresholds are in light-years (`*_LY`), independent of the sector size. The
   galaxy / galaxy-field / universe tiers still render top-down: they show the
-  density slice, or the cube of space, around the focus height (`ctx.camAbsZ`)
-  until [universe-3d.md](../plans/universe-3d.md) Phases 3–5 land.
+  density slice, or a box of space at most one galaxy cell deep
+  (`galaxyFieldHalfDepth`, shared by the glow, labels and picking), around the
+  focus height (`ctx.camAbsZ`) until [universe-3d.md](../plans/universe-3d.md)
+  Phases 3–5 land. Zoomed out, the origin rebases z with x / y, so
+  `controller.focusZ` stays small too.
 - Rendering blends system and star layers by `ctx.blend` (`tierBlend`, 0 → 1
   across `STAR_BLEND_MIN_AU`–`STAR_BLEND_MAX_AU`); the discrete tier still
   drives selection, HUD and picking. While `blend < 1` (`hasSystemLayer`)
@@ -89,10 +92,21 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
   same way.
 - The orbit camera's plane basis comes only from `planeBasis`
   (`src/camera/plane-basis.ts`); the renderer and the controller's pan must
-  agree on it.
+  agree on it. The star-tier tilt easing (`setTiltScale`) latches its target
+  pose (top-down or bottom-up) when the easing starts; re-picking it per frame
+  flips the camera when the tilt is dragged through 90°.
 - Star-tier sector generation is budgeted (`STAR_SECTOR_BUDGET_MS`, via
   `SectorCache.peek`); never call `cache.get` for every sector in a star-tier
-  range.
+  range. `SectorCache` evicts the least recently read sector (every `get` /
+  `peek` hit refreshes it), so the sectors in range stay cached while the range
+  fits the capacity (recency pinned by `sector-cache.test.ts`, range ≤ capacity
+  by `tier.test.ts`).
+- The star-tier reach (`starFieldReach`) and the labelled / spiked stars
+  (`starRankLevel`, brightness seen from the focus) depend on zoom and focus
+  only, never on the camera's tilt or orbit, so rotating never adds, drops or
+  relabels stars. Sprite brightness and size still use the camera distance.
+  The focused star is matched by `isSameSystem` (name and position), not by its
+  catalogue name, which can repeat in view.
 - `ThreeRenderer.updateStarfield` runs at the system tier only, with absolute
   coordinates (the star tier calls `ensureStarfield`, which fills it once). A starfield rebuild samples ~10⁵ galaxy lookups (hundreds of
   ms) plus a ~30 ms sky-structure bake, and the zoomed-out tiers would cross its

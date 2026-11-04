@@ -1,12 +1,12 @@
 import { makeCamera } from '@pierre/ecs/modules/camera';
 import { describe, expect, it } from 'vitest';
 
-import { LY_PER_SECTOR } from '../config/data';
-import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_MAX_REACH_LY, STAR_TILT_EASE_START_LY, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
+import { GALAXY_CELL_LY, LY_PER_SECTOR } from '../config/data';
+import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_MAX_REACH_LY, STAR_MIN_REACH_LY, STAR_REACH_SPAN_FACTOR, STAR_TILT_EASE_START_LY, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
 import { AU_PER_LY } from '../generation/units';
 import { SECTOR_SIZE } from '../scale';
 import { SECTOR_CACHE_CAPACITY } from './sector-cache';
-import { layerWeights, sectorsAround, selectTier, starTierTiltScale, tierBlend } from './tier';
+import { galaxyFieldHalfDepth, layerWeights, sectorsAround, selectTier, starFieldReach, starTierTiltScale, tierBlend } from './tier';
 
 // A camera whose larger viewport axis spans `across` light-years.
 function camAcross(across: number): ReturnType<typeof makeCamera> {
@@ -99,5 +99,36 @@ describe('star-tier reach', () => {
     // them while still in view would regenerate sectors every frame.
     const side = 2 * Math.ceil(STAR_MAX_REACH_LY / LY_PER_SECTOR) + 2;
     expect(side ** 3).toBeLessThan(SECTOR_CACHE_CAPACITY);
+  });
+
+  it('depends on the zoom alone, so tilting at a fixed zoom keeps the same stars', () => {
+    // `starFieldReach` takes no tilt: a top-down, a 10° and a horizon view at
+    // the same zoom all draw the sphere of this radius around the focus.
+    const across = 8;
+    const expected = Math.min(Math.max((across / 2) * STAR_REACH_SPAN_FACTOR, STAR_MIN_REACH_LY), STAR_MAX_REACH_LY);
+    expect(starFieldReach(camAcross(across)) / AU_PER_LY).toBeCloseTo(expected);
+    // At least what the widest (horizon) view used to reach: 3× the half-span.
+    expect(starFieldReach(camAcross(across)) / AU_PER_LY).toBeGreaterThanOrEqual(Math.min(across / 2 * 3, STAR_MAX_REACH_LY));
+  });
+
+  it('clamps to the cross-fade neighbourhood and the sector-cache bound', () => {
+    expect(starFieldReach(camAcross(0.01)) / AU_PER_LY).toBeCloseTo(STAR_MIN_REACH_LY);
+    expect(starFieldReach(camAcross(1000)) / AU_PER_LY).toBeCloseTo(STAR_MAX_REACH_LY);
+  });
+});
+
+describe('galaxyFieldHalfDepth', () => {
+  it('scans at most two galaxy-cell layers in depth at the widest galaxy-field view', () => {
+    const cell = GALAXY_CELL_LY * AU_PER_LY;
+    const halfDepth = galaxyFieldHalfDepth(camAcross(UNIVERSE_LY * TIER_HYSTERESIS));
+    for (const focusZ of [0, 0.3 * cell, 0.5 * cell, -0.7 * cell, 12.9 * cell]) {
+      const layers = Math.floor((focusZ + halfDepth) / cell) - Math.floor((focusZ - halfDepth) / cell) + 1;
+      expect(layers).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('stays as deep as the view is wide while the view is narrower than a cell', () => {
+    const across = GALAXY_CELL_LY / 4;
+    expect(galaxyFieldHalfDepth(camAcross(across)) / AU_PER_LY).toBeCloseTo(across / 2);
   });
 });

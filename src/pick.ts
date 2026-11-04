@@ -9,6 +9,7 @@ import { cameraViewRect, viewToWorld } from '@pierre/ecs/modules/camera';
 import { GALAXY_SPRITE_SCALE, PICK_PX } from './config/render';
 import { galaxiesInBox } from './generation/galaxies';
 import { NameDef } from './generation/naming';
+import { galaxyFieldHalfDepth } from './lod/tier';
 
 export type BodyKind = 'black-hole' | 'moon' | 'planet' | 'star';
 
@@ -49,8 +50,8 @@ export function findEntityByName(world: EcsWorld, name: string): EntityId | null
  * Find the galaxy whose disc holds the cursor at the galaxy-field tier, or
  * `null`. `localCam` is in the floating render-origin frame; galaxy centres are
  * absolute, so the cursor is unprojected and shifted back by the render origin.
- * Candidates come from the cube of space in view around the focus height
- * `focusZ` (absolute AU), matching what the tier draws.
+ * Candidates come from the box of space in view around the focus height
+ * `focusZ` (absolute AU), matching what the tier draws (`galaxyFieldHalfDepth`).
  */
 export function pickGalaxyAt(worldSeed: number, localCam: Camera, originX: number, originY: number, focusZ: number, bx: number, by: number): GalaxyParams | null {
   const { wx, wy } = viewToWorld(bx, by, localCam);
@@ -63,7 +64,7 @@ export function pickGalaxyAt(worldSeed: number, localCam: Camera, originX: numbe
 
   let best: GalaxyParams | null = null;
   let bestDist = Infinity;
-  const halfDepth = Math.max(rect.w, rect.h) / 2;
+  const halfDepth = galaxyFieldHalfDepth(localCam);
   for (const g of galaxiesInBox(worldSeed, minX, minY, focusZ - halfDepth, minX + rect.w, minY + rect.h, focusZ + halfDepth)) {
     const dist = Math.hypot(g.centerX - ax, g.centerY - ay);
     const tolerance = Math.max(g.radius * GALAXY_SPRITE_SCALE, halo);

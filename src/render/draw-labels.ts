@@ -7,11 +7,12 @@ import { cameraViewRect, worldToView } from '@pierre/ecs/modules/camera';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 
 import { GALAXY_SPRITE_SCALE } from '../config/render';
-import { BlackHoleDef, galaxiesInBox } from '../generation/galaxies';
+import { BlackHoleDef, galaxiesInBox, GALAXY_MAX_RADIUS_AU } from '../generation/galaxies';
 import { MoonPhysicalDef } from '../generation/moons';
 import { displayName, NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
+import { galaxyFieldHalfDepth } from '../lod/tier';
 import { namingStyle } from '../settings';
 import { OrbitElementsDef } from '../sim/orbits';
 
@@ -122,6 +123,8 @@ export function drawBodyLabels(ctx2d: CanvasRenderingContext2D, world: EcsWorld,
  * GALAXY-FIELD tier: each galaxy's catalogue name below its glow sprite, once
  * the sprite is wide enough to carry one. The tier's top-down view maps world to
  * screen directly, so `worldToView` places the labels on the Three sprites.
+ * Zoomed out until even the largest galaxy is too small to label, the scan is
+ * skipped.
  */
 export function drawGalaxyFieldLabels(
   ctx2d: CanvasRenderingContext2D,
@@ -131,10 +134,12 @@ export function drawGalaxyFieldLabels(
   originY: number,
   focusZ: number,
 ): void {
+  if (GALAXY_MAX_RADIUS_AU * cam.zoom * GALAXY_SPRITE_SCALE * 2 < GALAXY_LABEL_MIN_PX)
+    return;
   const rect = cameraViewRect(cam);
   const minX = rect.x + originX;
   const minY = rect.y + originY;
-  const halfDepth = Math.max(rect.w, rect.h) / 2;
+  const halfDepth = galaxyFieldHalfDepth(cam);
   ctx2d.save();
   ctx2d.font = '12px ui-monospace, monospace';
   ctx2d.fillStyle = GALAXY_LABEL_FILL;

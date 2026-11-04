@@ -11,8 +11,9 @@ and the roadmap's "3D beyond the system tier" decision. It replaces the
 per-system `systemZ` slab from [star-tier-3d.md](done/star-tier-3d.md) (D1 =
 B).
 
-> Status: **Phases 0–1 done** (decisions settled: every recommendation for
-> D1–D5 taken; generation is 3D). Phase 2 next. Breaking the current universe
+> Status: **Phases 0–1 and the Phase 1 fixes (F1–F8) done** (decisions
+> settled: every recommendation for D1–D5 taken; generation is 3D). Pierre's
+> browser re-test of the fixes is pending. Next: Phase 2. Breaking the current universe
 > (seeds, RNG streams, saved bookmarks) is accepted.
 
 ## Scope
@@ -380,6 +381,106 @@ from the final Phase 1 profile), times a new `STAR_DENSITY_SCALE` knob
       ranges in `SectorCache`, `SectorRange`, `SystemStreamer`, the star-tier
       sprite range (a cube around the focus, 3D reach), and `nearestSystem`
       reading the focus's 3D sector.
+
+### Phase 1 fixes — bugs found in Pierre's browser pass and the commit review
+
+Done before Phase 2. Every fix starts with a failing regression test. The
+diagnosis scripts are in `bench.local/` (gitignored): `rotate-check.ts`
+(F1–F3), `cache-check.ts` (F6), `field-check.ts` (F4).
+
+Acceptance criteria:
+
+- **AC1** WHEN only the camera orientation changes at the star tier (zoom and
+  focus fixed), THE SYSTEM SHALL draw the same set of stars with the same
+  labels. Check: unit tests for F1 and F3.
+- **AC2** WHEN the user drags the tilt through 90° (or 270°) at any star-tier
+  zoom, THE SYSTEM SHALL move the camera continuously (no jump). Check: F2 test.
+- **AC3** WHEN the galaxy-field view spans `UNIVERSE_LY × TIER_HYSTERESIS`
+  across, THE SYSTEM SHALL scan at most two galaxy-cell layers in depth. Check:
+  F4 test; `bench.local/field-check.ts` under ~20 ms per pass.
+- **AC4** WHEN a non-home galaxy is zoomed to or bookmarked, THE SYSTEM SHALL
+  use its centre height. Check: F5 tests.
+- **AC5** WHEN in-range sectors are read every frame, THE SYSTEM SHALL never
+  evict them while the range fits the cache. Check: F6 test.
+
+Checklist:
+
+- [x] **F1 Star-tier reach independent of tilt.** `three-renderer.ts:463`
+      computes `starReach = halfSpan · (1 + 2|sin tilt|)`, which is now a 3D
+      sphere radius (`star-sprites.ts` drops stars beyond it), so tilting moves
+      stars near the screen centre in or out. Make the reach depend only on zoom:
+      `clamp(halfSpan · STAR_REACH_SPAN_FACTOR, STAR_MIN_REACH_LY,
+      STAR_MAX_REACH_LY)` with a new `STAR_REACH_SPAN_FACTOR` (3) in
+      `config/render.ts`, extracted as a pure `starFieldReach(camera)` in
+      `lod/tier.ts`. Test: same reach for tilts 0°, 10°, 90°; the cache-capacity
+      test in `tier.test.ts` still holds.
+- [x] **F2 Continuous tilt easing.** `easeTiltToAxis` (`camera-controller.ts:28`)
+      picks the nearest of top-down / bottom-up per frame, so with
+      `tiltScale < 1` crossing 90° snaps the camera from 45° to 135° (at 8 ly
+      across). Latch the axis: the controller picks the axis from the stored tilt
+      when `setTiltScale` first drops below 1 (`camera-controller.ts:295`) and
+      keeps it until the scale returns to 1; `easeTiltToAxis` takes the axis as
+      a parameter. Test (in `camera-controller.test.ts`): with scale 0.5, the
+      effective tilt for stored tilts 89.9° and 90.1° differs by < 1°.
+- [x] **F3 Labels ranked from the focus.** `star-sprites.ts:238` ranks the
+      labelled / spiked stars by `level · weight` where `level` uses the
+      camera distance (`:223`), so orbiting reshuffles labels (10 swaps per
+      orbit at the core). Rank by `apparentStarLevel(luminosity, distance to
+      the focus) · weight`; sprite brightness and size keep the camera distance.
+      Extract the ranking key as a pure helper and test that it does not depend
+      on the camera position.
+- [x] **F4 Bounded galaxy-field depth.** `glow-fields.ts:45`,
+      `draw-labels.ts:137` and `pick.ts:66` scan a cube as deep as the view is
+      wide: 43,000 galaxies and 226 ms per pass at 10⁸ ly across, twice a
+      frame. Add one shared helper (in `generation/galaxies.ts` or `lod/tier.ts`)
+      giving the interim half-depth `min(halfSpan, GALAXY_CELL_LY · AU_PER_LY /
+      2)`, used by all three callers; raise `CELL_CACHE_CAP`
+      (`galaxies.ts:360`) to 16384 so one frame's cells fit; skip the label pass
+      when even the largest galaxy's sprite is under `GALAXY_LABEL_MIN_PX`.
+      Test: the cell box at `UNIVERSE_LY × TIER_HYSTERESIS` spans ≤ 2 z layers.
+- [x] **F5 Galaxy centre height.** `framing.ts:66` frames a galaxy at
+      `z: -originZ` and `bookmarks.ts:80` stores `z: 0`; use
+      `g.centerZ - originZ` and `g.centerZ`. Then `selection-state.ts:64`
+      (`galaxyAt(bm.x, bm.y, bm.z ?? 0)`) finds non-home galaxies. Tests with a
+      non-home galaxy in `framing.test.ts`, `bookmarks.test.ts` and
+      `selection-state.test.ts`.
+- [x] **F6 LRU sector cache.** `SectorCache` (`sector-cache.ts:25, 41`) evicts
+      by insertion order, and nearest-first generation makes the view's centre
+      the oldest (a pan out and back dropped 8 of the 27 centre cubes). Refresh
+      an entry's recency on every `get` / `peek` hit (Map delete + set). Test:
+      fill to capacity, touch the first key, insert one more: the touched key
+      survives, the next-oldest is evicted.
+- [x] **F7 Rebase z when zoomed out.** `world-systems.ts:76` rebases only x / y
+      when no system is focused, so `controller.focusZ` can grow to ~10⁸ AU
+      after tilted pans or a restored save. Also rebase when
+      `|controller.focusZ| > REBASE_DIST`, snapping `originZ` to the sector grid.
+      Test in `world-systems.test.ts`.
+- [x] **F8 Focused star by identity, not name.** `star-sprites.ts:210` matches the
+      focused system by its 5-digit catalogue name, which can repeat in a dense
+      view, fading a second star in the hand-off. Compare name and position
+      through a pure `isSameSystem(a, b)` in `generation/universe.ts`, tested.
+- [x] `npm run build`, `npm test`, `npm run lint` green; tick Phase 1 fixes;
+      update `docs/agent/README.md` if an invariant changed (F6 LRU, F1 reach).
+
+Visible after: the star field no longer pops while rotating (F1, F3, F8), the
+camera no longer flips past 90° (F2), the widest galaxies view is smooth (F4),
+zoom-to / bookmarks reach other galaxies (F5), no centre flicker after panning
+(F6). F7 is precision only.
+Needs you: browser re-test of rotation at the star tier, the zoom out to the
+universe view, and a bookmark to a non-home galaxy (at the end).
+
+Decided during the fixes:
+
+- F3: the spike gate (`SPIKE_MIN_LEVEL`) compares the same focus-based rank as
+  the labels, so spikes do not pop while orbiting either. Alternative: gate on
+  the camera-distance level (visually truer, but pops). Change it in
+  `StarSpriteLayer.fillSpikes`.
+- F2: a jump remains when the tilt is dragged across the pole opposite the
+  latched pose (any easing that keeps a full turn continuous must jump
+  somewhere); AC2 covers 90° / 270°, which stay continuous.
+- F7: zoomed out, a rebase snaps x, y and z together.
+- Bookmarks of non-home galaxies saved before F5 still hold `z: 0` and do not
+  reopen; re-bookmarking fixes them (pre-v1, no migration).
 
 ### Phase 2 — star-only sector records and 3D streaming
 

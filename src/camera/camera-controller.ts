@@ -20,14 +20,19 @@ export interface ZoomTarget {
  */
 export type ZoomTargetResolver = (bx: number, by: number) => ZoomTarget | null;
 
+/** The straight-along-the-normal pose nearest `tilt`: 0 (from above) or π (from below). */
+export function nearestTiltAxis(tilt: number): number {
+  return Math.abs(wrap(tilt, -Math.PI, Math.PI)) <= Math.PI / 2 ? 0 : Math.PI;
+}
+
 /**
- * Tilt `tilt` eased by `scale` toward the nearest straight-along-the-normal
- * pose (a multiple of π: from above, from below, or rolled over), so 0 is
- * top-down and 1 the untouched tilt.
+ * Tilt `tilt` eased by `scale` toward the straight-along-the-normal pose `axis`
+ * (0 from above, π from below) the shorter way round, wrapped to [0, 2π): 0 is
+ * that pose and 1 the untouched tilt. For a fixed axis the result moves
+ * continuously with `tilt`, except across the opposite pole.
  */
-export function easeTiltToAxis(tilt: number, scale: number): number {
-  const axis = Math.round(tilt / Math.PI) * Math.PI;
-  return axis + (tilt - axis) * scale;
+export function easeTiltToAxis(tilt: number, scale: number, axis: number): number {
+  return wrap(axis + wrap(tilt - axis, -Math.PI, Math.PI) * scale, 0, 2 * Math.PI);
 }
 
 export interface CameraController {
@@ -102,7 +107,12 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
   // without mutating the stored tilt — so clearing it restores the prior view.
   let flat = false;
   let tiltScale = 1;
-  const effectiveTilt = (): number => (flat ? FLAT_TILT : easeTiltToAxis(tilt, tiltScale));
+  // The pose the eased tilt converges to, latched when the easing starts (and
+  // when the tilt is set outright) rather than re-picked every frame, so
+  // dragging the tilt through the horizon never flips the camera to the other
+  // side of the plane.
+  let tiltAxis = nearestTiltAxis(tilt);
+  const effectiveTilt = (): number => (flat ? FLAT_TILT : easeTiltToAxis(tilt, tiltScale, tiltAxis));
   let zoomTarget: ZoomTargetResolver | null = null;
   // The focused system's orbital-plane basis in world space: the unit normal N
   // and two in-plane axes (u, v). The render camera is anchored to this plane, so
@@ -266,11 +276,13 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
     resetOrbit(): void {
       azimuth = 0;
       tilt = TILT_DEFAULT;
+      tiltAxis = nearestTiltAxis(tilt);
       focusZ = 0;
     },
     restoreOrbit(az: number, ti: number, fz: number): void {
       azimuth = az;
       tilt = Number.isFinite(ti) ? wrap(ti, 0, 2 * Math.PI) : TILT_DEFAULT;
+      tiltAxis = nearestTiltAxis(tilt);
       focusZ = Number.isFinite(fz) ? fz : 0;
     },
     setFlat(next: boolean): void {
@@ -292,6 +304,8 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
       panMode3D = active;
     },
     setTiltScale(scale: number): void {
+      if (scale < 1 && tiltScale >= 1)
+        tiltAxis = nearestTiltAxis(tilt);
       tiltScale = scale;
     },
     setZoomTargetResolver(resolver: ZoomTargetResolver | null): void {

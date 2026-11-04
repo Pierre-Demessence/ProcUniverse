@@ -63,7 +63,7 @@ export function selectionFrame(sel: Selection, world: EcsWorld, originX: number,
       extentAu: sel.galaxy.radius * GALAXY_SPRITE_SCALE,
       x: sel.galaxy.centerX - originX,
       y: sel.galaxy.centerY - originY,
-      z: -originZ,
+      z: sel.galaxy.centerZ - originZ,
     };
   }
 

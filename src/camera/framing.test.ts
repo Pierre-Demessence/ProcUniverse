@@ -145,11 +145,12 @@ describe('selectionFrame', () => {
     expect(frame?.extentAu).toBe(planetVisualRadius(MOON.radius) * DISC_FRAME_FACTOR);
   });
 
-  it('frames a galaxy at its origin-local centre', () => {
+  it('frames a galaxy at its origin-local centre, height included', () => {
     const world = makeWorld();
-    const galaxy = { centerX: 1000, centerY: 2000, radius: 50 } as unknown as GalaxyParams;
+    // A non-home galaxy sits off the home galactic plane.
+    const galaxy = { centerX: 1000, centerY: 2000, centerZ: 300, radius: 50 } as unknown as GalaxyParams;
     const frame = selectionFrame({ galaxy, kind: 'galaxy' }, world, 900, 1900, 40);
-    expect(frame).toEqual({ extentAu: 50 * GALAXY_SPRITE_SCALE, x: 100, y: 100, z: -40 });
+    expect(frame).toEqual({ extentAu: 50 * GALAXY_SPRITE_SCALE, x: 100, y: 100, z: 260 });
   });
 
   it('returns null for the universe and for streamed-out bodies', () => {

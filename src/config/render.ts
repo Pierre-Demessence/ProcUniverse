@@ -228,14 +228,16 @@ export const STAR_SPRITE_MAX_PX = 14;
 export const STAR_SATURATION_BOOST = 1.35;
 export const STAR_SPIKE_COUNT = 6;
 export const STAR_LABEL_COUNT = 8;
-// Star-field extent: stars are drawn out to the view's half-span widened by the
-// tilt (a tilted view sees toward the horizon), never less than
-// `STAR_MIN_REACH_LY` so the cross-fade band still shows the neighbourhood, and
-// never more than `STAR_MAX_REACH_LY` (the sectors in range must fit the sector
-// cache, pinned by a test).
+// Star-field extent: stars are drawn within a sphere around the focus of
+// `STAR_REACH_SPAN_FACTOR` × the view's half-span — wide enough for a horizon
+// view, and set by the zoom alone so tilting or orbiting never adds or drops
+// stars — never less than `STAR_MIN_REACH_LY` so the cross-fade band still shows
+// the neighbourhood, and never more than `STAR_MAX_REACH_LY` (the sectors in
+// range must fit the sector cache, pinned by a test).
 // Missing sectors are generated nearest-first within `STAR_SECTOR_BUDGET_MS` per
 // frame (a dense core sector costs ~1 ms), so a wide view fills in over a few
 // frames instead of hitching.
+export const STAR_REACH_SPAN_FACTOR = 3;
 export const STAR_MIN_REACH_LY = 2;
 export const STAR_MAX_REACH_LY = 20;
 export const STAR_SECTOR_BUDGET_MS = 4;

@@ -9,7 +9,9 @@ export const SECTOR_CACHE_CAPACITY = 2048;
  * Generate-on-demand cache of deterministic `SectorData`, keyed by sector
  * coordinates. Because generation is a pure function of `(seed, sx, sy, sz)`, a
  * cache miss is cheap to fill and an evicted sector regenerates identically.
- * FIFO eviction keeps memory bounded; the capacity comfortably exceeds the
+ * Least-recently-read eviction keeps memory bounded: every `get` / `peek` hit
+ * refreshes a sector, so the sectors in view (read every frame) are never the
+ * ones evicted while they fit the capacity, which comfortably exceeds the
  * worst-case visible-sector count at the star tier.
  */
 export class SectorCache {
@@ -24,7 +26,7 @@ export class SectorCache {
 
   get(sx: number, sy: number, sz: number): SectorData {
     const key = `${sx},${sy},${sz}`;
-    let data = this.map.get(key);
+    let data = this.touch(key);
     if (data)
       return data;
     data = generateSectorData(this.seed, sx, sy, sz);
@@ -39,6 +41,17 @@ export class SectorCache {
 
   /** The cached sector, or undefined without generating it (for budgeted callers). */
   peek(sx: number, sy: number, sz: number): SectorData | undefined {
-    return this.map.get(`${sx},${sy},${sz}`);
+    return this.touch(`${sx},${sy},${sz}`);
+  }
+
+  // A hit moves the sector to the back of the Map's insertion order, which is
+  // the eviction order.
+  private touch(key: string): SectorData | undefined {
+    const data = this.map.get(key);
+    if (data) {
+      this.map.delete(key);
+      this.map.set(key, data);
+    }
+    return data;
   }
 }

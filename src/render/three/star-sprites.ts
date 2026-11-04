@@ -2,8 +2,10 @@
  * Star-tier sprite layer: every system in range drawn as one camera-facing,
  * additive, HDR sprite (a bright core over a soft halo) in a single instanced
  * draw, bloomed by the shared post-process like the system tier's star glare.
- * Brightness and size follow apparent brightness (`star-brightness.ts`); the
- * brightest few also get diffraction spikes. The layer remembers what it drew
+ * Brightness and size follow apparent brightness from the camera
+ * (`star-brightness.ts`); the brightest few as seen from the focus get labels
+ * and diffraction spikes, a choice that holds still while the camera orbits.
+ * The layer remembers what it drew
  * so the renderer can pick, hover-label and zoom onto a star.
  */
 
@@ -17,8 +19,9 @@ import { abs, exp, float, length, pow, smoothstep, uv, vec2, vec4 } from 'three/
 import { AdditiveBlending, Color, DoubleSide, InstancedMesh, MeshBasicNodeMaterial, Object3D, PlaneGeometry } from 'three/webgpu';
 
 import { STAR_LABEL_COUNT, STAR_SECTOR_BUDGET_MS, STAR_SPIKE_COUNT } from '../../config/render';
+import { isSameSystem } from '../../generation/universe';
 import { SECTOR_SIZE } from '../../scale';
-import { apparentStarLevel, boostSaturation, starSpriteIntensity, starSpriteSizePx } from '../star-brightness';
+import { apparentStarLevel, boostSaturation, starRankLevel, starSpriteIntensity, starSpriteSizePx } from '../star-brightness';
 
 /** Initial sprite instance capacity; grown (reallocated) on demand, never shrunk. */
 const INITIAL_CAPACITY = 8192;
@@ -26,7 +29,7 @@ const INITIAL_CAPACITY = 8192;
 const SPIKE_SIZE_FACTOR = 3.5;
 /** Spike brightness relative to the star's sprite. */
 const SPIKE_GAIN = 0.6;
-/** Only stars at least this bright (apparent level) grow spikes. */
+/** Only stars ranked at least this bright (`starRankLevel`) grow spikes. */
 const SPIKE_MIN_LEVEL = 0.55;
 /** Outer fraction of the drawn radius over which the field fades out, hiding its edge. */
 const EDGE_FADE_START = 0.75;
@@ -118,7 +121,7 @@ export class StarSpriteLayer {
   /** Systems of the drawn stars, parallel to `positions`. */
   private systems: SystemData[] = [];
   private readonly tmpColor = new Color();
-  /** Indices of the brightest drawn stars, brightest first, with their levels. */
+  /** Indices of the highest-ranked drawn stars (`starRankLevel`), highest first, with their ranks. */
   private readonly top: number[] = [];
   private readonly topCount = Math.max(STAR_LABEL_COUNT, STAR_SPIKE_COUNT);
   private readonly topLevel: number[] = [];
@@ -135,7 +138,7 @@ export class StarSpriteLayer {
     group.add(this.spikes);
   }
 
-  /** The brightest drawn stars (up to `STAR_LABEL_COUNT`), brightest first. */
+  /** The brightest drawn stars as seen from the focus (up to `STAR_LABEL_COUNT`), brightest first. */
   brightest(out: DrawnStar[]): DrawnStar[] {
     out.length = 0;
     for (let k = 0; k < Math.min(STAR_LABEL_COUNT, this.top.length); k++)
@@ -207,7 +210,7 @@ export class StarSpriteLayer {
     let i = 0;
     for (const sector of sectors) {
       for (const sys of sector.systems) {
-        const isFocused = f.focused !== null && sys.name.scientific === f.focused.name.scientific;
+        const isFocused = f.focused !== null && isSameSystem(sys, f.focused);
         let weight = isFocused ? f.focusedWeight : f.weight;
         const x = sys.x - f.originX;
         const y = sys.y - f.originY;
@@ -235,7 +238,7 @@ export class StarSpriteLayer {
         this.positions[i * 3 + 1] = y;
         this.positions[i * 3 + 2] = z;
         this.systems.push(sys);
-        this.rankTop(i, level * weight, size);
+        this.rankTop(i, starRankLevel(sys.star.luminosity, fromFocus, weight), size);
         i++;
       }
     }

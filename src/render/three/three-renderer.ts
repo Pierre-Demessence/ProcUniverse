@@ -32,11 +32,10 @@ import { pass } from 'three/tsl';
 import { AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, Color, ColorManagement, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, OrthographicCamera, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Raycaster, RenderPipeline, RingGeometry, Scene, SphereGeometry, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 
 import { planeBasis } from '../../camera/plane-basis';
-import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, PICK_PX, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH, STAR_MAX_REACH_LY, STAR_MIN_REACH_LY } from '../../config/render';
+import { BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, CAMERA_FOV_DEG, LIGHT_AMBIENT, LIGHT_STAR_BASE, MOON_SURFACE_MAP_WIDTH, PICK_PX, RENDER_ANTIALIAS, RENDER_SCALE, SPHERE_HEIGHT_SEGMENTS, SPHERE_WIDTH_SEGMENTS, STAR_EMISSIVE_STRENGTH } from '../../config/render';
 import { galaxyAt } from '../../generation/galaxies';
 import { StarPhysicalDef } from '../../generation/stars';
-import { AU_PER_LY } from '../../generation/units';
-import { layerWeights, sectorsAround, SYSTEM_LAYER_REACH_AU } from '../../lod/tier';
+import { layerWeights, sectorsAround, starFieldReach, SYSTEM_LAYER_REACH_AU } from '../../lod/tier';
 import { OrbitElementsDef, ringArc } from '../../sim/orbits';
 import { createAtmosphereMaterial } from './atmosphere-material';
 import { BodyPasses } from './body-passes';
@@ -457,12 +456,7 @@ export class ThreeRenderer implements Renderer<ThreeRenderContext> {
 
     const focusX = camera.x + camera.offsetX;
     const focusY = camera.y + camera.offsetY;
-    // Star-field reach: the view's half-span, widened toward the horizon by the
-    // tilt, never below the neighbourhood the cross-fade band shows.
-    const halfSpan = Math.max(camera.viewportW, camera.viewportH) / camera.zoom / 2;
-    const starReach = stars
-      ? Math.min(Math.max(halfSpan * (1 + 2 * Math.abs(Math.sin(tilt))), STAR_MIN_REACH_LY * AU_PER_LY), STAR_MAX_REACH_LY * AU_PER_LY)
-      : 0;
+    const starReach = stars ? starFieldReach(camera) : 0;
     // Frustum reach at the system tier = the focused system only (nearest star
     // + the widest planet apoapsis), so the far plane stays tight and
     // neighbouring systems — light-years away — are clipped rather than drawn

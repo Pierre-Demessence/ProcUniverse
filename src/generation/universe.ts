@@ -90,6 +90,15 @@ export interface SectorData {
   sz: number;
 }
 
+/**
+ * Whether `a` and `b` are the same system: same catalogue name and position.
+ * The 5-digit catalogue name alone can repeat between systems in view; the
+ * position is exact, since a regenerated sector reproduces it bit for bit.
+ */
+export function isSameSystem(a: Pick<SystemData, 'name' | 'x' | 'y' | 'z'>, b: Pick<SystemData, 'name' | 'x' | 'y' | 'z'>): boolean {
+  return a.name.scientific === b.name.scientific && a.x === b.x && a.y === b.y && a.z === b.z;
+}
+
 function choose(colors: readonly string[], rng: () => number): string {
   return colors[randomInt(colors.length, rng)];
 }

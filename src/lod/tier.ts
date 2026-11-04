@@ -2,8 +2,8 @@ import type { Camera } from '@pierre/ecs/modules/camera';
 
 import { cameraViewRect } from '@pierre/ecs/modules/camera';
 
-import { DISK_OUTER_MAX_AU } from '../config/data';
-import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_TILT_EASE_START_LY, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
+import { DISK_OUTER_MAX_AU, GALAXY_CELL_LY } from '../config/data';
+import { GALAXY_FIELD_LY, GALAXY_TIER_LY, STAR_BLEND_MAX_AU, STAR_BLEND_MIN_AU, STAR_HANDOFF_START, STAR_MAX_REACH_LY, STAR_MIN_REACH_LY, STAR_REACH_SPAN_FACTOR, STAR_TILT_EASE_START_LY, SYSTEM_TIER_MAX_AU, TIER_HYSTERESIS, UNIVERSE_LY } from '../config/render';
 import { AU_PER_LY } from '../generation/units';
 import { SECTOR_SIZE } from '../scale';
 
@@ -94,6 +94,28 @@ export function visibleSectors(cam: Camera, focusZ: number): SectorRange {
     minSy: Math.floor(r.y / SECTOR_SIZE),
     minSz: Math.floor((focusZ - halfDepth) / SECTOR_SIZE),
   };
+}
+
+/**
+ * Radius (AU) of the star-tier sphere of stars drawn around the focus:
+ * `STAR_REACH_SPAN_FACTOR` × the view's half-span, clamped to
+ * `STAR_MIN_REACH_LY`–`STAR_MAX_REACH_LY`. Set by the zoom alone, so tilting or
+ * orbiting the camera never adds or drops stars.
+ */
+export function starFieldReach(cam: Camera): number {
+  const halfSpan = Math.max(cam.viewportW, cam.viewportH) / cam.zoom / 2;
+  return Math.min(Math.max(halfSpan * STAR_REACH_SPAN_FACTOR, STAR_MIN_REACH_LY * AU_PER_LY), STAR_MAX_REACH_LY * AU_PER_LY);
+}
+
+/**
+ * Half-depth (AU) of the box of space the galaxy-field tier scans around the
+ * focus height: as deep as the view is wide, but at most half a galaxy cell, so
+ * the widest view reads two cell layers instead of one per cell across. Until
+ * the tier renders in 3D (universe-3d Phase 4) it shows a slab, not a cube.
+ */
+export function galaxyFieldHalfDepth(cam: Camera): number {
+  const halfSpan = Math.max(cam.viewportW, cam.viewportH) / cam.zoom / 2;
+  return Math.min(halfSpan, (GALAXY_CELL_LY * AU_PER_LY) / 2);
 }
 
 /** Inclusive range of sector coordinates overlapping the cube `(cx, cy, cz) ± halfExtent` (absolute AU). */

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BLOOM_THRESHOLD, STAR_SPRITE_MAX_PX, STAR_SPRITE_MIN_INTENSITY, STAR_SPRITE_MIN_PX, STAR_SPRITE_PEAK_INTENSITY } from '../config/render';
 import { AU_PER_LY } from '../generation/units';
-import { apparentStarLevel, boostSaturation, starSpriteIntensity, starSpriteSizePx } from './star-brightness';
+import { apparentStarLevel, boostSaturation, starRankLevel, starSpriteIntensity, starSpriteSizePx } from './star-brightness';
 
 describe('apparentStarLevel', () => {
   it('falls with distance and rises with luminosity', () => {
@@ -53,5 +53,19 @@ describe('boostSaturation', () => {
     expect(r).toBe(1);
     expect(b).toBeLessThan(0.6);
     expect(b).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('starRankLevel', () => {
+  it('is the brightness seen from the focus, scaled by the fade weight', () => {
+    // Its only inputs are the star and its distance to the focus: the camera
+    // position never enters, so orbiting cannot reshuffle the labelled stars.
+    expect(starRankLevel(1, 3 * AU_PER_LY, 1)).toBe(apparentStarLevel(1, 3 * AU_PER_LY));
+    expect(starRankLevel(1, 3 * AU_PER_LY, 0.5)).toBeCloseTo(apparentStarLevel(1, 3 * AU_PER_LY) * 0.5);
+  });
+
+  it('ranks nearer-to-the-focus and more luminous stars higher', () => {
+    expect(starRankLevel(1, 2 * AU_PER_LY, 1)).toBeGreaterThan(starRankLevel(1, 6 * AU_PER_LY, 1));
+    expect(starRankLevel(10, 6 * AU_PER_LY, 1)).toBeGreaterThan(starRankLevel(1, 6 * AU_PER_LY, 1));
   });
 });

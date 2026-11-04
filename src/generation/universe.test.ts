@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { SECTOR_SIZE } from '../scale';
 import { frostLine } from './planets';
 import { AU_PER_LY } from './units';
-import { generateSectorData, samplePoisson } from './universe';
+import { generateSectorData, isSameSystem, samplePoisson } from './universe';
 
 describe('generateSectorData', () => {
   it('is deterministic for the same seed and coordinates', () => {
@@ -284,5 +284,21 @@ describe('samplePoisson', () => {
     expect(avg).toBeCloseTo(mean, mean < 1 ? 1 : 0);
     expect(variance / mean).toBeGreaterThan(0.85);
     expect(variance / mean).toBeLessThan(1.15);
+  });
+});
+
+describe('isSameSystem', () => {
+  const system = (scientific: string, x: number, y: number, z: number): SystemData => ({ name: { human: scientific, scientific }, x, y, z }) as unknown as SystemData;
+
+  it('matches a system to itself and to its regenerated copy', () => {
+    const a = generateSectorData(1337, 0, 0, 0).systems[0];
+    const b = generateSectorData(1337, 0, 0, 0).systems[0];
+    expect(a).not.toBe(b);
+    expect(isSameSystem(a, b)).toBe(true);
+  });
+
+  it('tells apart two systems that share a catalogue name', () => {
+    expect(isSameSystem(system('S-12345', 1, 2, 3), system('S-12345', 1, 2, 4))).toBe(false);
+    expect(isSameSystem(system('S-12345', 1, 2, 3), system('S-54321', 1, 2, 3))).toBe(false);
   });
 });

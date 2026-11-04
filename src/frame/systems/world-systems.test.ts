@@ -67,6 +67,22 @@ describe('origin-rebase system', () => {
     expect(far.x).toBeCloseTo(0);
     expect(clear).toHaveBeenCalledOnce();
   });
+
+  it('rebases the height zoomed out once the focus has drifted far off the origin', () => {
+    const state = new FrameState({ simSeconds: 0, tier: 'universe' });
+    const clear = vi.fn();
+    const beyond = SECTOR_SIZE * (Math.ceil((REBASE_LY * AU_PER_LY) / SECTOR_SIZE) + 1);
+    // x / y stay near the origin: only the height (e.g. after tilted pans) is far.
+    const controller = focusController(beyond + SECTOR_SIZE / 4);
+    const cam = camera(1, 2, 1e-30);
+    const ctx = createFrameCtx(16, 'universe');
+    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller, state, streamer: { clear } }).run(ctx);
+    expect(state.renderOriginZ).toBe(beyond);
+    expect(controller.focusZ).toBeCloseTo(SECTOR_SIZE / 4);
+    expect(cameraAbsolute(state.renderOriginZ, controller.focusZ)).toBeCloseTo(beyond + SECTOR_SIZE / 4);
+    expect(cameraAbsolute(state.renderOriginX, cam.x)).toBeCloseTo(1);
+    expect(clear).toHaveBeenCalledOnce();
+  });
 });
 
 describe('streaming system', () => {

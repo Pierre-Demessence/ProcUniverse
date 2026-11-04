@@ -13,6 +13,7 @@ import { GALAXY_CELL_LY } from '../../config/data';
 import { GALAXY_SPRITE_SCALE } from '../../config/render';
 import { cosmicDensity, galaxiesInBox, galaxyRepresentativeActivity, galaxySampleAt } from '../../generation/galaxies';
 import { AU_PER_LY } from '../../generation/units';
+import { galaxyFieldHalfDepth } from '../../lod/tier';
 import { bucketedPopulationColor } from '../galaxy-sprites';
 
 /** Sink for one glow sprite: local world centre, world radius, colour (0–255), alpha. */
@@ -33,8 +34,8 @@ const MIN_SPRITE_PX = 2;
 const TARGET_CELL_PX = 34;
 
 /**
- * GALAXY-FIELD tier: one additive glow per galaxy in the cube of space in view
- * (the view rectangle, as deep as it is wide, around the focus height) — centre
+ * GALAXY-FIELD tier: one additive glow per galaxy in the box of space in view
+ * (the view rectangle, `galaxyFieldHalfDepth` either side of the focus height) — centre
  * from the galaxy, world radius from its size (min-floored on screen), colour
  * from its dominant population.
  */
@@ -42,7 +43,7 @@ export const forEachGalaxyFieldGlow: GlowField = (cam, seed, originX, originY, f
   const rect = cameraViewRect(cam);
   const minX = rect.x + originX;
   const minY = rect.y + originY;
-  const halfDepth = Math.max(rect.w, rect.h) / 2;
+  const halfDepth = galaxyFieldHalfDepth(cam);
   for (const g of galaxiesInBox(seed, minX, minY, focusZ - halfDepth, minX + rect.w, minY + rect.h, focusZ + halfDepth)) {
     const radius = Math.max(MIN_SPRITE_PX / cam.zoom, g.radius * GALAXY_SPRITE_SCALE);
     const [r, green, b] = bucketedPopulationColor(galaxyRepresentativeActivity(g));

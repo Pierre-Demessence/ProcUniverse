@@ -61,6 +61,8 @@ const POP_ACTIVITY_OLD = 0.08;
 // Dwarf vs normal galaxy size multipliers on the radius / scale length.
 const DWARF_SIZE = [0.25, 0.5] as const;
 const NORMAL_SIZE = [0.8, 1.3] as const;
+/** Largest radius (AU) any galaxy can have: a normal galaxy at the top of its size range. */
+export const GALAXY_MAX_RADIUS_AU = GALAXY_RADIUS_LY * AU_PER_LY * NORMAL_SIZE[1];
 
 /** Broad galaxy morphology (Hubble sequence, minus the deferred irregulars). */
 export type GalaxyType = 'barred-spiral' | 'elliptical' | 'lenticular' | 'spiral';
@@ -357,7 +359,8 @@ export function makeGalaxy(worldSeed: number, gx: number, gy: number, gz: number
 }
 
 const cellCache = new Map<number, GalaxyParams | null>();
-const CELL_CACHE_CAP = 4096;
+// Holds every cell the widest galaxy-field view reads in one frame (~64 × 36 × 2).
+const CELL_CACHE_CAP = 16384;
 let cellCacheSeed: number | null = null;
 // Numeric cache key `(gx · 2¹⁷ + gy) · 2¹⁷ + gz`: unique while every coordinate
 // stays within ±2¹⁶ cells (~10¹⁶ AU), and under 2⁵² in magnitude, so it stays

@@ -28,6 +28,15 @@ export function apparentStarLevel(luminosity: number, distanceAu: number): numbe
   return Math.min(1, Math.max(0, t));
 }
 
+/**
+ * Ranking key for the labelled / spiked stars: the apparent level seen from the
+ * camera focus (not the camera), times the star's fade `weight`. The focus
+ * stays put while the camera orbits or tilts around it, so the ranking does too.
+ */
+export function starRankLevel(luminosity: number, fromFocusAu: number, weight: number): number {
+  return apparentStarLevel(luminosity, fromFocusAu) * weight;
+}
+
 /** Colour multiplier for a sprite at `level`; the top end exceeds the bloom threshold. */
 export function starSpriteIntensity(level: number): number {
   return STAR_SPRITE_MIN_INTENSITY + (STAR_SPRITE_PEAK_INTENSITY - STAR_SPRITE_MIN_INTENSITY) * level ** STAR_BRIGHTNESS_GAMMA;

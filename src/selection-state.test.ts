@@ -1,14 +1,16 @@
 import type { EntityId } from '@pierre/ecs/entity-id';
 
 import type { Bookmark } from './bookmarks';
+import type { GalaxyParams } from './generation/galaxies';
 import type { OrbitElements } from './sim/orbits';
 
 import { EcsWorld } from '@pierre/ecs';
 import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
+import { bookmarkFromSelection } from './bookmarks';
 import { lockedBodyLocalPos } from './camera/framing';
-import { galaxyAt } from './generation/galaxies';
+import { galaxyAt, galaxyInCell } from './generation/galaxies';
 import { NameDef } from './generation/naming';
 import { SelectionState } from './selection-state';
 import { OrbitElementsDef } from './sim/orbits';
@@ -132,6 +134,25 @@ describe('selectionState', () => {
       throw new Error('no seed with a galaxy at the origin');
     const s = new SelectionState();
     s.openBookmark(bookmark('galaxy', g.name, 0, 0), makeWorld(), seed);
+    expect(s.selection).toEqual({ galaxy: g, kind: 'galaxy' });
+  });
+
+  it('reopens a bookmarked galaxy that sits off the home galactic plane', () => {
+    const seed = 7;
+    let g: GalaxyParams | null = null;
+    for (let gx = 1; gx < 200 && !g; gx++) {
+      const candidate = galaxyInCell(seed, gx, 0, 1);
+      if (candidate && Math.abs(candidate.centerZ) > candidate.radius * 4)
+        g = candidate;
+    }
+    if (!g)
+      throw new Error('no off-plane galaxy found');
+    const world = makeWorld();
+    const bm = bookmarkFromSelection({ galaxy: g, kind: 'galaxy' }, world, 0, 0);
+    if (!bm)
+      throw new Error('no bookmark');
+    const s = new SelectionState();
+    s.openBookmark(bm, world, seed);
     expect(s.selection).toEqual({ galaxy: g, kind: 'galaxy' });
   });
 

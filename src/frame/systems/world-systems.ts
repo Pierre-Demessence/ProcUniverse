@@ -36,8 +36,9 @@ export const hasSystemLayer = (ctx: FrameCtx): boolean => ctx.blend < 1;
  * coordinates. While the system layer is visible the origin snaps to the
  * focused star (x, y and height z), dropping planet coords to tens of AU (at
  * ~10^5 AU local, the GPU's float32 vertex positions jitter visibly). Zoomed out
- * it snaps to the sector grid and rebases only once the local offset grows
- * large. When the origin moves, `camera.x/y` and the controller's `focusZ` shift
+ * it snaps to the sector grid (x, y and z) and rebases only once the local
+ * offset grows large — the height too, which tilted pans or a restored save can
+ * push far off the origin. When the origin moves, `camera.x/y` and the controller's `focusZ` shift
  * by the same amount so the absolute focus is unchanged, and streamed systems
  * are dropped to respawn against the new origin.
  */
@@ -73,9 +74,10 @@ export function makeOriginRebaseSystem(deps: {
         originY = ctx.focusedSystem ? ctx.focusedSystem.y : Math.round(ctx.camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
         originZ = ctx.focusedSystem ? ctx.focusedSystem.z : originZ;
       }
-      else if (Math.abs(camera.x) > REBASE_DIST || Math.abs(camera.y) > REBASE_DIST) {
+      else if (Math.abs(camera.x) > REBASE_DIST || Math.abs(camera.y) > REBASE_DIST || Math.abs(controller.focusZ) > REBASE_DIST) {
         originX = Math.round(ctx.camAbsX / SECTOR_SIZE) * SECTOR_SIZE;
         originY = Math.round(ctx.camAbsY / SECTOR_SIZE) * SECTOR_SIZE;
+        originZ = Math.round(ctx.camAbsZ / SECTOR_SIZE) * SECTOR_SIZE;
       }
       if (originX !== state.renderOriginX || originY !== state.renderOriginY || originZ !== state.renderOriginZ) {
         camera.x = rebaseLocal(state.renderOriginX, camera.x, originX);
