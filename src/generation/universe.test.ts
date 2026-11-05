@@ -135,14 +135,14 @@ describe('generateSystem', () => {
     expect(generateSystem(1337, records[0])).toEqual(forward[0]);
   });
 
-  it('regenerates pinned systems byte-identically', () => {
+  it('regenerates pinned systems identically', () => {
     // Fingerprint of the full systems of a few sectors: any change to the
     // star's or its planets' draws, or to their order, shows up here. Update it
     // deliberately.
     const parts: string[] = [];
     for (const [sx, sy, sz] of [[0, 0, 0], [3, -2, 1], [-40, 17, 0], [1000, 5, -2]])
-      parts.push(JSON.stringify(systemsIn(12345, sx, sy, sz)));
-    expect(fingerprint(parts.join('|'))).toBe('34369dc2-7c5ace91-105446');
+      parts.push(JSON.stringify(systemsIn(12345, sx, sy, sz), roundedNumbers));
+    expect(fingerprint(parts.join('|'))).toBe('83787629-a23dcdcc-82387');
   });
 });
 
@@ -240,6 +240,19 @@ describe('generateSectorData 3D orbital orientation', () => {
   });
 });
 
+// Significant digits kept by `roundedNumbers`. `Math.sin`, `exp`, `pow`, ... may
+// differ in the last bit between JS engines, versions and CPUs, so a pin of
+// every digit made on one machine fails on another (CI was red for weeks over
+// it). Measured with every such call perturbed by up to 64 units in the last
+// place: 10 digits flip the fingerprint, 8 never did; 7 keeps a margin. A
+// changed draw or draw order moves values far above this precision.
+const FINGERPRINT_DIGITS = 7;
+
+/** `JSON.stringify` replacer for the fingerprints: non-integers rounded to `FINGERPRINT_DIGITS`, integers (seeds) exact. */
+function roundedNumbers(_key: string, value: unknown): unknown {
+  return typeof value === 'number' && !Number.isInteger(value) ? Number(value.toPrecision(FINGERPRINT_DIGITS)) : value;
+}
+
 /** Two FNV-1a 32-bit hashes (different offsets) plus the length: a 64-bit+ content fingerprint. */
 function fingerprint(text: string): string {
   let a = 0x811C9DC5;
@@ -275,13 +288,13 @@ function countAlongX(seed: number, sx: number, sy: number, sz: number, count: nu
 }
 
 describe('generateSectorData 3D star placement', () => {
-  it('regenerates a pinned universe byte-identically', () => {
+  it('regenerates a pinned universe identically', () => {
     // Fingerprint of a few sectors across the home galaxy: any change to a draw,
     // its order, or the density model shows up here. Update it deliberately.
     const parts: string[] = [];
     for (const [sx, sy, sz] of [[0, 0, 0], [3, -2, 1], [-40, 17, 0], [1000, 5, -2]])
-      parts.push(JSON.stringify(generateSectorData(12345, sx, sy, sz)));
-    expect(fingerprint(parts.join('|'))).toBe('71988561-cc090a56-11020');
+      parts.push(JSON.stringify(generateSectorData(12345, sx, sy, sz), roundedNumbers));
+    expect(fingerprint(parts.join('|'))).toBe('d00f5581-2d8bdf26-8506');
   });
 
   it('follows the galaxy: dense at the core, sparse in the outer disk, near-empty high above it', () => {

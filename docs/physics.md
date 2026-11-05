@@ -12,7 +12,10 @@ One seed gives one mass; everything else is derived from it. Nothing varies at
 runtime (a planet's mass never changes), so all properties are one-time pure
 functions of the seed, computed when a sector becomes visible and cached. Draws
 are consumed from the RNG in a fixed order, so a regenerated sector is
-byte-identical.
+byte-identical on the same JavaScript engine. Engines (and their versions and
+CPUs) may differ in the last bit of `Math.sin`, `exp`, `pow` and the like, so
+the determinism tests compare numbers rounded to 7 significant digits: a
+changed draw or draw order still shows, last-bit noise does not.
 
 Example: a star sampled at 0.5 M☉ is automatically a dim, cool, orange K/M dwarf
 with a close-in habitable zone; its planets inherit that dimness.

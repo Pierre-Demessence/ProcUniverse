@@ -220,7 +220,10 @@ this plan.
 
 ### B44.1 Machine-independent determinism tests (F1)
 
-- [ ] Hash rounded numbers in both fingerprint tests; re-pin.
+- [x] Hash rounded numbers in both fingerprint tests; re-pin. Measured with
+      every transcendental call perturbed by up to 64 units in the last place
+      (25 patterns each): 10 significant digits flipped the fingerprint, 9 once,
+      8 and fewer never; 7 kept for margin.
 
 Visible after: CI green; nothing in the app.
 Needs you: the merge-to-`main` timing (F1).
