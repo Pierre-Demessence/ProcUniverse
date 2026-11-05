@@ -245,7 +245,11 @@ the focus changes star (at the end).
 
 ### B44.3 Zoom-to and Inspect stay in the system view (F2)
 
-- [ ] Cap body framing at a camera distance inside the system tier; D7 updated.
+- [x] Cap body framing at a camera distance inside the system tier
+      (`bodyFrameZoom`, `BODY_FRAME_MAX_DISTANCE_AU` = 0.9 × the tier's entry
+      distance ≈ 216 AU); D7 updated. Tests: wide system and heavy black hole
+      stay at the system tier; a star-tier click on a 130+ AU system selects the
+      star (fails on the old code).
 
 Visible after: clicking a bright O / B star selects it; very wide systems
 frame to the edge of the system view.

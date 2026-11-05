@@ -17,7 +17,7 @@ Shipped features. Planned work is in [backlog.md](backlog.md).
 | Scale bar | A map-style bar one grid-cell wide labels the current view scale, auto-selecting km / AU / ly. |
 | Coordinate readout | Bottom-left readout of the view-centre world position in x, y, z (auto-scaled AU / ly / kly / Mly) plus the current galaxy and the offset from its centre. |
 | Location tree | A top-left panel shows where the camera is as a hierarchy (Universe → Galaxy → System → Planet → Moon), growing as you zoom in. Clicking a node pins it in the inspector; the current selection is highlighted. |
-| Camera focus and lock | "Zoom to" in the inspector frames the selected body and its satellites; "Lock" (planets and moons) keeps the body centred while you zoom, releasing on pan, re-select, or zooming out past it. |
+| Camera focus and lock | "Zoom to" in the inspector frames the selected body and its satellites (a system wider than the system view is framed to its edge, so the body stays selected); "Lock" (planets and moons) keeps the body centred while you zoom, releasing on pan, re-select, or zooming out past it. |
 | Bookmarks | ☆ in the inspector bookmarks any body, galaxy, or the universe. A bookmark panel offers Zoom-to and Inspect; bookmarks persist with the universe save. |
 | Return to origin | A bottom-centre button reframes the home galaxy. |
 | FPS HUD | Frame-time / FPS overlay via the engine `stats` module. |

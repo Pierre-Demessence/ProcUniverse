@@ -16,7 +16,7 @@ import { TickRunner } from '@pierre/ecs/tick-runner';
 import { bookmarkZ, removeBookmark, toggleBookmark } from './bookmarks';
 import { createCameraController } from './camera/camera-controller';
 import { frameZoom } from './camera/focus';
-import { frameSelection } from './camera/framing';
+import { bodyFrameZoom, frameSelection } from './camera/framing';
 import { cameraAbsolute } from './camera/origin';
 import { CLICK_SLOP_PX, DISC_FRAME_FACTOR, FRAME_MARGIN, MAX_ZOOM, MIN_ZOOM, SYSTEM_VIEW_AU } from './config/render';
 import { createFrameCtx } from './frame/frame-context';
@@ -348,7 +348,10 @@ export function start(container: HTMLElement, save: Save): () => void {
     camera.x = bm.x - state.renderOriginX;
     camera.y = bm.y - state.renderOriginY;
     controller.setFocusZ(bookmarkZ(bm, cache) - state.renderOriginZ);
-    camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+    // A body lands inside the system tier, where it can be selected (D7).
+    camera.zoom = bm.kind === 'galaxy' || bm.kind === 'universe'
+      ? frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM)
+      : bodyFrameZoom(bm.extentAu, camera.viewportW, camera.viewportH);
     const id = selectionState.openBookmark(bm, world, seed);
     const pos = id === null ? undefined : positions.get(id);
     if (pos) {

@@ -4,8 +4,8 @@ import { Position3DDef } from '@pierre/ecs/modules/transform-3d';
 import { describe, expect, it } from 'vitest';
 
 import { bookmarkFromSelection, bookmarkZ } from '../bookmarks';
-import { frameZoom } from '../camera/focus';
-import { FRAME_MARGIN, MAX_ZOOM, MIN_ZOOM, SYSTEM_VIEW_AU } from '../config/render';
+import { bodyFrameZoom } from '../camera/framing';
+import { SYSTEM_VIEW_AU } from '../config/render';
 import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { SectorCache } from '../lod/sector-cache';
@@ -61,7 +61,7 @@ function harness(seed: number) {
     camera.x = bm.x - state.renderOriginX;
     camera.y = bm.y - state.renderOriginY;
     controller.setFocusZ(bookmarkZ(bm, cache) - state.renderOriginZ);
-    camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+    camera.zoom = bodyFrameZoom(bm.extentAu, camera.viewportW, camera.viewportH);
     const id = selectionState.openBookmark(bm, world, seed);
     const pos = id === null ? undefined : world.getStore(Position3DDef).get(id);
     if (pos) {
@@ -168,5 +168,36 @@ describe('bookmark inspect across systems', () => {
     expectHeld(bm, zoomSet);
     // The origin followed the planet back to its own star.
     expect([state.renderOriginX, state.renderOriginY]).toEqual([pair[0].x, pair[0].y]);
+  });
+
+  it('selects a star clicked at the star tier even when its system is wider than the system view', () => {
+    // Framing a ~150 AU system whole needs the camera ~450 AU out, past the
+    // system tier, where a star never resolved: the bright O / B stars.
+    const seed = 12345;
+    const { cache, camera, inspect, selectionState, state, tick, world } = harness(seed);
+    let wide: { extentAu: number; name: string; x: number; y: number; z: number } | null = null;
+    for (let sx = 0; sx < 400 && !wide; sx++) {
+      for (const sys of cache.get(sx, 0, 0).stars.map(star => cache.system(star))) {
+        let extentAu = sys.radius * 8;
+        for (const planet of sys.planets)
+          extentAu = Math.max(extentAu, planet.a * (1 + planet.e));
+        if (extentAu > 130) {
+          wide = { name: sys.name.scientific, extentAu, x: sys.x, y: sys.y, z: sys.z };
+          break;
+        }
+      }
+    }
+    expect(wide).not.toBeNull();
+    camera.zoom = 2e-3;
+    tick(2);
+    expect(state.currentTier).toBe('star');
+
+    // Same as main.ts onStarInspect.
+    inspect({ name: wide!.name, extentAu: wide!.extentAu, kind: 'star', label: wide!.name, x: wide!.x, y: wide!.y, z: wide!.z });
+    tick(3);
+    expect(state.currentTier).toBe('system');
+    const sel = selectionState.selection;
+    expect(sel?.kind).toBe('star');
+    expect(sel && 'id' in sel ? world.getStore(NameDef).get(sel.id)?.scientific : null).toBe(wide!.name);
   });
 });
