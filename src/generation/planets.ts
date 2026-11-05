@@ -21,6 +21,13 @@ export type WaterState = 'ice' | 'liquid' | 'vapour';
  */
 export interface PlanetPhysical {
   density: number;
+  /**
+   * Tilt (radians) of the orbit from its system's mean (disk) plane: the mutual
+   * inclination. The orbit's `inclination` element is measured against world
+   * +z instead, which says nothing about the system since each disk points its
+   * own way. Filled by the generation pass, like `obliquityAzimuth`.
+   */
+  diskInclination: number;
   equilibriumTemp: number;
   hasRings: boolean;
   inHabitableZone: boolean;
@@ -38,6 +45,7 @@ export interface PlanetPhysical {
 
 export const PlanetPhysicalDef: ComponentDef<PlanetPhysical> = simpleComponent<PlanetPhysical>('planetPhysical', {
   density: 'number',
+  diskInclination: 'number',
   equilibriumTemp: 'number',
   hasRings: 'boolean',
   inHabitableZone: 'boolean',
@@ -148,10 +156,15 @@ function albedoFor(type: PlanetType): number {
   return type === 'gas-giant' || type === 'ice-giant' ? 0.5 : 0.3;
 }
 
-function waterStateFor(tempK: number): WaterState {
-  if (tempK < 273)
+/**
+ * Phase of surface water at the surface temperature `surfaceTempK` (greenhouse
+ * included, see `surfaceTemperature`). Liquid needs an atmosphere's pressure: on
+ * an airless body water is ice below freezing and has boiled off (vapour) above.
+ */
+export function surfaceWaterState(surfaceTempK: number, hasAtmosphere: boolean): WaterState {
+  if (surfaceTempK < 273)
     return 'ice';
-  if (tempK < 373)
+  if (surfaceTempK < 373 && hasAtmosphere)
     return 'liquid';
   return 'vapour';
 }
@@ -216,12 +229,19 @@ export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, 
   const hasRings = rng() < (type === 'gas-giant' ? 0.5 : type === 'ice-giant' ? 0.4 : 0.05);
   const tidallyLocked = tidalLockTimescale(a, mass, starMassSolar, radius) < starAgeYears;
   const orbitalPeriodYears = Math.sqrt(a ** 3 / starMassSolar);
+  const insolation = luminositySolar / a ** 2;
+  // Water's phase follows the surface temperature the inspector shows, greenhouse
+  // included: the bare equilibrium temperature is below freezing across the
+  // whole habitable zone (Earth's is 255 K), so it would read every habitable
+  // world as ice.
+  const hasAtmosphere = retainsAtmosphere(escapeVelocity(mass, radius), insolation);
   return {
     density: (EARTH_DENSITY * mass) / radius ** 3,
+    diskInclination: 0,
     equilibriumTemp: temperature,
     hasRings,
     inHabitableZone: a >= hz.inner && a <= hz.outer,
-    insolation: luminositySolar / a ** 2,
+    insolation,
     mass,
     moonRichness,
     obliquity,
@@ -230,7 +250,7 @@ export function samplePlanet(rng: RandomFn, luminositySolar: number, a: number, 
     rotationPeriod: tidallyLocked ? orbitalPeriodYears * HOURS_PER_YEAR : naturalRotation,
     tidallyLocked,
     type,
-    waterState: waterStateFor(temperature),
+    waterState: surfaceWaterState(surfaceTemperature(temperature, type, hasAtmosphere), hasAtmosphere),
   };
 }
 

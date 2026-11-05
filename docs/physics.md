@@ -275,8 +275,14 @@ types and 0.5 for giants):
 
 (from `((L(1 − A)) / (16σπa²))^(1/4)`). `habitableZone` scales as `√L` with the
 conservative Kopparapu (2013) bounds: inner `0.95 · sqrt(L)` AU, outer
-`1.37 · sqrt(L)` AU. `inHabitableZone` is `a` inside those bounds; `waterState`
-is ice below 273 K, liquid below 373 K, vapour above, on `T_eq`. Tidal locking is
+`1.37 · sqrt(L)` AU. `inHabitableZone` is `a` inside those bounds. `waterState`
+(`surfaceWaterState`) is ice below 273 K, liquid below 373 K, vapour above, on
+the greenhouse-corrected surface temperature (`surfaceTemperature`, the
+inspector's Surface row), and never liquid without an atmosphere (airless water
+is ice below freezing, boiled off above). `T_eq` alone would not do: across the
+whole habitable zone it is 218–261 K, so every habitable world (Earth's `T_eq`
+is 255 K) would read as ice. With the crude greenhouse the inner ~half of the
+zone is wet and its outer part frozen. Tidal locking is
 decided by `tidalLockTimescale` (`∝ a⁶·M_p / (M_star²·R_p³)`) against the star's age.
 
 ## Moons

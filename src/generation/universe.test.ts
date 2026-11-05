@@ -142,7 +142,7 @@ describe('generateSystem', () => {
     const parts: string[] = [];
     for (const [sx, sy, sz] of [[0, 0, 0], [3, -2, 1], [-40, 17, 0], [1000, 5, -2]])
       parts.push(JSON.stringify(systemsIn(12345, sx, sy, sz), roundedNumbers));
-    expect(fingerprint(parts.join('|'))).toBe('83787629-a23dcdcc-82387');
+    expect(fingerprint(parts.join('|'))).toBe('1658b2f4-1a2ad903-85346');
   });
 });
 
@@ -165,6 +165,21 @@ describe('generateSectorData 3D orbital orientation', () => {
         expect(Number.isFinite(p.longitudeAscendingNode)).toBe(true);
       }
     }
+  });
+
+  it('stores each planet\'s tilt from its own disk, not from the galactic plane', () => {
+    let tilted = 0;
+    for (const sys of [...systemsIn(1337, 0, 0, 0), ...systemsIn(1337, 1, 0, 0), ...systemsIn(1337, 0, 1, 0)]) {
+      for (const p of sys.planets) {
+        const tilt = angleBetween(orbitNormal(p.inclination, p.longitudeAscendingNode), sys.diskNormal);
+        expect(p.physical.diskInclination).toBeCloseTo(tilt, 6);
+        expect(p.physical.diskInclination).toBeLessThanOrEqual(Math.PI / 2);
+        if (Math.abs(p.inclination - p.physical.diskInclination) > 10 * DEG)
+          tilted++;
+      }
+    }
+    // Disks point every way, so the galactic-plane angle is not the disk tilt.
+    expect(tilted).toBeGreaterThan(0);
   });
 
   it('places a planet\'s moons in its equatorial plane — tilted from the orbit by the obliquity', () => {

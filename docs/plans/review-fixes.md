@@ -256,8 +256,12 @@ frame to the edge of the system view.
 
 ### B44.4 Water state and inclination (F5, F6)
 
-- [ ] `waterState` from the greenhouse-corrected surface temperature.
-- [ ] Store each planet's tilt from its disk; the inspector shows it.
+- [x] `waterState` from the greenhouse-corrected surface temperature
+      (`surfaceWaterState`), never liquid without an atmosphere.
+- [x] Store each planet's tilt from its disk (`PlanetPhysical.diskInclination`,
+      the mutual inclination already drawn); the inspector shows it.
+- [x] No draw moved: with the two fields removed, old and new systems
+      fingerprint identically; the systems fingerprint is re-pinned.
 
 Visible after: Earth-like planets in the habitable zone read "liquid" and show
 oceans; inclinations read a few degrees.

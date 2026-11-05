@@ -349,7 +349,7 @@ function PlanetPanel({ name, footer, moons, orbit, planet }: { footer?: VNode; m
         <Row label="Period" value={formatPeriod(orbitalPeriod(orbit.starMass, orbit.a))} tooltip="How long the planet takes to circle its star once — its year." basic />
         <Row label="Orbital speed" value={formatQuantity(meanOrbitalSpeed(orbit), 'km/s')} tooltip="Average speed the planet moves along its orbit." />
         <Row label="Eccentricity" value={sigFigs(orbit.e)} tooltip="How stretched the orbit is: 0 is a circle, nearer 1 is more elongated." />
-        <Row label="Inclination" value={`${sigFigs(orbit.inclination * (180 / Math.PI))}°`} tooltip="How tilted the orbit is relative to the reference plane (0° lies flat)." />
+        <Row label="Inclination" value={`${sigFigs(planet.diskInclination * (180 / Math.PI))}°`} tooltip="How tilted the orbit is from its system's mean plane (0° lies flat in it)." />
         <Row label="Flux swing" value={`${sigFigs(insolationSwing(orbit))}×`} tooltip="How much the starlight varies between the planet's closest and farthest points." />
       </div>
       {footer}
