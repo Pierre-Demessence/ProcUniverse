@@ -269,8 +269,10 @@ Needs you: lab look at the planets that gain or lose oceans (B12).
 
 ### B44.5 Wheel and trackpad zoom (F4)
 
-- [ ] Zoom proportional to the wheel delta (`deltaMode` aware), no zoom on
-      horizontal-only events, streak grown by notch-equivalents.
+- [x] Zoom proportional to the wheel delta (`deltaMode` aware, `wheelNotches`),
+      no zoom on horizontal-only events, streak grown by notch-equivalents; a
+      mouse notch zooms exactly as before; pinch (`ctrlKey`) follows
+      scale = exp(−deltaY / 100). Knobs `WHEEL_*` / `PINCH_MAX_LOG_STEP`.
 
 Needs you: trackpad and mouse feel.
 

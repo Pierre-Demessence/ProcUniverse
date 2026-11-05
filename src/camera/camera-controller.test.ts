@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
-import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT } from '../config/render';
-import { createCameraController } from './camera-controller';
+import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, WHEEL_MAX_NOTCHES, WHEEL_NOTCH_PX, ZOOM_STEP, ZOOM_STEP_MAX } from '../config/render';
+import { createCameraController, wheelNotches } from './camera-controller';
 import { blendPlaneNormal, GALACTIC_NORMAL, planeBasis } from './plane-basis';
 
 const TAU = 2 * Math.PI;
@@ -109,6 +109,18 @@ describe('camera controller pan', () => {
   });
 });
 
+describe('wheelNotches', () => {
+  it('counts the scroll in mouse notches, positive zooming in, whatever the delta mode', () => {
+    expect(wheelNotches(-WHEEL_NOTCH_PX, 0)).toBe(1);
+    expect(wheelNotches(WHEEL_NOTCH_PX, 0)).toBe(-1);
+    expect(wheelNotches(-5, 0)).toBeCloseTo(0.05);
+    expect(wheelNotches(-3, 1)).toBe(1); // a Firefox notch: three lines
+    expect(wheelNotches(1, 2)).toBe(-WHEEL_MAX_NOTCHES); // a page
+    expect(wheelNotches(-10 * WHEEL_NOTCH_PX, 0)).toBe(WHEEL_MAX_NOTCHES);
+    expect(wheelNotches(0, 0) === 0).toBe(true);
+  });
+});
+
 describe('camera controller 3D zoom-to-point', () => {
   it('closes the focus in on the resolved target in x, y and z', () => {
     const { canvas, controller } = setup();
@@ -148,6 +160,46 @@ describe('camera controller 3D zoom-to-point', () => {
     wheel(canvas, -1);
     expect(controller.camera.zoom).toBeGreaterThan(before);
     expect([controller.camera.x, controller.camera.y, controller.focusZ]).toEqual([7, 8, 40]);
+    controller.dispose();
+  });
+
+  it('zooms one mouse notch by exactly the base step', () => {
+    const { canvas, controller } = setup();
+    controller.setZoomTargetResolver(() => null);
+    controller.camera.zoom = 1;
+    wheel(canvas, -WHEEL_NOTCH_PX);
+    expect(controller.camera.zoom).toBeCloseTo(ZOOM_STEP, 12);
+    controller.dispose();
+  });
+
+  it('adds a trackpad\'s many small events up to the distance scrolled instead of a notch each', () => {
+    const { canvas, controller } = setup();
+    controller.setZoomTargetResolver(() => null);
+    controller.camera.zoom = 1;
+    // One second of two-finger scrolling: 60 events of 5 px, 3 notches' worth.
+    for (let i = 0; i < 60; i++)
+      wheel(canvas, -5);
+    // Three notches with the streak ramp stay a modest zoom (it used to be
+    // 60 full notches ramping to x2.5 each, ~10^17).
+    expect(controller.camera.zoom).toBeGreaterThan(ZOOM_STEP ** 3 * 0.999);
+    expect(controller.camera.zoom).toBeLessThan(ZOOM_STEP_MAX ** 3);
+    controller.dispose();
+  });
+
+  it('ignores a horizontal-only swipe instead of zooming out', () => {
+    const { canvas, controller } = setup();
+    controller.camera.zoom = 1;
+    canvas.dispatchEvent(new WheelEvent('wheel', { cancelable: true, clientX: 10, clientY: 10, deltaX: 40, deltaY: 0 }));
+    expect(controller.camera.zoom).toBe(1);
+    controller.dispose();
+  });
+
+  it('follows a trackpad pinch one to one: scale = exp(−deltaY / 100)', () => {
+    const { canvas, controller } = setup();
+    controller.setZoomTargetResolver(() => null);
+    controller.camera.zoom = 1;
+    canvas.dispatchEvent(new WheelEvent('wheel', { cancelable: true, clientX: 10, clientY: 10, ctrlKey: true, deltaY: -20 }));
+    expect(controller.camera.zoom).toBeCloseTo(Math.exp(0.2), 12);
     controller.dispose();
   });
 
