@@ -58,6 +58,18 @@ export function distanceLy(cam: Camera): number {
   return cameraDistance(cam) / AU_PER_LY;
 }
 
+/** The zoom (px per AU at the focus) that puts the camera `distanceAu` from its focus: the inverse of `cameraDistance`. */
+export function zoomForDistance(distanceAu: number, viewportH: number): number {
+  return viewportH / 2 / (distanceAu * HALF_FOV_TAN);
+}
+
+/**
+ * Camera distance (AU) below which the view enters the system tier from the
+ * star tier: the boundary less its hysteresis. A view framed closer than this
+ * is at the system tier whichever tier it came from.
+ */
+export const SYSTEM_TIER_ENTRY_AU = SYSTEM_TIER_MAX_AU / TIER_HYSTERESIS;
+
 // Tiers ordered by distance (in → out); `BOUNDARIES[i]` is the camera distance
 // (light-years) separating `TIER_ORDER[i]` from the next tier out.
 const TIER_ORDER = ['system', 'star', 'galaxy', 'galaxy-field', 'universe'] as const;

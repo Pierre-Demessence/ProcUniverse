@@ -18,10 +18,11 @@ import { NameDef } from '../generation/naming';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
-import { planetVisualRadius, starVisualRadius } from '../scale';
+import { cameraDistance, selectTier } from '../lod/tier';
+import { blackHoleVisualRadius, planetVisualRadius, starVisualRadius } from '../scale';
 import { OrbitElementsDef, writeOrbitPosition } from '../sim/orbits';
 import { frameZoom } from './focus';
-import { frameSelection, lockedBodyLocalPos, selectionFrame } from './framing';
+import { BODY_FRAME_MAX_DISTANCE_AU, bodyFrameZoom, frameSelection, lockedBodyLocalPos, selectionFrame } from './framing';
 
 const STAR: StarPhysical = {
   age: 4.6e9,
@@ -37,6 +38,7 @@ const STAR: StarPhysical = {
 
 const PLANET: PlanetPhysical = {
   density: 5.5,
+  diskInclination: 0,
   equilibriumTemp: 280,
   hasRings: false,
   inHabitableZone: true,
@@ -171,6 +173,28 @@ describe('frameSelection', () => {
     expect(camera.x).toBe(5);
     expect(camera.y).toBe(5);
     expect(camera.zoom).toBe(frameZoom(extent, 800, 600, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM));
+  });
+
+  it('keeps Zoom-to on a system wider than the system view inside the system tier, from either tier', () => {
+    const world = makeWorld();
+    const star = addStar(world, 0, 0);
+    // An O-star disk reaches ~150 AU; with eccentricity the apoapsis exceeds it.
+    addPlanet(world, { a: 150, cx: 0, cy: 0, e: 0.4 });
+    const camera = makeCamera({ viewportH: 1080, viewportW: 1920, x: 0, y: 0, zoom: 1 });
+    frameSelection({ id: star, kind: 'star' }, world, camera, 0, 0);
+    expect(cameraDistance(camera)).toBeCloseTo(BODY_FRAME_MAX_DISTANCE_AU, 6);
+    expect(selectTier(camera, 'system')).toBe('system');
+    expect(selectTier(camera, 'star')).toBe('system');
+  });
+
+  it('caps a heavy black hole the same way', () => {
+    const extent = blackHoleVisualRadius(5e9) * DISC_FRAME_FACTOR;
+    const camera = makeCamera({ viewportH: 1080, viewportW: 1920, x: 0, y: 0, zoom: bodyFrameZoom(extent, 1920, 1080) });
+    expect(selectTier(camera, 'star')).toBe('system');
+  });
+
+  it('frames a body whole when it fits the system view', () => {
+    expect(bodyFrameZoom(10, 800, 600)).toBe(frameZoom(10, 800, 600, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM));
   });
 
   it('leaves the camera alone for the universe', () => {

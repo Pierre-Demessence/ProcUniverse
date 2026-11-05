@@ -4,7 +4,7 @@ Everything wanted but not built yet. Shipped work is in
 [features.md](features.md); an item being built has a plan under
 [plans/](plans/).
 
-Next ID: B44
+Next ID: B45
 
 ## 3D universe
 
@@ -14,6 +14,9 @@ Next ID: B44
 
 ## Engineering health
 
+- B44 Fix the defects found in the November 2026 project review (CI,
+  selection, zoom input, physics display, render, saving) —
+  [plans/review-fixes.md](plans/review-fixes.md).
 - B2 Move canvas / DPR sizing out of `main.ts` into its own module.
 - B3 Split the remaining ~800-line `three-renderer.ts` (glow tiers, orbit rings,
   camera sync) — `ThreeRenderer`.
@@ -25,9 +28,6 @@ Next ID: B44
   more than ~50,000 AU (~70 ms galaxy sampling, ~30 ms sky-structure bake);
   spread it over frames or move it to a worker (engine `modules/worker-pool`) —
   `ThreeRenderer.updateStarfield`.
-- B8 Focusing a different star at the system tier moves the render origin,
-  which despawns and respawns every streamed sector (unmeasured hitch; new
-  entity ids may also release the camera lock) — origin rebase system.
 - B9 Each rocky planet bakes a 1024 × 512 surface map on first draw; measure the
   hitch on system entry and stagger bakes if needed — `surface-bake.ts`,
   `PLANET_SURFACE_MAP_WIDTH`.

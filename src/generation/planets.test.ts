@@ -17,6 +17,7 @@ import {
   samplePlanet,
   surfaceGravity,
   surfaceTemperature,
+  surfaceWaterState,
 } from './planets';
 
 describe('frost line and habitable zone', () => {
@@ -209,6 +210,34 @@ describe('atmosphere & surface temperature', () => {
     expect(surfaceTemperature(255, 'rocky', false)).toBe(255);
     expect(surfaceTemperature(120, 'gas-giant', true)).toBe(120);
     expect(surfaceTemperature(400, 'rocky', true)).toBeGreaterThan(400 + 33);
+  });
+});
+
+describe('surface water', () => {
+  it('follows the surface temperature, and is never liquid without an atmosphere', () => {
+    expect(surfaceWaterState(288, true)).toBe('liquid'); // Earth
+    expect(surfaceWaterState(240, true)).toBe('ice');
+    expect(surfaceWaterState(400, true)).toBe('vapour');
+    expect(surfaceWaterState(200, false)).toBe('ice');
+    expect(surfaceWaterState(300, false)).toBe('vapour');
+  });
+
+  it('gives rocky worlds that keep an atmosphere at Earth\'s place liquid water', () => {
+    // At 1 AU from a Sun-like star the bare equilibrium temperature is ~255 K,
+    // below freezing: the greenhouse is what makes the habitable zone wet.
+    const rng = makeSeededRng(99);
+    let wet = 0;
+    for (let i = 0; i < 300; i++) {
+      const p = samplePlanet(rng, 1, 1, 1, 4.6e9);
+      expect(p.inHabitableZone).toBe(true);
+      expect(p.equilibriumTemp).toBeLessThan(273);
+      const air = retainsAtmosphere(escapeVelocity(p.mass, p.radius), p.insolation);
+      if ((p.type === 'rocky' || p.type === 'super-earth') && air) {
+        expect(p.waterState).toBe('liquid');
+        wet++;
+      }
+    }
+    expect(wet).toBeGreaterThan(100);
   });
 });
 

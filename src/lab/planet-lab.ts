@@ -78,6 +78,7 @@ interface LabState {
 
 const JUPITER_LIKE: PlanetPhysical = {
   density: 1.33,
+  diskInclination: 0,
   equilibriumTemp: 110,
   hasRings: false,
   inHabitableZone: false,
@@ -96,6 +97,7 @@ const JUPITER_LIKE: PlanetPhysical = {
 const EARTH_LIKE: PlanetPhysical = {
   ...JUPITER_LIKE,
   density: 5.51,
+  diskInclination: 0,
   equilibriumTemp: 255,
   inHabitableZone: true,
   insolation: 1,

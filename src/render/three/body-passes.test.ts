@@ -41,6 +41,7 @@ const STAR: StarPhysical = {
 // atmospheres are exercised with `EARTH` below.
 const PLANET: PlanetPhysical = {
   density: 5.5,
+  diskInclination: 0,
   equilibriumTemp: 280,
   hasRings: false,
   inHabitableZone: true,

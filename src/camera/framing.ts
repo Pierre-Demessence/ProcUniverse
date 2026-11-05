@@ -18,9 +18,24 @@ import { MoonPhysicalDef } from '../generation/moons';
 import { PlanetPhysicalDef } from '../generation/planets';
 import { StarPhysicalDef } from '../generation/stars';
 import { SECONDS_PER_YEAR } from '../generation/units';
+import { SYSTEM_TIER_ENTRY_AU, zoomForDistance } from '../lod/tier';
 import { blackHoleVisualRadius, planetVisualRadius, starVisualRadius } from '../scale';
 import { OrbitElementsDef, writeOrbitPosition } from '../sim/orbits';
 import { frameZoom } from './focus';
+
+/**
+ * Farthest a body framing (Zoom-to, Inspect, a star-tier click) may put the
+ * camera from the body: inside the system tier with a 10% margin, since body
+ * selections and pending bookmarks only live there. A system wider than that
+ * view is framed to its edge (D7).
+ */
+export const BODY_FRAME_MAX_DISTANCE_AU = SYSTEM_TIER_ENTRY_AU * 0.9;
+
+/** The zoom that frames a body's extent (`frameZoom`), never placing the camera beyond `BODY_FRAME_MAX_DISTANCE_AU`. */
+export function bodyFrameZoom(extentAu: number, viewportW: number, viewportH: number): number {
+  const fit = frameZoom(extentAu, viewportW, viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+  return Math.min(MAX_ZOOM, Math.max(fit, zoomForDistance(BODY_FRAME_MAX_DISTANCE_AU, viewportH)));
+}
 
 /** A framing target: render-origin-local centre (AU) and the radius to fit (AU). */
 export interface Frame {
@@ -106,12 +121,15 @@ export function selectionFrame(sel: Selection, world: EcsWorld, originX: number,
 /**
  * Pan and zoom the camera to the selection's frame and return it (null, and a
  * no-op, when there is none); the caller moves the 3D focus height to `frame.z`.
+ * A body is framed within the system tier (`bodyFrameZoom`) so it stays selected.
  */
 export function frameSelection(sel: Selection, world: EcsWorld, camera: Camera, originX: number, originY: number, originZ = 0): Frame | null {
   const frame = selectionFrame(sel, world, originX, originY, originZ);
   if (!frame)
     return null;
-  camera.zoom = frameZoom(frame.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+  camera.zoom = sel.kind === 'galaxy'
+    ? frameZoom(frame.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM)
+    : bodyFrameZoom(frame.extentAu, camera.viewportW, camera.viewportH);
   camera.x = frame.x;
   camera.y = frame.y;
   return frame;

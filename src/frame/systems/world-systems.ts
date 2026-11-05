@@ -40,16 +40,16 @@ export const hasSystemLayer = (ctx: FrameCtx): boolean => ctx.blend < 1;
  * local offset grows large — tilted pans or a restored save can push the height
  * as far off the origin as x and y. When the origin moves, `camera.x/y` and the
  * controller's `focusZ` shift by the same amount so the absolute focus is
- * unchanged, and streamed systems are dropped to respawn against the new origin.
+ * unchanged; the streaming step then shifts the streamed bodies onto the new
+ * origin, keeping their entity ids (and so the selection and the lock).
  */
 export function makeOriginRebaseSystem(deps: {
   cache: Pick<SectorCache, 'get' | 'system'>;
   camera: Camera;
   controller: Pick<CameraController, 'focusZ' | 'setFocusZ'>;
   state: FrameState;
-  streamer: Pick<SystemStreamer, 'clear'>;
 }): SchedulableSystem<FrameCtx> {
-  const { cache, camera, controller, state, streamer } = deps;
+  const { cache, camera, controller, state } = deps;
   return {
     name: 'origin-rebase',
     runAfter: after('origin-rebase'),
@@ -86,7 +86,6 @@ export function makeOriginRebaseSystem(deps: {
         state.renderOriginX = originX;
         state.renderOriginY = originY;
         state.renderOriginZ = originZ;
-        streamer.clear();
       }
     },
   };

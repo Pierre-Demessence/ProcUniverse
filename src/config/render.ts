@@ -25,6 +25,17 @@ export const ZOOM_STEP = 1.12;
 export const ZOOM_STEP_MAX = 2.5;
 export const ZOOM_STREAK_MAX = 16;
 export const ZOOM_STREAK_WINDOW_MS = 220;
+// A wheel event zooms in proportion to its `deltaY`, counted in mouse-wheel
+// notches: `WHEEL_NOTCH_PX` pixels (one Chromium notch) or `WHEEL_NOTCH_LINES`
+// lines (one Firefox notch) make one, and one event counts for at most
+// `WHEEL_MAX_NOTCHES`. So a trackpad's ~60 small events a second add up to the
+// distance scrolled instead of a full notch each, and the streak grows by the
+// same amount. A trackpad pinch (`ctrlKey`) follows the browsers' own
+// convention, scale = exp(−deltaY / 100), at most `PINCH_MAX_LOG_STEP` per event.
+export const WHEEL_NOTCH_PX = 100;
+export const WHEEL_NOTCH_LINES = 3;
+export const WHEEL_MAX_NOTCHES = 3;
+export const PINCH_MAX_LOG_STEP = 0.5;
 export const SYSTEM_VIEW_AU = 40;
 export const REBASE_LY = 8;
 

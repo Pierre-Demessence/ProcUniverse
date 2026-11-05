@@ -4,8 +4,22 @@ import { makeCamera } from '@pierre/ecs/modules/camera';
 import { projectPointer } from '@pierre/ecs/modules/input';
 import { clamp, wrap } from '@pierre/ecs/modules/math';
 
-import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, TILT_DEFAULT, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
+import { FLAT_TILT, MAX_ZOOM, MIN_ZOOM, ORBIT_SENSITIVITY, PINCH_MAX_LOG_STEP, TILT_DEFAULT, WHEEL_MAX_NOTCHES, WHEEL_NOTCH_LINES, WHEEL_NOTCH_PX, ZOOM_STEP, ZOOM_STEP_MAX, ZOOM_STREAK_MAX, ZOOM_STREAK_WINDOW_MS } from '../config/render';
 import { GALACTIC_NORMAL, planeBasis } from './plane-basis';
+
+// `WheelEvent.deltaMode` values (the constants are not on every test DOM).
+const DELTA_LINE = 1;
+const DELTA_PAGE = 2;
+
+/**
+ * A wheel event's zoom in mouse-notch equivalents, positive zooming in:
+ * proportional to `deltaY` in its `deltaMode` (a page counts as the maximum),
+ * capped at `WHEEL_MAX_NOTCHES` either way. 0 for a horizontal-only scroll.
+ */
+export function wheelNotches(deltaY: number, deltaMode: number): number {
+  const perNotch = deltaMode === DELTA_LINE ? WHEEL_NOTCH_LINES : deltaMode === DELTA_PAGE ? 1 / WHEEL_MAX_NOTCHES : WHEEL_NOTCH_PX;
+  return clamp(-deltaY / perNotch, -WHEEL_MAX_NOTCHES, WHEEL_MAX_NOTCHES);
+}
 
 /** A render-origin-frame point (AU). */
 export interface ZoomTarget {
@@ -166,22 +180,37 @@ export function createCameraController(canvas: HTMLCanvasElement): CameraControl
 
   const onWheel = (e: WheelEvent): void => {
     e.preventDefault();
+    // Zoom in proportion to the scroll, in notch equivalents (see
+    // `wheelNotches`): a mouse notch is one, a trackpad event a small fraction,
+    // and a horizontal-only swipe none.
+    const notches = wheelNotches(e.deltaY, e.deltaMode);
+    if (notches === 0)
+      return;
     const { x: bx, y: by } = projectPointer(e, canvas);
 
-    // Ramp the per-notch factor from ZOOM_STEP up to ZOOM_STEP_MAX as rapid
-    // same-direction notches accumulate, so crossing the ~10¹² zoom range is a
-    // quick flick instead of ~240 notches. A gap over the chaining window or a
-    // direction change resets the streak, restoring the gentle step for fine
-    // control.
     const now = performance.now();
-    const dir = e.deltaY < 0 ? 1 : -1;
-    wheelStreak = now - lastWheelMs > ZOOM_STREAK_WINDOW_MS || dir !== lastWheelDir
-      ? 0
-      : Math.min(wheelStreak + 1, ZOOM_STREAK_MAX);
+    let factor: number;
+    if (e.ctrlKey) {
+      // A trackpad pinch: browsers report deltaY ≈ −100·ln(scale), so follow it
+      // one to one (no streak).
+      factor = Math.exp(clamp((notches * WHEEL_NOTCH_PX) / 100, -PINCH_MAX_LOG_STEP, PINCH_MAX_LOG_STEP));
+      wheelStreak = 0;
+    }
+    else {
+      // Ramp the per-notch factor from ZOOM_STEP up to ZOOM_STEP_MAX as rapid
+      // same-direction scrolling accumulates (by notch equivalents, so a
+      // trackpad ramps by distance scrolled, not by event count), so crossing
+      // the ~10²¹ zoom range is a quick flick. A gap over the chaining window or
+      // a direction change resets the streak, restoring the gentle step.
+      const dir = Math.sign(notches);
+      wheelStreak = now - lastWheelMs > ZOOM_STREAK_WINDOW_MS || dir !== lastWheelDir
+        ? 0
+        : Math.min(wheelStreak + Math.abs(notches), ZOOM_STREAK_MAX);
+      lastWheelDir = dir;
+      const stepMag = ZOOM_STEP * (ZOOM_STEP_MAX / ZOOM_STEP) ** (wheelStreak / ZOOM_STREAK_MAX);
+      factor = stepMag ** notches;
+    }
     lastWheelMs = now;
-    lastWheelDir = dir;
-    const stepMag = ZOOM_STEP * (ZOOM_STEP_MAX / ZOOM_STEP) ** (wheelStreak / ZOOM_STREAK_MAX);
-    const factor = dir > 0 ? stepMag : 1 / stepMag;
 
     // 3D zoom-to-point: dolly the focus toward the target so it stays under the
     // cursor (the camera sits at focus + distance·dir and distance ∝ 1/zoom, so

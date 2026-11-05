@@ -21,6 +21,7 @@ import { OrbitElementsDef } from './sim/orbits';
 
 const PLANET: PlanetPhysical = {
   density: 5.5,
+  diskInclination: 0,
   equilibriumTemp: 280,
   hasRings: false,
   inHabitableZone: true,

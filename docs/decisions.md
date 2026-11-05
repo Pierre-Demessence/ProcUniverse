@@ -82,6 +82,15 @@ re-frame the whole system and duplicate the star's Zoom-to. Lock keeps the
 body centred at the current zoom and never zooms; the two compose. Only planets
 and moons lock, since stars, galaxies and black holes do not move.
 
+A body framing (Zoom-to, bookmark Inspect, a star-tier click) never puts the
+camera beyond `BODY_FRAME_MAX_DISTANCE_AU` (90% of the distance at which the
+view enters the system tier), because body selections and pending bookmarks
+only live at the system tier. A system wider than that view (O / B stars,
+heavy black holes) is framed to its edge rather than whole.
+
+Rejected: keeping body selections alive outside the system tier (the bodies
+despawn once the cross-fade completes, and the system is mostly faded by then).
+
 Rejected: a combined "lock and frame" button (surprising).
 
 ## D8 Planet surface effects are always on and tuned in the planet lab

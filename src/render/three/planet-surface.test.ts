@@ -103,7 +103,7 @@ describe('rockPalette', () => {
 });
 
 describe('rockyRegime', () => {
-  const EARTH = { density: 5.5, equilibriumTemp: 255, hasRings: false, inHabitableZone: true, insolation: 1, mass: 1, moonRichness: 0.5, obliquity: 23, obliquityAzimuth: 0, radius: 1, rotationPeriod: 24, tidallyLocked: false, type: 'rocky', waterState: 'liquid' } as const;
+  const EARTH = { density: 5.5, diskInclination: 0, equilibriumTemp: 255, hasRings: false, inHabitableZone: true, insolation: 1, mass: 1, moonRichness: 0.5, obliquity: 23, obliquityAzimuth: 0, radius: 1, rotationPeriod: 24, tidallyLocked: false, type: 'rocky', waterState: 'liquid' } as const;
 
   it('gives a temperate water world oceans, small caps and softened craters', () => {
     const regime = rockyRegime(EARTH, ROCKY_SURFACE);
@@ -156,7 +156,7 @@ describe('moonSurface', () => {
 });
 
 describe('cloudKind', () => {
-  const EARTH = { density: 5.5, equilibriumTemp: 255, hasRings: false, inHabitableZone: true, insolation: 1, mass: 1, moonRichness: 0.5, obliquity: 23, obliquityAzimuth: 0, radius: 1, rotationPeriod: 24, tidallyLocked: false, type: 'rocky', waterState: 'liquid' } as const;
+  const EARTH = { density: 5.5, diskInclination: 0, equilibriumTemp: 255, hasRings: false, inHabitableZone: true, insolation: 1, mass: 1, moonRichness: 0.5, obliquity: 23, obliquityAzimuth: 0, radius: 1, rotationPeriod: 24, tidallyLocked: false, type: 'rocky', waterState: 'liquid' } as const;
 
   it('clouds rocky worlds that keep an atmosphere, by family', () => {
     expect(cloudKind(EARTH)).toBe('n2-co2');

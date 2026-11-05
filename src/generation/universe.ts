@@ -286,6 +286,9 @@ export function generateSystem(worldSeed: number, record: StarData): SystemData 
     const [onx, ony, onz] = tiltNormal(diskNx, diskNy, diskZ, mutualInc, srng() * TAU);
     const orbitPlane = planeToElements(onx, ony, onz);
     planet.inclination = orbitPlane.inclination;
+    // The tilt from the system's own disk, which is what the inspector shows (the
+    // element above is against world +z, and each disk points its own way).
+    planet.physical.diskInclination = mutualInc;
     planet.longitudeAscendingNode = orbitPlane.longitudeAscendingNode;
     // Equatorial (moon) plane: the orbit normal tilted by the axial obliquity
     // around a random azimuth, which is also stored so the sphere can spin on it.

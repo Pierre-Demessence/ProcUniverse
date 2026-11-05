@@ -6,7 +6,7 @@ Shipped features. Planned work is in [backlog.md](backlog.md).
 
 | Feature | Description |
 | ------- | ----------- |
-| Pan and zoom camera | Left-drag pans; scroll zooms toward the cursor, with rapid scrolls accelerating so the full zoom range is a quick flick. Zoom reaches ~150 m per pixel, so even the smallest moon can fill the screen. |
+| Pan and zoom camera | Left-drag pans; scroll zooms toward the cursor, with rapid scrolls accelerating so the full zoom range is a quick flick. Trackpad scrolling zooms in proportion to the distance scrolled, and a trackpad pinch follows the fingers. Zoom reaches ~150 m per pixel, so even the smallest moon can fill the screen. |
 | 3D system view | Three.js (WebGPU with WebGL2 fallback) draws each planetary system in 3D — lit rotating spheres and inclined orbits; right-drag orbits and tilts the view freely (trackball style — over the poles and under the disk, no stops). The "Flatten" button snaps straight top-down and back to the prior angle. |
 | Renderer | Three.js renders every tier; labels, the selection reticle and the HUD draw on a transparent 2D overlay. If neither WebGPU nor WebGL is available, a notice says so. |
 | LOD streaming | Tiers chosen by the camera's distance from its focus (systems → star field → galaxy glow → galaxy field → cosmic web) with sector streaming and a floating render origin that rebases in all three axes. |
@@ -17,7 +17,7 @@ Shipped features. Planned work is in [backlog.md](backlog.md).
 | Scale bar | A map-style bar one grid-cell wide labels the current view scale, auto-selecting km / AU / ly. |
 | Coordinate readout | Bottom-left readout of the view-centre world position in x, y, z (auto-scaled AU / ly / kly / Mly) plus the current galaxy and the offset from its centre. |
 | Location tree | A top-left panel shows where the camera is as a hierarchy (Universe → Galaxy → System → Planet → Moon), growing as you zoom in. Clicking a node pins it in the inspector; the current selection is highlighted. |
-| Camera focus and lock | "Zoom to" in the inspector frames the selected body and its satellites; "Lock" (planets and moons) keeps the body centred while you zoom, releasing on pan, re-select, or zooming out past it. |
+| Camera focus and lock | "Zoom to" in the inspector frames the selected body and its satellites (a system wider than the system view is framed to its edge, so the body stays selected); "Lock" (planets and moons) keeps the body centred while you zoom, releasing on pan, re-select, or zooming out past it. |
 | Bookmarks | ☆ in the inspector bookmarks any body, galaxy, or the universe. A bookmark panel offers Zoom-to and Inspect; bookmarks persist with the universe save. |
 | Return to origin | A bottom-centre button reframes the home galaxy. |
 | FPS HUD | Frame-time / FPS overlay via the engine `stats` module. |
