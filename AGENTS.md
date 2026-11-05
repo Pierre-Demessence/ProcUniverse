@@ -109,7 +109,12 @@ Before handing off: `npm run build`, `npm test`, and `npm run lint` must pass.
 - While the system layer shows, the render origin is the focused star
   (x, y **and** z: `renderOriginZ`), so bodies sit tens of AU out while zoom
   reaches ~150 m/px. `controller.focusZ` is local to `renderOriginZ` (rebased
-  with it); the save and bookmarks store absolute z. The Three renderer runs
+  with it); the save and bookmarks store absolute z. When the origin moves,
+  `SystemStreamer.update` shifts the live bodies (positions and orbit centres)
+  onto it instead of respawning them, so entity ids — the selection, the lock
+  and the body meshes — survive (pinned by `bookmark-inspect.test.ts`). The
+  streamer remembers its own origin, so code that sets the render origin
+  directly (`frameOrigin`) stays consistent. The Three renderer runs
   with `highPrecision` (float64 CPU model-view) and a reversed float depth
   buffer. Never feed float32 world positions (`positionWorld`,
   `cameraPosition`, raw vertex buffers) into close-up maths: use object-local

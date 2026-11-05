@@ -230,9 +230,13 @@ Needs you: the merge-to-`main` timing (F1).
 
 ### B44.2 Keep streamed bodies across origin moves (F3, F23; delivers B8)
 
-- [ ] `SystemStreamer` shifts live entities (positions and orbit centres) by
-      the origin delta instead of the origin rebase clearing and respawning.
-- [ ] Tests: ids survive a rebase, positions shift exactly.
+- [x] `SystemStreamer` shifts live entities (positions and orbit centres) by
+      the origin delta instead of the origin rebase clearing and respawning;
+      it tracks its own origin, so `frameOrigin` (Return to origin) stays
+      consistent. B8 removed from the backlog.
+- [x] Tests: ids survive a rebase and positions shift (`streaming.test.ts`);
+      Inspect on a streamed planet of another system keeps its selection and
+      lock (`bookmark-inspect.test.ts`, fails on the old code).
 
 Visible after: Inspect / star clicks keep their selection; no respawn hitch
 when the focus moves to another star.

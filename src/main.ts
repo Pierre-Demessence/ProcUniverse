@@ -382,7 +382,7 @@ export function start(container: HTMLElement, save: Save): () => void {
     makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
     makeTierSelectSystem(camera, state),
     makeBackendSelectSystem({ flattenButton, state, threeBackend }),
-    makeOriginRebaseSystem({ cache, camera, controller, state, streamer }),
+    makeOriginRebaseSystem({ cache, camera, controller, state }),
     makeStreamingSystem({ state, streamer, world }),
     makeOrbitsSystem(state, world),
     makePendingBookmarkSystem({ camera, controller, selectionState, world }),

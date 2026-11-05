@@ -28,9 +28,6 @@ Next ID: B45
   more than ~50,000 AU (~70 ms galaxy sampling, ~30 ms sky-structure bake);
   spread it over frames or move it to a worker (engine `modules/worker-pool`) —
   `ThreeRenderer.updateStarfield`.
-- B8 Focusing a different star at the system tier moves the render origin,
-  which despawns and respawns every streamed sector (unmeasured hitch; new
-  entity ids may also release the camera lock) — origin rebase system.
 - B9 Each rocky planet bakes a 1024 × 512 surface map on first draw; measure the
   hitch on system entry and stagger bakes if needed — `surface-bake.ts`,
   `PLANET_SURFACE_MAP_WIDTH`.

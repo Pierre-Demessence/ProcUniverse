@@ -26,16 +26,14 @@ describe('origin-rebase system', () => {
     const cam = camera(1, 2, 1e12);
     const star = { x: 5000, y: 6000, z: 700 };
     const cache = { get: () => ({ stars: [star] }), system: (s: unknown) => s } as never;
-    const clear = vi.fn();
     const controller = focusController(3);
     const ctx = createFrameCtx(16, 'system');
-    makeOriginRebaseSystem({ cache, camera: cam, controller, state, streamer: { clear } }).run(ctx);
+    makeOriginRebaseSystem({ cache, camera: cam, controller, state }).run(ctx);
     expect([state.renderOriginX, state.renderOriginY, state.renderOriginZ]).toEqual([5000, 6000, 700]);
     expect(cameraAbsolute(state.renderOriginX, cam.x)).toBeCloseTo(1);
     expect(cameraAbsolute(state.renderOriginY, cam.y)).toBeCloseTo(2);
     expect(cameraAbsolute(state.renderOriginZ, controller.focusZ)).toBeCloseTo(3);
     expect(ctx.focusedSystem).toBe(star);
-    expect(clear).toHaveBeenCalledOnce();
   });
 
   it('keeps the star anchor through the star-tier end of the cross-fade band', () => {
@@ -44,57 +42,51 @@ describe('origin-rebase system', () => {
     const cache = { get: () => ({ stars: [star] }), system: (s: unknown) => s } as never;
     const ctx = createFrameCtx(16, 'star');
     ctx.blend = 0.5;
-    makeOriginRebaseSystem({ cache, camera: camera(1, 2, 1), controller: focusController(), state, streamer: { clear: vi.fn() } }).run(ctx);
+    makeOriginRebaseSystem({ cache, camera: camera(1, 2, 1), controller: focusController(), state }).run(ctx);
     expect(ctx.focusedSystem).toBe(star);
     expect([state.renderOriginX, state.renderOriginY]).toEqual([5000, 6000]);
   });
 
   it('rebases zoomed out only once the local offset grows past the threshold', () => {
     const state = new FrameState({ simSeconds: 0, tier: 'universe' });
-    const clear = vi.fn();
     const near = camera(SECTOR_SIZE, 0, 1e-30);
     const ctxNear = createFrameCtx(16, 'universe');
-    makeOriginRebaseSystem({ cache: emptyCache, camera: near, controller: focusController(), state, streamer: { clear } }).run(ctxNear);
+    makeOriginRebaseSystem({ cache: emptyCache, camera: near, controller: focusController(), state }).run(ctxNear);
     expect(state.renderOriginX).toBe(0);
-    expect(clear).not.toHaveBeenCalled();
 
     // The first sector multiple past the rebase threshold.
     const beyond = SECTOR_SIZE * (Math.ceil((REBASE_LY * AU_PER_LY) / SECTOR_SIZE) + 1);
     const far = camera(beyond, 0, 1e-30);
     const ctxFar = createFrameCtx(16, 'universe');
-    makeOriginRebaseSystem({ cache: emptyCache, camera: far, controller: focusController(), state, streamer: { clear } }).run(ctxFar);
+    makeOriginRebaseSystem({ cache: emptyCache, camera: far, controller: focusController(), state }).run(ctxFar);
     expect(state.renderOriginX).toBe(beyond);
     expect(far.x).toBeCloseTo(0);
-    expect(clear).toHaveBeenCalledOnce();
   });
 
   it('rebases the height zoomed out once the focus has drifted far off the origin', () => {
     const state = new FrameState({ simSeconds: 0, tier: 'universe' });
-    const clear = vi.fn();
     const beyond = SECTOR_SIZE * (Math.ceil((REBASE_LY * AU_PER_LY) / SECTOR_SIZE) + 1);
     // x / y stay near the origin: only the height (e.g. after tilted pans) is far.
     const controller = focusController(beyond + SECTOR_SIZE / 4);
     const cam = camera(1, 2, 1e-30);
     const ctx = createFrameCtx(16, 'universe');
-    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller, state, streamer: { clear } }).run(ctx);
+    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller, state }).run(ctx);
     expect(state.renderOriginZ).toBe(beyond);
     expect(controller.focusZ).toBeCloseTo(SECTOR_SIZE / 4);
     expect(cameraAbsolute(state.renderOriginZ, controller.focusZ)).toBeCloseTo(beyond + SECTOR_SIZE / 4);
     expect(cameraAbsolute(state.renderOriginX, cam.x)).toBeCloseTo(1);
-    expect(clear).toHaveBeenCalledOnce();
   });
 
   it('rebases on the 3D local offset, so a diagonal drift too small on each axis still counts', () => {
     const state = new FrameState({ simSeconds: 0, tier: 'universe' });
-    const clear = vi.fn();
     const rebaseDist = REBASE_LY * AU_PER_LY;
     // Each axis is under the threshold; their combined length is over it.
     const axis = rebaseDist * 0.7;
     const cam = camera(axis, axis, 1e-30);
     const ctx = createFrameCtx(16, 'universe');
-    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller: focusController(axis), state, streamer: { clear } }).run(ctx);
-    expect(clear).toHaveBeenCalledOnce();
+    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller: focusController(axis), state }).run(ctx);
     expect([state.renderOriginX, state.renderOriginY, state.renderOriginZ].every(o => o % SECTOR_SIZE === 0)).toBe(true);
+    expect(state.renderOriginX).not.toBe(0);
     expect(state.renderOriginZ).not.toBe(0);
   });
 
@@ -104,7 +96,7 @@ describe('origin-rebase system', () => {
     ctx.blend = 0.5;
     const controller = focusController(2.4 * SECTOR_SIZE);
     const cam = camera(1.6 * SECTOR_SIZE, -3.4 * SECTOR_SIZE, 1);
-    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller, state, streamer: { clear: vi.fn() } }).run(ctx);
+    makeOriginRebaseSystem({ cache: emptyCache, camera: cam, controller, state }).run(ctx);
     expect(ctx.focusedSystem).toBeNull();
     expect([state.renderOriginX, state.renderOriginY, state.renderOriginZ]).toEqual([2 * SECTOR_SIZE, -3 * SECTOR_SIZE, 2 * SECTOR_SIZE]);
     expect(cameraAbsolute(state.renderOriginZ, controller.focusZ)).toBeCloseTo(2.4 * SECTOR_SIZE);

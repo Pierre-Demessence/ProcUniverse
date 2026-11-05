@@ -23,42 +23,76 @@ import { makeOrbitsSystem, makeOriginRebaseSystem, makePendingBookmarkSystem, ma
 // The reticle draws with a handful of 2D calls; none matter to this test.
 const noopCtx2d = new Proxy({}, { get: () => () => {}, set: () => true }) as unknown as CanvasRenderingContext2D;
 
+/** The real frame pipeline minus rendering (the reticle is real: it can clear the selection). */
+function harness(seed: number) {
+  const world = new EcsWorld().use(universePlugin);
+  const cache = new SectorCache(seed);
+  const streamer = new SystemStreamer(world, cache);
+  const camera = makeCamera({ viewportH: 1000, viewportW: 1000, x: 0, y: 0, zoom: 1000 / SYSTEM_VIEW_AU });
+  const state = new FrameState({ simSeconds: 0, tier: 'system' });
+  const selectionState = new SelectionState();
+  const controller = { focusZ: 0, setFocusZ(z: number) {
+    controller.focusZ = z;
+  } };
+  const scheduler = buildFramePipeline([
+    makeSimClockSystem(state, { timeScale: 1 }, { sample() {} }),
+    makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
+    makeTierSelectSystem(camera, state),
+    makeBackendSelectSystem({ flattenButton: { setVisible() {} }, state, threeBackend: { update: () => false } }),
+    makeOriginRebaseSystem({ cache, camera, controller, state }),
+    makeStreamingSystem({ state, streamer, world }),
+    makeOrbitsSystem(state, world),
+    makePendingBookmarkSystem({ camera, controller, selectionState, world }),
+    { name: 'overlay-clear', runAfter: after('overlay-clear'), run() {} },
+    { name: 'render-three', runAfter: after('render-three'), run() {} },
+    makeReticleSystem({ camera, ctx2d: noopCtx2d, selectionState, state, threeBackend: { renderer: null }, world }),
+  ]);
+  const tick = (n = 1): void => {
+    for (let i = 0; i < n; i++)
+      scheduler.run(createFrameCtx(16, state.currentTier));
+  };
+  const goTo = (x: number, y: number, z: number): void => {
+    camera.x = x - state.renderOriginX;
+    camera.y = y - state.renderOriginY;
+    controller.setFocusZ(z - state.renderOriginZ);
+  };
+  /** Same logic as `main.ts` `onBookmarkInspect`. Returns the zoom it set. */
+  const inspect = (bm: NonNullable<ReturnType<typeof bookmarkFromSelection>>): number => {
+    camera.x = bm.x - state.renderOriginX;
+    camera.y = bm.y - state.renderOriginY;
+    controller.setFocusZ(bookmarkZ(bm, cache) - state.renderOriginZ);
+    camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
+    const id = selectionState.openBookmark(bm, world, seed);
+    const pos = id === null ? undefined : world.getStore(Position3DDef).get(id);
+    if (pos) {
+      camera.x = pos.x;
+      camera.y = pos.y;
+      controller.setFocusZ(pos.z);
+    }
+    return camera.zoom;
+  };
+  /** Ticks `frames` times, checking each frame that the bookmarked planet stays selected, locked and centred. */
+  const expectHeld = (bm: { name: string }, zoomSet: number, frames = 4): void => {
+    for (let i = 0; i < frames; i++) {
+      tick();
+      const sel = selectionState.selection;
+      const pos = sel && 'id' in sel ? world.getStore(Position3DDef).get(sel.id) : undefined;
+      expect(sel?.kind).toBe('planet');
+      expect(sel && 'id' in sel ? world.getStore(NameDef).get(sel.id)?.scientific : null).toBe(bm.name);
+      expect(selectionState.lockedId).not.toBeNull();
+      expect(camera.zoom).toBeCloseTo(zoomSet);
+      // Within a millionth of an AU: the view spans ~1e-3 AU at this zoom.
+      expect(camera.x).toBeCloseTo(pos?.x ?? Number.NaN, 6);
+      expect(camera.y).toBeCloseTo(pos?.y ?? Number.NaN, 6);
+    }
+  };
+  return { cache, camera, expectHeld, goTo, inspect, selectionState, state, tick, world };
+}
+
 describe('bookmark inspect across systems', () => {
   it.each([['from the system tier', 1000 / SYSTEM_VIEW_AU], ['from the star tier', 2e-3]])('keeps the framing zoom and centres on the live planet %s', (_label, startZoom) => {
     const seed = 12345;
-    const world = new EcsWorld().use(universePlugin);
-    const cache = new SectorCache(seed);
-    const streamer = new SystemStreamer(world, cache);
-    const camera = makeCamera({ viewportH: 1000, viewportW: 1000, x: 0, y: 0, zoom: 1000 / SYSTEM_VIEW_AU });
-    const state = new FrameState({ simSeconds: 0, tier: 'system' });
-    const selectionState = new SelectionState();
-    const controller = { focusZ: 0, setFocusZ(z: number) {
-      controller.focusZ = z;
-    } };
-    const scheduler = buildFramePipeline([
-      makeSimClockSystem(state, { timeScale: 1 }, { sample() {} }),
-      makeLockRecentreSystem({ camera, controller, selectionState, state, world }),
-      makeTierSelectSystem(camera, state),
-      makeBackendSelectSystem({ flattenButton: { setVisible() {} }, state, threeBackend: { update: () => false } }),
-      makeOriginRebaseSystem({ cache, camera, controller, state, streamer }),
-      makeStreamingSystem({ state, streamer, world }),
-      makeOrbitsSystem(state, world),
-      makePendingBookmarkSystem({ camera, controller, selectionState, world }),
-      // Render steps are stubs; the reticle is the real system because it can clear the selection.
-      { name: 'overlay-clear', runAfter: after('overlay-clear'), run() {} },
-      { name: 'render-three', runAfter: after('render-three'), run() {} },
-      makeReticleSystem({ camera, ctx2d: noopCtx2d, selectionState, state, threeBackend: { renderer: null }, world }),
-    ]);
-    const tick = (n = 1): void => {
-      for (let i = 0; i < n; i++)
-        scheduler.run(createFrameCtx(16, state.currentTier));
-    };
-
-    const goTo = (x: number, y: number, z: number): void => {
-      camera.x = x - state.renderOriginX;
-      camera.y = y - state.renderOriginY;
-      controller.setFocusZ(z - state.renderOriginZ);
-    };
+    const { cache, camera, expectHeld, goTo, inspect, selectionState, state, tick, world } = harness(seed);
     // Find two systems with planets in different sectors.
     const found: { x: number; y: number; z: number }[] = [];
     for (let sx = 0; sx < 60 && found.length < 2; sx++) {
@@ -90,28 +124,49 @@ describe('bookmark inspect across systems', () => {
     if (current !== undefined)
       selectionState.select({ id: current, kind: 'planet' });
 
-    // ---- inspect (same logic as main.ts onBookmarkInspect)
-    camera.x = bm.x - state.renderOriginX;
-    camera.y = bm.y - state.renderOriginY;
-    controller.setFocusZ(bookmarkZ(bm, cache) - state.renderOriginZ);
-    camera.zoom = frameZoom(bm.extentAu, camera.viewportW, camera.viewportH, FRAME_MARGIN, MIN_ZOOM, MAX_ZOOM);
-    const zoomSet = camera.zoom;
-    const opened = selectionState.openBookmark(bm, world, seed);
-    expect(opened).toBeNull();
-
-    for (let i = 0; i < 4; i++) {
-      tick();
-      const sel = selectionState.selection;
-      const pos = sel && 'id' in sel ? world.getStore(Position3DDef).get(sel.id) : undefined;
-      expect(sel?.kind).toBe('planet');
-      expect(sel && 'id' in sel ? world.getStore(NameDef).get(sel.id)?.scientific : null).toBe(bm.name);
-      expect(selectionState.lockedId).not.toBeNull();
-      expect(camera.zoom).toBeCloseTo(zoomSet);
-      // Within a millionth of an AU: the view spans ~1e-3 AU at this zoom.
-      expect(camera.x).toBeCloseTo(pos?.x ?? Number.NaN, 6);
-      expect(camera.y).toBeCloseTo(pos?.y ?? Number.NaN, 6);
-    }
-    expect(camera.zoom).toBeCloseTo(zoomSet);
+    const zoomSet = inspect(bm);
+    // The bookmarked planet's sector is not streamed: it resolves once it is.
+    expect(selectionState.selection === null || !('id' in selectionState.selection) || selectionState.selection.id !== id).toBe(true);
+    expectHeld(bm, zoomSet);
     expect(selectionState.selection?.kind).toBe('planet');
+  });
+
+  it('keeps the selection when the bookmarked planet is already streamed in another system of the same sector', () => {
+    // Inspect selects the streamed planet at once; the next frame moves the
+    // origin to its star. That used to respawn every body with new ids and drop
+    // the selection and the lock.
+    const seed = 12345;
+    const { cache, expectHeld, goTo, inspect, state, tick, world } = harness(seed);
+    let pair: { x: number; y: number; z: number }[] = [];
+    for (let sx = 0; sx < 60 && pair.length < 2; sx++) {
+      pair = [];
+      for (const sys of cache.get(sx, 0, 0).stars.map(star => cache.system(star))) {
+        if (sys.planets.length > 0)
+          pair.push({ x: sys.x, y: sys.y, z: sys.z });
+        if (pair.length === 2)
+          break;
+      }
+    }
+    expect(pair.length).toBe(2);
+
+    goTo(pair[0].x, pair[0].y, pair[0].z);
+    tick(3);
+    // A planet of the first system (the origin is its star).
+    const positions = world.getStore(Position3DDef);
+    const ownPlanet = [...world.query(PlanetPhysicalDef)].find(([id]) => {
+      const p = positions.get(id)!;
+      return Math.hypot(p.x, p.y, p.z) < 1000;
+    });
+    expect(ownPlanet).toBeDefined();
+    const bm = bookmarkFromSelection({ id: ownPlanet![0], kind: 'planet' }, world, state.renderOriginX, state.renderOriginY, state.renderOriginZ)!;
+
+    goTo(pair[1].x, pair[1].y, pair[1].z);
+    tick(3);
+    expect([state.renderOriginX, state.renderOriginY]).toEqual([pair[1].x, pair[1].y]);
+
+    const zoomSet = inspect(bm);
+    expectHeld(bm, zoomSet);
+    // The origin followed the planet back to its own star.
+    expect([state.renderOriginX, state.renderOriginY]).toEqual([pair[0].x, pair[0].y]);
   });
 });
